@@ -1,8 +1,45 @@
 @import "tailwindcss";
 
+/* ============================================================
+   OPTIHUB B2B — SISTEMA DE DISEÑO CORPORATIVO
+   Paleta: Slate oscuro + Emerald accent + Amber warnings
+   ============================================================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #020617;   /* slate-950 fijo en toda la app */
+  --foreground: #f1f5f9;   /* slate-100 */
+
+  /* Tokens de la paleta OptiHub */
+  --oh-bg-base:    #020617;   /* slate-950 */
+  --oh-bg-card:    #0f172a;   /* slate-900 */
+  --oh-bg-input:   #020617;   /* slate-950 */
+  --oh-bg-raised:  #1e293b;   /* slate-800 */
+  --oh-border:     rgba(51, 65, 85, 0.8);   /* slate-700/80 */
+  --oh-border-soft:rgba(30, 41, 59, 0.9);   /* slate-800/90 */
+
+  /* Acentos */
+  --oh-emerald:    #10b981;   /* emerald-500 */
+  --oh-emerald-lt: #34d399;   /* emerald-400 */
+  --oh-emerald-dk: #059669;   /* emerald-600 */
+  --oh-amber:      #f59e0b;   /* amber-500 */
+  --oh-amber-lt:   #fbbf24;   /* amber-400 */
+  --oh-rose:       #f43f5e;   /* rose-500 */
+
+  /* Tipografía */
+  --oh-text-primary:   #ffffff;
+  --oh-text-secondary: #94a3b8;  /* slate-400 */
+  --oh-text-muted:     #64748b;  /* slate-500 */
+
+  /* Radios */
+  --oh-radius-sm:   0.75rem;   /* rounded-xl  — inputs, badges */
+  --oh-radius-md:   1rem;      /* rounded-2xl — botones, controles */
+  --oh-radius-lg:   1.25rem;   /* rounded-3xl — cards */
+  --oh-radius-xl:   1.5rem;    /* rounded-3xl — modales */
+
+  /* Sombras */
+  --oh-shadow-card:    0 4px 24px 0 rgba(0,0,0,0.4);
+  --oh-shadow-emerald: 0 4px 20px 0 rgba(16,185,129,0.25);
+  --oh-shadow-amber:   0 4px 20px 0 rgba(245,158,11,0.20);
 }
 
 @theme inline {
@@ -12,15 +49,406 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ============================================================
+   BASE
+   ============================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--oh-bg-base);
+  color: var(--oh-text-primary);
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  line-height: 1.6;
+  letter-spacing: -0.01em;
 }
+
+/* ============================================================
+   SCROLLBAR PERSONALIZADO
+   ============================================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--oh-bg-base);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--oh-bg-raised);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155; /* slate-700 */
+}
+
+/* Clase helper para scrollbar delgado en contenedores */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--oh-bg-raised) transparent;
+}
+
+/* ============================================================
+   ANIMACIONES REUTILIZABLES
+   ============================================================ */
+
+@keyframes oh-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes oh-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes oh-slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes oh-scale-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes oh-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.animate-fade-in   { animation: oh-fade-in   0.25s ease forwards; }
+.animate-slide-up  { animation: oh-slide-up  0.3s ease forwards; }
+.animate-slide-down{ animation: oh-slide-down 0.25s ease forwards; }
+.animate-scale-in  { animation: oh-scale-in  0.25s ease forwards; }
+
+/* Skeleton shimmer para carga */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--oh-bg-card) 25%,
+    var(--oh-bg-raised) 50%,
+    var(--oh-bg-card) 75%
+  );
+  background-size: 800px 100%;
+  animation: oh-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--oh-radius-sm);
+}
+
+/* ============================================================
+   CLASES UTILITARIAS — BOTONES
+   ============================================================ */
+
+/* Botón principal esmeralda */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: var(--oh-emerald);
+  color: #020617;
+  font-weight: 900;
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.875rem 1.5rem;
+  border-radius: var(--oh-radius-md);
+  box-shadow: var(--oh-shadow-emerald);
+  transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+  border: none;
+  white-space: nowrap;
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--oh-emerald-lt);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(16,185,129,0.35);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+.btn-primary:disabled {
+  background-color: #1e293b;
+  color: #475569;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Botón secundario oscuro */
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: var(--oh-bg-raised);
+  color: #e2e8f0;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.875rem 1.5rem;
+  border-radius: var(--oh-radius-md);
+  border: 1px solid rgba(51, 65, 85, 0.8);
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-secondary:hover:not(:disabled) {
+  background-color: #334155;
+  border-color: #475569;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+.btn-secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Botón ghost peligro */
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.625rem;
+  border: 1px solid var(--oh-border-soft);
+  background: var(--oh-bg-card);
+  transition: color 0.15s ease, background-color 0.15s ease;
+  cursor: pointer;
+}
+.btn-danger:hover {
+  color: #fb7185;
+  background-color: rgba(244, 63, 94, 0.08);
+  border-color: rgba(244, 63, 94, 0.25);
+}
+
+/* ============================================================
+   CLASES UTILITARIAS — INPUTS
+   ============================================================ */
+
+.input-field {
+  width: 100%;
+  background-color: var(--oh-bg-input);
+  border: 1px solid var(--oh-border-soft);
+  border-radius: var(--oh-radius-sm);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  color: var(--oh-text-primary);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  outline: none;
+}
+.input-field::placeholder {
+  color: var(--oh-text-muted);
+}
+.input-field:focus {
+  border-color: var(--oh-emerald);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+}
+
+.input-field-icon {
+  padding-left: 2.5rem;
+}
+
+/* ============================================================
+   CLASES UTILITARIAS — TARJETAS
+   ============================================================ */
+
+/* Card base de producto */
+.card-product {
+  background: var(--oh-bg-card);
+  border: 1px solid var(--oh-border-soft);
+  border-radius: var(--oh-radius-lg);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  box-shadow: var(--oh-shadow-card);
+  display: flex;
+  flex-direction: column;
+}
+.card-product:hover {
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(16,185,129,0.15);
+  transform: translateY(-3px);
+}
+
+/* Card de contenedor genérico */
+.card-section {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--oh-border-soft);
+  border-radius: var(--oh-radius-xl);
+  padding: 1.5rem 2rem;
+  box-shadow: var(--oh-shadow-card);
+}
+
+/* ============================================================
+   CLASES UTILITARIAS — BADGES / PILLS
+   ============================================================ */
+
+.badge-brand {
+  display: inline-block;
+  background: var(--oh-bg-raised);
+  border: 1px solid rgba(51, 65, 85, 0.6);
+  color: var(--oh-emerald-lt);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.375rem;
+}
+
+.badge-stock {
+  display: inline-block;
+  background: var(--oh-bg-raised);
+  border: 1px solid var(--oh-border-soft);
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.5rem;
+}
+
+.badge-b2b-locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  color: var(--oh-amber-lt);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.5rem;
+}
+
+/* ============================================================
+   CLASES UTILITARIAS — TIPOGRAFÍA
+   ============================================================ */
+
+.section-heading {
+  font-size: 1.875rem;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  line-height: 1.15;
+}
+
+.section-subheading {
+  font-size: 0.9375rem;
+  color: var(--oh-text-secondary);
+  line-height: 1.6;
+  max-width: 48rem;
+}
+
+.label-field {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5rem;
+}
+
+/* ============================================================
+   CLASES UTILITARIAS — ESTADOS / ALERTAS
+   ============================================================ */
+
+.alert-error {
+  background: rgba(244, 63, 94, 0.08);
+  border: 1px solid rgba(244, 63, 94, 0.25);
+  color: #fda4af;
+  border-radius: var(--oh-radius-sm);
+  padding: 1rem;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.alert-success {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #6ee7b7;
+  border-radius: var(--oh-radius-sm);
+  padding: 1rem;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.alert-warning {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #fcd34d;
+  border-radius: var(--oh-radius-sm);
+  padding: 1rem;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+/* ============================================================
+   UTILIDADES DE LAYOUT
+   ============================================================ */
+
+.page-container {
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .page-container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-container {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+/* Divisor con gradiente sutil */
+.divider-glow {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(16,185,129,0.2), transparent);
+  margin: 2rem 0;
+}
+
+/* Focus ring accesible */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--oh-emerald);
+  outline-offset: 2px;
+}
+
+/* Efecto glow en hover para elementos interactivos */
+.hover-glow {
+  transition: box-shadow 0.2s ease;
+}
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(16,185,129,0.15);
+}
+
