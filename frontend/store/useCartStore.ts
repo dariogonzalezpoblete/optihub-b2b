@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Producto, CartItem } from '@/types/product';
 
@@ -12,13 +12,13 @@ interface CartState {
   getMontoNeto: () => number;
   getMontoIva: () => number;
   getMontoTotal: () => number;
-  isValidMOQ: () => boolean; // Valida el mínimo de 10 unidades surtidas B2B
+  isValidMOQ: () => boolean; isCartDrawerOpen: boolean; openCartDrawer: () => void; closeCartDrawer: () => void;
 }
 
 export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
-      cart: [],
+      cart: [], isCartDrawerOpen: false, openCartDrawer: () => set({ isCartDrawerOpen: true }), closeCartDrawer: () => set({ isCartDrawerOpen: false }),
 
       addToCart: (producto, cantidad = 1) => {
         const currentCart = get().cart;
