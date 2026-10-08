@@ -22,6 +22,7 @@ import ActiveFilterChips from "@/components/catalog/ActiveFilterChips";
 import PredictiveSearch from "@/components/catalog/PredictiveSearch";
 import SortSelect from "@/components/catalog/SortSelect";
 import ProductCard from "@/components/catalog/ProductCard";
+import QuickViewModal from "@/components/catalog/QuickViewModal";
 
 function CatalogoContent() {
   const [marcos, setMarcos] = useState<Marco[]>([]);
@@ -296,144 +297,12 @@ function CatalogoContent() {
           </div>
         </div>
 
-        {/* Modal de Detalle de Producto */}
-        {selectedProduct && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-y-auto">
-            <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row max-h-[90vh] animate-scale-in">
-              <button 
-                onClick={() => setSelectedProduct(null)}
-                className="absolute top-4 right-4 z-10 bg-slate-800 hover:bg-slate-700 text-slate-300 w-9 h-9 rounded-full flex items-center justify-center transition border border-slate-700"
-              >
-                ✕
-              </button>
-
-              <div className="w-full md:w-1/2 bg-slate-950 p-6 flex flex-col gap-4 justify-between border-b md:border-b-0 md:border-r border-slate-800">
-                <div className="relative bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center p-4 h-[300px] md:h-[360px] shadow-inner group">
-                  <img 
-                    src={activeImage || selectedProduct.imagen_principal} 
-                    alt={selectedProduct.modelo} 
-                    className="max-h-full max-w-full object-contain rounded-lg"
-                  />
-                </div>
-
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  <div 
-                    onClick={() => setActiveImage(selectedProduct.imagen_principal)}
-                    className={`cursor-pointer border-2 rounded-xl overflow-hidden w-16 h-16 flex-shrink-0 bg-slate-900 transition ${
-                      activeImage === selectedProduct.imagen_principal ? 'border-emerald-500 scale-105' : 'border-slate-800 opacity-60 hover:opacity-100'
-                    }`}
-                  >
-                    <img src={selectedProduct.imagen_principal} alt="Principal" className="w-full h-full object-cover" />
-                  </div>
-                  {selectedProduct.imagenes_secundarias && (
-                    <div 
-                      onClick={() => setActiveImage(selectedProduct.imagenes_secundarias)}
-                      className={`cursor-pointer border-2 rounded-xl overflow-hidden w-16 h-16 flex-shrink-0 bg-slate-900 transition ${
-                        activeImage === selectedProduct.imagenes_secundarias ? 'border-emerald-500 scale-105' : 'border-slate-800 opacity-60 hover:opacity-100'
-                      }`}
-                    >
-                      <img src={selectedProduct.imagenes_secundarias} alt="Secundaria" className="w-full h-full object-cover" />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="w-full md:w-1/2 p-6 md:p-8 overflow-y-auto space-y-6">
-                <div>
-                  <span className="text-xs font-bold text-emerald-400 tracking-wider uppercase">{selectedProduct.marca}</span>
-                  <h2 className="text-3xl font-extrabold text-white mt-1">{selectedProduct.modelo}</h2>
-                  <p className="text-xs text-slate-400 font-mono mt-1">SKU: {selectedProduct.id_ext}</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-xs bg-slate-950 p-4 rounded-2xl border border-slate-800/80">
-                  <div>
-                    <span className="text-slate-500 block">Color</span>
-                    <span className="font-semibold text-slate-200">{selectedProduct.color || selectedProduct.codigo_color}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Material</span>
-                    <span className="font-semibold text-slate-200">{selectedProduct.material || 'Estándar'}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Medidas</span>
-                    <span className="font-semibold text-slate-200">{selectedProduct.tamano || 'N/A'}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Forma</span>
-                    <span className="font-semibold text-slate-200">{selectedProduct.forma || 'N/A'}</span>
-                  </div>
-                </div>
-
-                {/* BLOQUE DE PRECIO / GATEKEEPING */}
-                {isLoggedIn ? (
-                  <>
-                    <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                      <span className="text-xs text-slate-400 block font-medium uppercase">Precio Neto B2B (más IVA)</span>
-                      <div className="text-3xl font-black text-emerald-400 mt-0.5">
-                        ${selectedProduct.precio_neto_clp?.toLocaleString('es-CL')} <span className="text-xs font-normal text-slate-400">CLP</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-800 space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-slate-400">Stock Mayorista Disponible</span>
-                        <span className="text-sm font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-900/50 px-3 py-1 rounded-xl">
-                          {selectedProduct.stock} Unidades
-                        </span>
-                      </div>
-
-                      <div className="flex gap-3 pt-2">
-                        <input 
-                          type="number" 
-                          min="1" 
-                          max={selectedProduct.stock} 
-                          defaultValue="1" 
-                          id="cantidad-input"
-                          className="bg-slate-950 border border-slate-800 text-center w-20 rounded-xl text-white font-bold focus:outline-none focus:border-emerald-500"
-                        />
-                        <button 
-                          onClick={() => {
-                            const inputEl = document.getElementById('cantidad-input') as HTMLInputElement;
-                            const cant = inputEl ? parseInt(inputEl.value) || 1 : 1;
-                            agregarAlCarrito(selectedProduct, cant);
-                          }}
-                          className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 px-4 rounded-xl transition shadow-lg shadow-emerald-500/20 text-sm flex items-center justify-center gap-2"
-                        >
-                          <ShoppingBag className="w-4 h-4" />
-                          Agregar al Carrito B2B
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="bg-slate-950 p-5 rounded-2xl border border-amber-500/30 space-y-3">
-                    <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
-                      <Lock className="w-4 h-4" />
-                      <span>Precios y Compras Restringidos</span>
-                    </div>
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      Para ver los precios netos mayoristas y agregar este modelo a tu orden de importación directa, inicia sesión con tu cuenta de óptica.
-                    </p>
-                    <div className="pt-2 flex flex-col sm:flex-row gap-2">
-                      <Link
-                        href="/login?redirect=/catalogo"
-                        className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 px-4 rounded-xl text-center text-xs uppercase tracking-wider transition shadow-lg shadow-emerald-500/20"
-                      >
-                        Iniciar Sesión
-                      </Link>
-                      <Link
-                        href="/registro?redirect=/catalogo"
-                        className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-4 rounded-xl text-center text-xs uppercase tracking-wider border border-slate-700 transition"
-                      >
-                        Registrar Óptica
-                      </Link>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Modal de Vista Rapida (Quick View) */}
+          <QuickViewModal 
+            variants={selectedProduct ? groupedResults.find((g: EnrichedMarco[]) => g[0].modelo === selectedProduct.modelo && g[0].marca === selectedProduct.marca) || [selectedProduct] : []}
+            isOpen={!!selectedProduct} 
+            onClose={() => setSelectedProduct(null)} 
+          />
 
       </div>
 

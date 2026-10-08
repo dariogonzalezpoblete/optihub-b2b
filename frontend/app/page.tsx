@@ -20,6 +20,7 @@ import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import BrandMarquee from '@/components/brands/BrandMarquee';
 import BrandDirectory from '@/components/brands/BrandDirectory';
+import RecentlyViewed from '@/components/catalog/RecentlyViewed';
 
 interface MarcoDestacado {
   id_ext: string;
@@ -359,6 +360,7 @@ export default function Home() {
       </section>
 
       {/* 5. PILARES CORPORATIVOS Y GARANTÍAS B2B */}
+      <RecentlyViewed />
       <section className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-8 sm:p-12">
           <div className="text-center max-w-2xl mx-auto mb-10">
