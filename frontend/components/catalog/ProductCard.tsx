@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Lock } from 'lucide-react';
 import type { EnrichedMarco, FacetOption } from '@/lib/catalog/types';
 
@@ -35,12 +36,13 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
         className="relative h-56 bg-slate-950 flex items-center justify-center p-4 overflow-hidden cursor-pointer"
         onClick={() => onOpen(active)}
       >
-        <img 
+        <Image 
           key={active.id_ext} // Forzar re-render de la animación al cambiar variante
           src={active.imagen_principal || "/placeholder.png"} 
           alt={`${active.marca} ${active.modelo} ${active.color}`}
-          loading="lazy"
-          className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-500 animate-fade-in"
+          fill
+          sizes="(max-width: 768px) 100vw, 33vw"
+          className="object-contain p-4 group-hover:scale-105 transition-transform duration-500 animate-fade-in"
         />
         
         {/* Badges Superiores */}
@@ -109,10 +111,12 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
                     }`}
                     title={`${v.color || v.codigo_color} (SKU: ${v.id_ext})`}
                   >
-                    <img 
+                    <Image 
                       src={v.imagen_principal || "/placeholder.png"} 
-                      className="w-full h-full object-cover p-1" 
-                      alt={v.codigo_color} 
+                      className="object-cover p-1" 
+                      alt={v.codigo_color || "Color"} 
+                      fill
+                      sizes="32px"
                     />
                   </button>
                 ))}

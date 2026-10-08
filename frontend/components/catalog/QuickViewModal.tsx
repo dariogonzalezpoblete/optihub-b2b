@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { useCartStore } from '@/store/useCartStore';
 import type { EnrichedMarco } from '@/lib/catalog/types';
@@ -17,14 +18,16 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
   const { isLoggedIn } = useAuth();
   const addToCart = useCartStore((state) => state.addToCart);
 
-  const [activeImage, setActiveImage] = useState<string>('');
+  const [activeVariant, setActiveVariant] = useState<EnrichedMarco | null>(null);
+  const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [isAdding, setIsAdding] = useState(false);
 
   // Initialize
   useEffect(() => {
     if (isOpen && variants.length > 0) {
-      setActiveImage(variants[0].imagen_principal || '');
+      setActiveVariant(variants[0]);
+      setActiveImageIndex(0);
       setQuantities({});
       document.body.style.overflow = 'hidden'; // Lock scroll
     } else {
@@ -35,10 +38,16 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
     };
   }, [isOpen, variants]);
 
-  if (!isOpen || variants.length === 0) return null;
+  if (!isOpen || variants.length === 0 || !activeVariant) return null;
 
   const baseProduct = variants[0];
   const dims = baseProduct._dims;
+
+  const currentImages = [activeVariant.imagen_principal].filter(Boolean) as string[];
+  if (activeVariant.imagenes_secundarias) {
+    currentImages.push(activeVariant.imagenes_secundarias);
+  }
+  const currentImageUrl = currentImages[activeImageIndex] || currentImages[0];
 
   const handleQuantityChange = (id_ext: string, val: string, maxStock: number) => {
     let num = parseInt(val, 10);
@@ -90,31 +99,66 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
         </button>
 
         {/* Galería Rápida */}
-        <div className="w-full md:w-5/12 bg-slate-950 p-6 flex flex-col items-center justify-center border-r border-slate-800/80">
-          <div className="aspect-[4/3] w-full flex items-center justify-center mb-6">
-            {activeImage ? (
-              <img src={activeImage} alt="Product" className="w-full h-full object-contain filter drop-shadow-xl" />
-            ) : (
-              <span className="text-slate-600 font-bold">Sin imagen</span>
+        <div className="w-full md:w-5/12 bg-slate-950 p-6 flex flex-col justify-between border-r border-slate-800/80">
+          <div className="flex flex-col items-center w-full">
+            {/* Imagen Principal */}
+            <div className="aspect-[4/3] w-full flex items-center justify-center mb-6 relative group">
+              {currentImageUrl ? (
+                <Image 
+                  src={currentImageUrl} 
+                  alt="Product" 
+                  fill
+                  sizes="(max-width: 768px) 100vw, 40vw"
+                  className="object-contain filter drop-shadow-xl p-4 transition-transform group-hover:scale-105" 
+                />
+              ) : (
+                <span className="text-slate-600 font-bold">Sin imagen</span>
+              )}
+            </div>
+            
+            {/* Ángulos del Variante Actual */}
+            {currentImages.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto w-full custom-scrollbar pb-2 justify-center">
+                {currentImages.map((imgUrl, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveImageIndex(idx)}
+                    className={`relative w-14 h-14 flex-shrink-0 rounded-xl border-2 bg-slate-900 p-1 transition ${activeImageIndex === idx ? 'border-emerald-500' : 'border-slate-800 opacity-60 hover:opacity-100'}`}
+                  >
+                    <Image src={imgUrl} alt="Ángulo" fill className="object-contain p-1" sizes="56px" />
+                  </button>
+                ))}
+              </div>
             )}
-          </div>
-          <div className="flex gap-2 overflow-x-auto w-full custom-scrollbar pb-2">
-            {variants.map((v) => (
-              v.imagen_principal && (
-                <button
-                  key={v.id_ext}
-                  onClick={() => setActiveImage(v.imagen_principal as string)}
-                  className={`w-14 h-14 flex-shrink-0 rounded-xl border-2 bg-slate-900 p-1 transition ${activeImage === v.imagen_principal ? 'border-emerald-500' : 'border-slate-800 opacity-60 hover:opacity-100'}`}
-                >
-                  <img src={v.imagen_principal} alt={v.color} className="w-full h-full object-contain" />
-                </button>
-              )
-            ))}
+
+            {/* Selector de Colores (Variantes) */}
+            <div className="mt-4 w-full">
+              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 text-center">Colores Disponibles</h4>
+              <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2 justify-center">
+                {variants.map((v) => (
+                  <button
+                    key={v.id_ext}
+                    onClick={() => {
+                      setActiveVariant(v);
+                      setActiveImageIndex(0);
+                    }}
+                    className={`relative w-10 h-10 rounded-xl border-2 flex-shrink-0 bg-slate-900 transition-all ${
+                      activeVariant?.id_ext === v.id_ext ? 'border-emerald-500 opacity-100 scale-110 shadow-lg shadow-emerald-500/20' : 'border-slate-800 opacity-50 hover:opacity-100'
+                    }`}
+                    title={v.color}
+                  >
+                    {v.imagen_principal && (
+                      <Image src={v.imagen_principal} alt={v.color || 'Color'} fill className="object-contain p-1" sizes="40px" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           
           <Link 
             href={`/producto/${encodeURIComponent(baseProduct.marca)}/${encodeURIComponent(baseProduct.modelo)}`}
-            className="mt-6 text-xs font-bold text-emerald-400 hover:text-emerald-300 uppercase tracking-wider underline underline-offset-4"
+            className="mt-6 text-xs font-bold text-emerald-400 hover:text-emerald-300 uppercase tracking-wider underline underline-offset-4 text-center block"
           >
             Ver Ficha Completa (PDP)
           </Link>

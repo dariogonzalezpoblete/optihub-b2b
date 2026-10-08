@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useCartStore } from '@/store/useCartStore';
@@ -22,9 +23,16 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
   const addToCart = useCartStore((state) => state.addToCart);
   const addRecentItem = useRecentStore((state) => state.addRecentItem);
 
-  const [activeImage, setActiveImage] = useState<string>(baseProduct.imagen_principal || '');
+  const [activeVariant, setActiveVariant] = useState<EnrichedMarco>(baseProduct);
+  const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [isAdding, setIsAdding] = useState(false);
+
+  const currentImages = [activeVariant.imagen_principal].filter(Boolean) as string[];
+  if (activeVariant.imagenes_secundarias) {
+    currentImages.push(activeVariant.imagenes_secundarias);
+  }
+  const currentImageUrl = currentImages[activeImageIndex] || currentImages[0];
 
   useEffect(() => {
     // Agregar al historial de "Vistos Recientemente"
@@ -85,34 +93,62 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
         {/* Lado Izquierdo: Galería */}
         <div className="w-full lg:w-1/2 flex flex-col gap-4">
           <div className="bg-slate-900 rounded-3xl border border-slate-800/80 p-8 flex items-center justify-center aspect-[4/3] relative overflow-hidden group">
-            {activeImage ? (
-              <img 
-                src={activeImage} 
+            {currentImageUrl ? (
+              <Image 
+                src={currentImageUrl} 
                 alt={`${baseProduct.marca} ${baseProduct.modelo}`}
-                className="w-full h-full object-contain filter drop-shadow-2xl transition-transform duration-500 group-hover:scale-105"
+                fill
+                sizes="(max-width: 768px) 100vw, 50vw"
+                className="object-contain p-8 filter drop-shadow-2xl transition-transform duration-500 group-hover:scale-105"
+                priority
               />
             ) : (
               <div className="text-slate-600">Sin Imagen</div>
             )}
-            <div className="absolute top-4 right-4 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full text-xs font-bold text-emerald-400">
+            <div className="absolute top-4 right-4 z-10 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full text-xs font-bold text-emerald-400">
               ID: {baseProduct.modelo}
             </div>
           </div>
           
-          <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
-            {variants.map((v) => (
-              v.imagen_principal && (
+          {/* Ángulos del Variante Actual */}
+          {currentImages.length > 1 && (
+            <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar justify-center">
+              {currentImages.map((imgUrl, idx) => (
                 <button
-                  key={v.id_ext}
-                  onClick={() => setActiveImage(v.imagen_principal as string)}
-                  className={`w-20 h-20 rounded-2xl border-2 flex-shrink-0 bg-slate-900 p-2 transition-all ${
-                    activeImage === v.imagen_principal ? 'border-emerald-500 opacity-100' : 'border-slate-800 opacity-60 hover:opacity-100 hover:border-slate-600'
+                  key={idx}
+                  onClick={() => setActiveImageIndex(idx)}
+                  className={`relative w-20 h-20 rounded-2xl border-2 flex-shrink-0 bg-slate-900 p-2 transition-all ${
+                    activeImageIndex === idx ? 'border-emerald-500 opacity-100' : 'border-slate-800 opacity-60 hover:opacity-100 hover:border-slate-600'
                   }`}
                 >
-                  <img src={v.imagen_principal} alt={v.color || 'Color'} className="w-full h-full object-contain" />
+                  <Image src={imgUrl} alt="Ángulo" fill className="object-contain p-2" sizes="80px" />
                 </button>
-              )
-            ))}
+              ))}
+            </div>
+          )}
+
+          {/* Selector de Colores (Variantes) */}
+          <div className="mt-4">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Colores Disponibles</h4>
+            <div className="flex gap-3 overflow-x-auto custom-scrollbar pb-2">
+              {variants.map((v) => (
+                <button
+                  key={v.id_ext}
+                  onClick={() => {
+                    setActiveVariant(v);
+                    setActiveImageIndex(0);
+                  }}
+                  className={`relative w-16 h-16 rounded-2xl border-2 flex-shrink-0 bg-slate-900 transition-all ${
+                    activeVariant.id_ext === v.id_ext ? 'border-emerald-500 opacity-100 scale-105 shadow-lg shadow-emerald-500/20' : 'border-slate-800 opacity-50 hover:opacity-100 hover:border-slate-600'
+                  }`}
+                  title={v.color}
+                >
+                  {v.imagen_principal && (
+                    <Image src={v.imagen_principal} alt={v.color || 'Color'} fill className="object-contain p-1.5" sizes="64px" />
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

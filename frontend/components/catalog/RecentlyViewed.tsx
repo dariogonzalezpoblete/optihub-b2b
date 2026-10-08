@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRecentStore } from '@/store/useRecentStore';
 import { Clock, ArrowRight } from 'lucide-react';
 
@@ -34,9 +35,9 @@ export default function RecentlyViewed() {
             href={`/producto/${encodeURIComponent(item.marca)}/${encodeURIComponent(item.modelo)}`}
             className="group bg-slate-900 border border-slate-800 hover:border-emerald-500/50 rounded-2xl p-4 transition duration-300 flex flex-col"
           >
-            <div className="aspect-[4/3] bg-slate-950 rounded-xl mb-4 p-2 flex items-center justify-center group-hover:scale-105 transition-transform overflow-hidden">
+            <div className="aspect-[4/3] bg-slate-950 rounded-xl mb-4 p-2 flex items-center justify-center group-hover:scale-105 transition-transform overflow-hidden relative">
               {item.imagen_principal ? (
-                <img src={item.imagen_principal} alt={item.modelo} className="w-full h-full object-contain" />
+                <Image src={item.imagen_principal} alt={item.modelo} fill sizes="(max-width: 768px) 50vw, 20vw" className="object-contain p-2" />
               ) : (
                 <span className="text-[10px] text-slate-600">Sin imagen</span>
               )}
