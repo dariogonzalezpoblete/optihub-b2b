@@ -17,7 +17,7 @@ import {
   AlertCircle,
   Truck,
   Lock
-} from 'lucide-react';
+, Check } from 'lucide-react';
 
 const REGIONES_CHILE = [
   'Región Metropolitana de Santiago',

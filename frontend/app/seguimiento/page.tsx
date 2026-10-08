@@ -12,7 +12,7 @@ import {
   ChevronRight,
   ShieldCheck,
   AlertCircle
-} from 'lucide-react';
+, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
 export default function SeguimientoPage() {
