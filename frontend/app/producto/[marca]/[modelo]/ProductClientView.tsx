@@ -94,8 +94,7 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
         <div className="w-full lg:w-1/2 flex flex-col gap-4">
           <div className="bg-slate-900 rounded-3xl border border-slate-800/80 p-8 flex items-center justify-center aspect-[4/3] relative overflow-hidden group">
             {currentImageUrl ? (
-              <Image 
-                src={currentImageUrl} 
+              <Image unoptimized src={currentImageUrl} 
                 alt={`${baseProduct.marca} ${baseProduct.modelo}`}
                 fill
                 sizes="(max-width: 768px) 100vw, 50vw"
@@ -121,7 +120,7 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                     activeImageIndex === idx ? 'border-emerald-500 opacity-100' : 'border-slate-800 opacity-60 hover:opacity-100 hover:border-slate-600'
                   }`}
                 >
-                  <Image src={imgUrl} alt="Ángulo" fill className="object-contain p-2" sizes="80px" />
+                  <Image unoptimized src={imgUrl} alt="Ángulo" fill className="object-contain p-2" sizes="80px" />
                 </button>
               ))}
             </div>
@@ -144,7 +143,7 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                   title={v.color}
                 >
                   {v.imagen_principal && (
-                    <Image src={v.imagen_principal} alt={v.color || 'Color'} fill className="object-contain p-1.5" sizes="64px" />
+                    <Image unoptimized src={v.imagen_principal} alt={v.color || 'Color'} fill className="object-contain p-1.5" sizes="64px" />
                   )}
                 </button>
               ))}

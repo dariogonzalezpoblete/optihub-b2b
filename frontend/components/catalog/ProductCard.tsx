@@ -36,8 +36,7 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
         className="relative h-56 bg-slate-950 flex items-center justify-center p-4 overflow-hidden cursor-pointer"
         onClick={() => onOpen(active)}
       >
-        <Image 
-          key={active.id_ext} // Forzar re-render de la animación al cambiar variante
+        <Image unoptimized key={active.id_ext} // Forzar re-render de la animación al cambiar variante
           src={active.imagen_principal || "/placeholder.png"} 
           alt={`${active.marca} ${active.modelo} ${active.color}`}
           fill
@@ -111,8 +110,7 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
                     }`}
                     title={`${v.color || v.codigo_color} (SKU: ${v.id_ext})`}
                   >
-                    <Image 
-                      src={v.imagen_principal || "/placeholder.png"} 
+                    <Image unoptimized src={v.imagen_principal || "/placeholder.png"} 
                       className="object-cover p-1" 
                       alt={v.codigo_color || "Color"} 
                       fill

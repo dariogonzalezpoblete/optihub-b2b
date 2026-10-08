@@ -37,7 +37,7 @@ export default function RecentlyViewed() {
           >
             <div className="aspect-[4/3] bg-slate-950 rounded-xl mb-4 p-2 flex items-center justify-center group-hover:scale-105 transition-transform overflow-hidden relative">
               {item.imagen_principal ? (
-                <Image src={item.imagen_principal} alt={item.modelo} fill sizes="(max-width: 768px) 50vw, 20vw" className="object-contain p-2" />
+                <Image unoptimized src={item.imagen_principal} alt={item.modelo} fill sizes="(max-width: 768px) 50vw, 20vw" className="object-contain p-2" />
               ) : (
                 <span className="text-[10px] text-slate-600">Sin imagen</span>
               )}

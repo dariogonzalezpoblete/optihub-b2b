@@ -104,8 +104,7 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
             {/* Imagen Principal */}
             <div className="aspect-[4/3] w-full flex items-center justify-center mb-6 relative group">
               {currentImageUrl ? (
-                <Image 
-                  src={currentImageUrl} 
+                <Image unoptimized src={currentImageUrl} 
                   alt="Product" 
                   fill
                   sizes="(max-width: 768px) 100vw, 40vw"
@@ -125,7 +124,7 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
                     onClick={() => setActiveImageIndex(idx)}
                     className={`relative w-14 h-14 flex-shrink-0 rounded-xl border-2 bg-slate-900 p-1 transition ${activeImageIndex === idx ? 'border-emerald-500' : 'border-slate-800 opacity-60 hover:opacity-100'}`}
                   >
-                    <Image src={imgUrl} alt="Ángulo" fill className="object-contain p-1" sizes="56px" />
+                    <Image unoptimized src={imgUrl} alt="Ángulo" fill className="object-contain p-1" sizes="56px" />
                   </button>
                 ))}
               </div>
@@ -148,7 +147,7 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
                     title={v.color}
                   >
                     {v.imagen_principal && (
-                      <Image src={v.imagen_principal} alt={v.color || 'Color'} fill className="object-contain p-1" sizes="40px" />
+                      <Image unoptimized src={v.imagen_principal} alt={v.color || 'Color'} fill className="object-contain p-1" sizes="40px" />
                     )}
                   </button>
                 ))}
