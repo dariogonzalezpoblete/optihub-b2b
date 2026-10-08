@@ -34,26 +34,7 @@ interface MarcoDestacado {
   forma?: string;
 }
 
-const CATEGORIAS_B2B = [
-  {
-    titulo: 'Línea Oftálmica & Titanio',
-    descripcion: 'Monturas ultra livianas y resistentes diseñadas para montaje de recetas de alta graduación.',
-    badge: 'Alta Durabilidad',
-    filtro: 'Titanium',
-  },
-  {
-    titulo: 'Performance & Sport',
-    descripcion: 'Armazones anatómicos de alto impacto con soporte para cristales graduados y clips solares.',
-    badge: 'Uso Diario / Deportivo',
-    filtro: 'Nike',
-  },
-  {
-    titulo: 'Acetato de Diseñador',
-    descripcion: 'Diseño italiano y acabados pulidos para vitrinas premium de ópticas independientes.',
-    badge: 'Lujo & Estilo',
-    filtro: 'Hugo Boss',
-  },
-];
+const CATEGORIAS_B2B = [{titulo: 'Monturas Ópticas',descripcion: 'Marcos oftálmicos graduables para lentes de receta. Diseño, durabilidad y máxima rentabilidad B2B.',badge: 'Uso Clínico y Diario',url: '/catalogo?q=optico'},{titulo: 'Lentes de Sol',descripcion: 'Gafas solares con protección UV y estilos en tendencia. Modelos premium para tu vitrina.',badge: 'Protección Solar',url: '/catalogo?q=sol'}];
 
 export default function Home() {
   const { isLoggedIn, opticaData } = useAuth();
@@ -230,7 +211,7 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
           {CATEGORIAS_B2B.map((cat, i) => (
             <div
               key={i}
@@ -250,7 +231,7 @@ export default function Home() {
 
               <div className="mt-8 pt-6 border-t border-slate-800/80">
                 <Link
-                  href={`/catalogo?marca=${encodeURIComponent(cat.filtro)}`}
+                  href={cat.url}
                   className="inline-flex items-center gap-2 text-xs font-black text-emerald-400 hover:text-emerald-300 uppercase tracking-wider transition"
                 >
                   <span>Explorar categoría</span>
