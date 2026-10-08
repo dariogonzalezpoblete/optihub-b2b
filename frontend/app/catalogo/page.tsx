@@ -1,49 +1,39 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { useCartStore } from "@/store/useCartStore";
 import { useAuth } from "@/context/AuthContext";
-import { Check, ShoppingBag, ArrowRight, Lock, Search, X } from "lucide-react";
+import { Check, ShoppingBag, ArrowRight, Lock, Search, SlidersHorizontal } from "lucide-react";
 
-interface Marco {
-  id?: number;
-  id_ext: string;
-  marca: string;
-  modelo: string;
-  color: string;
-  codigo_color: string;
-  genero: string;
-  forma: string;
-  material: string;
-  tamano: string;
-  upc: string;
-  origen: string;
-  stock: number;
-  precio_usd: number;
-  precio_bruto_clp: number;
-  precio_neto_clp: number;
-  ganancia_clp: number;
-  imagen_principal: string;
-  imagenes_secundarias: string;
-  url_origen: string;
-}
+import type { EnrichedMarco, Marco } from "@/lib/catalog/types";
+import {
+  applyFilters,
+  countActiveFilters,
+  enrichMarcos,
+  getFacets,
+  stripEnriched,
+} from "@/lib/catalog/filterEngine";
+import { useCatalogFilters } from "@/hooks/useCatalogFilters";
+import FilterSidebar from "@/components/catalog/FilterSidebar";
+import FilterDrawer from "@/components/catalog/FilterDrawer";
+import ActiveFilterChips from "@/components/catalog/ActiveFilterChips";
+import PredictiveSearch from "@/components/catalog/PredictiveSearch";
+import SortSelect from "@/components/catalog/SortSelect";
+import ProductCard from "@/components/catalog/ProductCard";
 
 function CatalogoContent() {
-  const searchParams = useSearchParams();
   const [marcos, setMarcos] = useState<Marco[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedBrand, setSelectedBrand] = useState("TODAS");
-  const [selectedProduct, setSelectedProduct] = useState<Marco | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<EnrichedMarco | null>(null);
   const [activeImage, setActiveImage] = useState<string>("");
   const [toastMessage, setToastMessage] = useState<string>("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   // Auth Context
-  const { isLoggedIn, opticaData, user } = useAuth();
+  const { isLoggedIn } = useAuth();
 
   // Store global de Zustand
   const addToCart = useCartStore((state) => state.addToCart);
@@ -51,22 +41,18 @@ function CatalogoContent() {
   const getTotalUnits = useCartStore((state) => state.getTotalUnits);
   const getMontoNeto = useCartStore((state) => state.getMontoNeto);
 
+  // Filtros sincronizados con la URL
+  const { state: filters, toggle, setQuery, setSort, clearAll } = useCatalogFilters();
+
   useEffect(() => {
     setMounted(true);
     fetchMarcos();
   }, []);
 
-  useEffect(() => {
-    const marcaParam = searchParams.get("marca");
-    if (marcaParam) {
-      setSelectedBrand(marcaParam.toUpperCase());
-    }
-  }, [searchParams]);
-
   const fetchMarcos = async () => {
     try {
       const { data, error } = await supabase
-        .from("marcos") 
+        .from("marcos")
         .select("*");
 
       if (error) {
@@ -81,10 +67,37 @@ function CatalogoContent() {
     }
   };
 
-  const agregarAlCarrito = (producto: Marco, cantidadSeleccionada: number) => {
+  // Datos derivados (memoizados: se recalculan solo cuando cambian datos o filtros)
+  const enriched = useMemo(() => enrichMarcos(marcos), [marcos]);
+  const facets = useMemo(() => getFacets(enriched, filters), [enriched, filters]);
+  const results = useMemo(
+    () => applyFilters(enriched, filters, mounted && isLoggedIn),
+    [enriched, filters, mounted, isLoggedIn]
+  );
+  const activeCount = countActiveFilters(filters);
+
+  // Agrupación de resultados por marca y modelo para las ProductCards interactiva (PASO 2)
+  const groupedResults = useMemo(() => {
+    const map = new Map<string, EnrichedMarco[]>();
+    for (const m of results) {
+      const key = `${m.marca}:::${m.modelo}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(m);
+    }
+    return Array.from(map.values());
+  }, [results]);
+
+  const openProduct = useCallback((m: EnrichedMarco) => {
+    setSelectedProduct(m);
+    setActiveImage(m.imagen_principal);
+  }, []);
+
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+
+  const agregarAlCarrito = (producto: EnrichedMarco, cantidadSeleccionada: number) => {
     if (!isLoggedIn) return;
 
-    addToCart(producto, cantidadSeleccionada);
+    addToCart(stripEnriched(producto), cantidadSeleccionada);
     setSelectedProduct(null);
     setToastMessage(`✓ ${cantidadSeleccionada}x ${producto.marca} ${producto.modelo} añadido al carrito`);
     setTimeout(() => {
@@ -92,29 +105,18 @@ function CatalogoContent() {
     }, 4000);
   };
 
-  const filteredMarcos = marcos.filter((m) => {
-    const matchesSearch = 
-      (m.modelo?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-      (m.id_ext?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-      (m.marca?.toLowerCase() || "").includes(searchTerm.toLowerCase());
-    
-    const matchesBrand = selectedBrand === "TODAS" || m.marca?.toUpperCase() === selectedBrand.toUpperCase();
-    
-    return matchesSearch && matchesBrand;
-  });
-
-  const brands = ["TODAS", ...Array.from(new Set(marcos.map(m => m.marca).filter(Boolean)))];
-
   const totalUnidades = mounted ? getTotalUnits() : 0;
   const montoNeto = mounted ? getMontoNeto() : 0;
   const moqAlcanzado = totalUnidades >= 10;
+
+  const filterPanelProps = { facets, state: filters, onToggle: toggle };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-32">
       
       {/* Toast flotante de confirmación */}
       {toastMessage && (
-        <div className="fixed top-24 right-4 z-50 bg-emerald-500 text-slate-950 font-bold px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 animate-bounce">
+        <div className="fixed top-24 right-4 z-50 bg-emerald-500 text-slate-950 font-bold px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 animate-slide-down">
           <Check className="w-5 h-5" />
           <span>{toastMessage}</span>
         </div>
@@ -190,150 +192,114 @@ function CatalogoContent() {
           </div>
         )}
 
-        {/* Buscador */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
-          <div>
-            <h2 className="text-xl font-bold tracking-tight text-white">Buscador y Filtros</h2>
-            <p className="text-sm text-slate-400">Armazones ópticos originales sincronizados en tiempo real</p>
-          </div>
-          <div className="relative w-full md:w-80">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-              <Search className="w-4 h-4" />
+        {/* --- LAYOUT: SIDEBAR DE FILTROS + RESULTADOS --- */}
+        <div className="flex gap-8 items-start">
+          <FilterSidebar {...filterPanelProps} activeCount={activeCount} onClearAll={clearAll} />
+
+          <div className="flex-1 min-w-0 space-y-5">
+            {/* Barra de herramientas: buscador + filtros mobile + orden */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <PredictiveSearch
+                  items={enriched}
+                  value={filters.q}
+                  onCommit={setQuery}
+                  onSelect={openProduct}
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDrawerOpen(true)}
+                  className="lg:hidden flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-200 transition"
+                >
+                  <SlidersHorizontal className="w-4 h-4 text-emerald-400" />
+                  Filtros
+                  {activeCount > 0 && (
+                    <span className="min-w-5 h-5 px-1.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black flex items-center justify-center">
+                      {activeCount}
+                    </span>
+                  )}
+                </button>
+                <SortSelect value={filters.sort} onChange={setSort} canSeePrices={mounted && isLoggedIn} />
+              </div>
             </div>
-            <input 
-              type="text"
-              placeholder="Modelo, SKU o marca..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 pl-10 pr-9 py-2.5 rounded-xl text-sm focus:outline-none focus:border-emerald-500 text-white placeholder-slate-500 transition"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
+
+            {/* Conteo de resultados + chips de filtros activos */}
+            <div className="space-y-3">
+              <p className="text-sm text-slate-400">
+                {loading ? (
+                  "Cargando catálogo…"
+                ) : (
+                  <>
+                    <span className="text-white font-bold tabular-nums">{results.length}</span>{" "}
+                    {results.length === 1 ? "armazón" : "armazones"}
+                    {results.length !== enriched.length && (
+                      <span className="text-slate-500"> de {enriched.length}</span>
+                    )}
+                  </>
+                )}
+              </p>
+              <ActiveFilterChips
+                state={filters}
+                facets={facets}
+                onRemove={toggle}
+                onClearQuery={() => setQuery("")}
+                onClearAll={() => clearAll()}
+              />
+            </div>
+
+            {/* Grid de Productos */}
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <div key={i} className="bg-slate-900 border border-slate-800/80 rounded-2xl overflow-hidden shadow-lg animate-pulse">
+                    <div className="h-48 bg-slate-800/60" />
+                    <div className="p-4 space-y-3">
+                      <div className="h-3 skeleton w-1/3" />
+                      <div className="h-4 skeleton w-3/4" />
+                      <div className="h-3 skeleton w-1/2" />
+                      <div className="pt-3 border-t border-slate-800 flex justify-between items-center">
+                        <div className="h-4 skeleton w-20" />
+                        <div className="h-6 skeleton w-14" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : results.length === 0 ? (
+              <div className="text-center py-20 bg-slate-900/30 border border-slate-800/80 rounded-2xl">
+                <Search className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                <p className="text-slate-300 font-semibold">No hay armazones con esta combinación de filtros.</p>
+                <p className="text-slate-500 text-sm mt-1">Prueba quitando algún filtro o ampliando la búsqueda.</p>
+                <button
+                  onClick={() => clearAll()}
+                  className="mt-5 text-xs text-emerald-400 hover:text-emerald-300 font-bold uppercase tracking-wider transition"
+                >
+                  Limpiar filtros
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                {groupedResults.map((variants, idx) => (
+                  <ProductCard 
+                    key={`${variants[0].marca}-${variants[0].modelo}`}
+                    variants={variants}
+                    idx={idx}
+                    isLoggedIn={mounted && isLoggedIn}
+                    onOpen={openProduct}
+                    materialLabels={facets.material}
+                  />
+                ))}
+              </div>
             )}
           </div>
         </div>
 
-        {/* Marcas */}
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
-          {brands.map((brand) => (
-            <button
-              key={brand}
-              onClick={() => setSelectedBrand(brand)}
-              className={`px-4 py-2 rounded-xl text-xs font-semibold tracking-wider transition uppercase whitespace-nowrap ${
-                selectedBrand.toUpperCase() === brand.toUpperCase()
-                  ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20 font-black' 
-                  : 'bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              {brand}
-            </button>
-          ))}
-        </div>
-
-        {/* Grid de Productos */}
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="bg-slate-900 border border-slate-800/80 rounded-2xl overflow-hidden shadow-lg animate-pulse">
-                <div className="h-48 bg-slate-800/60" />
-                <div className="p-4 space-y-3">
-                  <div className="h-3 skeleton w-1/3" />
-                  <div className="h-4 skeleton w-3/4" />
-                  <div className="h-3 skeleton w-1/2" />
-                  <div className="pt-3 border-t border-slate-800 flex justify-between items-center">
-                    <div className="h-4 skeleton w-20" />
-                    <div className="h-6 skeleton w-14" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : filteredMarcos.length === 0 ? (
-          <div className="text-center py-20 bg-slate-900/30 border border-slate-800/80 rounded-2xl">
-            <Search className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-            <p className="text-slate-400 font-medium">No se encontraron armazones con los filtros seleccionados.</p>
-            <button
-              onClick={() => { setSearchTerm(''); setSelectedBrand('TODAS'); }}
-              className="mt-4 text-xs text-emerald-400 hover:text-emerald-300 font-bold uppercase tracking-wider transition"
-            >
-              Limpiar filtros
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-            {filteredMarcos.map((marco, idx) => (
-              <div 
-                key={marco.id_ext}
-                onClick={() => {
-                  setSelectedProduct(marco);
-                  setActiveImage(marco.imagen_principal);
-                }}
-                className="card-product group animate-slide-up"
-                style={{ animationDelay: `${Math.min(idx, 7) * 30}ms` }}
-              >
-                <div className="relative h-48 bg-slate-950 flex items-center justify-center p-4 overflow-hidden">
-                  <img 
-                    src={marco.imagen_principal || "/placeholder.png"} 
-                    alt={marco.modelo}
-                    className="max-h-full object-contain group-hover:scale-105 transition duration-300"
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = "/placeholder.png";
-                    }}
-                  />
-                  <span className="badge-brand absolute top-3 left-3">
-                    {marco.marca}
-                  </span>
-                  {/* Overlay sutil al hover */}
-                  <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/5 transition duration-300 rounded-t-2xl" />
-                </div>
-
-                <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-start gap-2">
-                      <h3 className="font-bold text-white text-base leading-tight group-hover:text-emerald-400 transition-colors line-clamp-2">{marco.modelo}</h3>
-                      <span className="text-[10px] text-slate-500 font-mono flex-shrink-0">{marco.codigo_color}</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1 font-mono">SKU: {marco.id_ext}</p>
-                    {marco.material && (
-                      <p className="text-[11px] text-slate-600 mt-0.5">{marco.material}</p>
-                    )}
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-800/80 flex justify-between items-center">
-                    {isLoggedIn ? (
-                      <div>
-                        <span className="text-[10px] text-slate-500 block uppercase font-medium tracking-wide">Neto B2B</span>
-                        <span className="text-emerald-400 font-black text-sm">
-                          ${marco.precio_neto_clp?.toLocaleString('es-CL')} CLP
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="badge-b2b-locked">
-                        <Lock className="w-3 h-3" />
-                        Precio B2B
-                      </span>
-                    )}
-
-                    <span className="badge-stock">
-                      {marco.stock} un.
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* Modal de Detalle de Producto */}
         {selectedProduct && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-y-auto">
-            <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row max-h-[90vh]">
+            <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row max-h-[90vh] animate-scale-in">
               <button 
                 onClick={() => setSelectedProduct(null)}
                 className="absolute top-4 right-4 z-10 bg-slate-800 hover:bg-slate-700 text-slate-300 w-9 h-9 rounded-full flex items-center justify-center transition border border-slate-700"
@@ -344,54 +310,32 @@ function CatalogoContent() {
               <div className="w-full md:w-1/2 bg-slate-950 p-6 flex flex-col gap-4 justify-between border-b md:border-b-0 md:border-r border-slate-800">
                 <div className="relative bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center p-4 h-[300px] md:h-[360px] shadow-inner group">
                   <img 
-                    src={activeImage || selectedProduct.imagen_principal || '/placeholder.png'} 
+                    src={activeImage || selectedProduct.imagen_principal} 
                     alt={selectedProduct.modelo} 
-                    className="max-h-full max-w-full object-contain rounded-lg transition-all duration-200"
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = '/placeholder.png';
-                    }}
+                    className="max-h-full max-w-full object-contain rounded-lg"
                   />
                 </div>
 
-                {/* Galería de miniaturas (Principal + Secundarias separadas por coma) */}
-                {(() => {
-                  const galleryImages = [
-                    selectedProduct.imagen_principal,
-                    ...(selectedProduct.imagenes_secundarias
-                      ? selectedProduct.imagenes_secundarias.split(',').map((s: string) => s.trim()).filter(Boolean)
-                      : [])
-                  ].filter(Boolean);
-
-                  if (galleryImages.length <= 1) return null;
-
-                  return (
-                    <div className="flex gap-2 overflow-x-auto pb-1">
-                      {galleryImages.map((imgUrl: string, idx: number) => (
-                        <div 
-                          key={idx}
-                          onClick={() => setActiveImage(imgUrl)}
-                          className={`cursor-pointer border-2 rounded-xl overflow-hidden w-16 h-16 flex-shrink-0 bg-slate-900 transition ${
-                            (activeImage === imgUrl || (!activeImage && idx === 0))
-                              ? 'border-emerald-500 scale-105' 
-                              : 'border-slate-800 opacity-60 hover:opacity-100'
-                          }`}
-                        >
-                          <img 
-                            src={imgUrl} 
-                            alt={`Vista ${idx + 1}`} 
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              // Si una miniatura falla, oculta el contenedor limpiamente
-                              const parent = e.currentTarget.parentElement;
-                              if (parent) parent.style.display = 'none';
-                            }}
-                          />
-                        </div>
-                      ))}
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  <div 
+                    onClick={() => setActiveImage(selectedProduct.imagen_principal)}
+                    className={`cursor-pointer border-2 rounded-xl overflow-hidden w-16 h-16 flex-shrink-0 bg-slate-900 transition ${
+                      activeImage === selectedProduct.imagen_principal ? 'border-emerald-500 scale-105' : 'border-slate-800 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <img src={selectedProduct.imagen_principal} alt="Principal" className="w-full h-full object-cover" />
+                  </div>
+                  {selectedProduct.imagenes_secundarias && (
+                    <div 
+                      onClick={() => setActiveImage(selectedProduct.imagenes_secundarias)}
+                      className={`cursor-pointer border-2 rounded-xl overflow-hidden w-16 h-16 flex-shrink-0 bg-slate-900 transition ${
+                        activeImage === selectedProduct.imagenes_secundarias ? 'border-emerald-500 scale-105' : 'border-slate-800 opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <img src={selectedProduct.imagenes_secundarias} alt="Secundaria" className="w-full h-full object-cover" />
                     </div>
-                  );
-                })()}
+                  )}
+                </div>
               </div>
 
               <div className="w-full md:w-1/2 p-6 md:p-8 overflow-y-auto space-y-6">
@@ -492,6 +436,16 @@ function CatalogoContent() {
         )}
 
       </div>
+
+      {/* Drawer de filtros (mobile) */}
+      <FilterDrawer
+        {...filterPanelProps}
+        open={drawerOpen}
+        onClose={closeDrawer}
+        resultCount={results.length}
+        activeCount={activeCount}
+        onClearAll={clearAll}
+      />
 
       {/* --- BARRA FLOTANTE INFERIOR SINCRONIZADA CON EL STORE --- */}
       {mounted && totalUnidades > 0 && (
