@@ -7,9 +7,9 @@ import { Autoplay } from 'swiper/modules';
 import 'swiper/css';
 
 const TOP_BRANDS = [
-  "Tom Ford", "Ray-Ban", "Gucci", "Prada", "Oakley", 
-  "Zeiss", "Hugo Boss", "Balenciaga", "Versace", "Cartier", 
-  "Dior", "Chanel", "Celine"
+  "Balenciaga", "Burberry", "Chopard", "Dolce & Gabbana", "Emporio Armani", 
+  "Gucci", "Hugo Boss", "Jimmy Choo", "Marc Jacobs", "Michael Kors", 
+  "Prada", "Salvatore Ferragamo", "Tom Ford", "Versace", "Yves Saint Laurent", "Zeiss"
 ];
 
 export default function BrandMarquee() {
