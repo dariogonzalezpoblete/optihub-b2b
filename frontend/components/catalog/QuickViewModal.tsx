@@ -18,7 +18,8 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
   const { isLoggedIn } = useAuth();
   const addToCart = useCartStore((state) => state.addToCart);
 
-  const [activeVariant, setActiveVariant] = useState<EnrichedMarco | null>(null);
+  const [activeVariantId, setActiveVariantId] = useState<string | null>(null);
+  const activeVariant = variants.find(v => v.id_ext === activeVariantId) || variants[0];
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [isAdding, setIsAdding] = useState(false);
@@ -26,7 +27,7 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
   // Initialize
   useEffect(() => {
     if (isOpen && variants.length > 0) {
-      setActiveVariant(variants[0]);
+      setActiveVariantId(variants[0].id_ext);
       setActiveImageIndex(0);
       setQuantities({});
       document.body.style.overflow = 'hidden'; // Lock scroll
@@ -38,7 +39,7 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
     };
   }, [isOpen, variants]);
 
-  if (!isOpen || variants.length === 0 || !activeVariant) return null;
+  if (!isOpen || variants.length === 0) return null;
 
   const baseProduct = variants[0];
   const dims = baseProduct._dims;
@@ -138,7 +139,7 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
                   <button
                     key={v.id_ext}
                     onClick={() => {
-                      setActiveVariant(v);
+                      setActiveVariantId(v.id_ext);
                       setActiveImageIndex(0);
                     }}
                     className={`relative w-10 h-10 rounded-xl border-2 flex-shrink-0 bg-slate-900 transition-all ${
