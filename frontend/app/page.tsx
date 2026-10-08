@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
+import BrandMarquee from '@/components/brands/BrandMarquee';
+import BrandDirectory from '@/components/brands/BrandDirectory';
 
 interface MarcoDestacado {
   id_ext: string;
@@ -31,33 +33,24 @@ interface MarcoDestacado {
   forma?: string;
 }
 
-const MARCAS_DESTACADAS = [
-  { nombre: 'Zeiss', origen: 'Alemania', tag: 'Precisión Óptica & Titanio', disponible: '130+ modelos' },
-  { nombre: 'Nike', origen: 'EE.UU.', tag: 'Performance & Sport Eyewear', disponible: '50+ modelos' },
-  { nombre: 'Hugo Boss', origen: 'Alemania', tag: 'Elegancia Ejecutiva Premium', disponible: '45+ modelos' },
-  { nombre: 'Guess', origen: 'EE.UU.', tag: 'Tendencia & Moda Urbana', disponible: '40+ modelos' },
-  { nombre: 'Tom Ford', origen: 'Italia', tag: 'Alta Costura & Lujo', disponible: 'Catálogo Miami' },
-  { nombre: 'Lacoste', origen: 'Francia', tag: 'Sport Chic & Contemporáneo', disponible: 'Catálogo Miami' },
-  { nombre: 'Balenciaga', origen: 'Francia', tag: 'Diseño Vanguardista', disponible: 'Catálogo Miami' },
-  { nombre: 'Bollé', origen: 'Francia', tag: 'Protección & Rendimiento', disponible: 'Catálogo Miami' },
-];
+
 
 const CATEGORIAS_B2B = [
   {
-    titulo: 'Línea Oftálmica & Titanio',
-    descripcion: 'Monturas ultra livianas y resistentes diseñadas para montaje de recetas de alta graduación.',
+    titulo: 'LÃ­nea OftÃ¡lmica & Titanio',
+    descripcion: 'Monturas ultra livianas y resistentes diseÃ±adas para montaje de recetas de alta graduaciÃ³n.',
     badge: 'Alta Durabilidad',
     filtro: 'Titanium',
   },
   {
     titulo: 'Performance & Sport',
-    descripcion: 'Armazones anatómicos de alto impacto con soporte para cristales graduados y clips solares.',
+    descripcion: 'Armazones anatÃ³micos de alto impacto con soporte para cristales graduados y clips solares.',
     badge: 'Uso Diario / Deportivo',
     filtro: 'Nike',
   },
   {
-    titulo: 'Acetato de Diseñador',
-    descripcion: 'Diseño italiano y acabados pulidos para vitrinas premium de ópticas independientes.',
+    titulo: 'Acetato de DiseÃ±ador',
+    descripcion: 'DiseÃ±o italiano y acabados pulidos para vitrinas premium de Ã³pticas independientes.',
     badge: 'Lujo & Estilo',
     filtro: 'Hugo Boss',
   },
@@ -92,7 +85,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 overflow-x-hidden">
       
-      {/* 1. SECCIÓN HERO / BENTO GRID PRINCIPAL */}
+      {/* 1. SECCIÃ“N HERO / BENTO GRID PRINCIPAL */}
       <section className="relative pt-8 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         
         {/* Glow de fondo decorativo */}
@@ -106,26 +99,26 @@ export default function Home() {
             <div className="relative z-10">
               <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold tracking-wide uppercase mb-6">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Distribución Exclusiva B2B para Ópticas</span>
+                <span>DistribuciÃ³n Exclusiva B2B para Ã“pticas</span>
               </div>
 
               <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white uppercase tracking-tight leading-[1.08] max-w-2xl">
-                Catálogo Mayorista de Armazones de <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">Primer Nivel</span>
+                CatÃ¡logo Mayorista de Armazones de <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">Primer Nivel</span>
               </h1>
 
               <p className="mt-6 text-slate-300 text-base sm:text-lg max-w-xl font-normal leading-relaxed">
-                Importación directa desde EE.UU. con stock verificado en tiempo real. Precios netos en CLP, factura electrónica SII y compra mínima flexibilizada de <strong className="text-emerald-400">10 unidades combinables</strong> entre todas las marcas.
+                ImportaciÃ³n directa desde EE.UU. con stock verificado en tiempo real. Precios netos en CLP, factura electrÃ³nica SII y compra mÃ­nima flexibilizada de <strong className="text-emerald-400">10 unidades combinables</strong> entre todas las marcas.
               </p>
             </div>
 
-            {/* CTAs y Estadísticas */}
+            {/* CTAs y EstadÃ­sticas */}
             <div className="relative z-10 mt-10 pt-8 border-t border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
               <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                 <Link
                   href="/catalogo"
                   className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:-translate-y-0.5"
                 >
-                  <span>Explorar Catálogo</span>
+                  <span>Explorar CatÃ¡logo</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
 
@@ -135,21 +128,21 @@ export default function Home() {
                     className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-slate-800/90 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-sm uppercase tracking-wider transition-all border border-slate-700/80 flex items-center justify-center gap-2"
                   >
                     <Building2 className="w-4 h-4 text-emerald-400" />
-                    <span>Registrar mi Óptica</span>
+                    <span>Registrar mi Ã“ptica</span>
                   </Link>
                 )}
               </div>
 
-              {/* Badges rápidos */}
+              {/* Badges rÃ¡pidos */}
               <div className="flex items-center gap-6 text-xs text-slate-400 font-semibold">
                 <div>
                   <span className="block text-xl font-black text-white">10 un.</span>
-                  <span className="text-[11px] text-slate-400 uppercase">Mínimo Combinable</span>
+                  <span className="text-[11px] text-slate-400 uppercase">MÃ­nimo Combinable</span>
                 </div>
                 <div className="w-px h-8 bg-slate-800" />
                 <div>
                   <span className="block text-xl font-black text-emerald-400">10-15</span>
-                  <span className="text-[11px] text-slate-400 uppercase">Días Hábiles</span>
+                  <span className="text-[11px] text-slate-400 uppercase">DÃ­as HÃ¡biles</span>
                 </div>
               </div>
             </div>
@@ -159,7 +152,7 @@ export default function Home() {
           {/* Bento Lateral (4 columnas, 2 cards apiladas) */}
           <div className="lg:col-span-4 flex flex-col gap-6">
             
-            {/* Card 1: Importación Directa EE.UU. */}
+            {/* Card 1: ImportaciÃ³n Directa EE.UU. */}
             <div className="flex-1 bg-slate-900/70 border border-slate-800/90 rounded-3xl p-6 sm:p-7 flex flex-col justify-between hover:border-emerald-500/40 transition-all duration-300 shadow-xl group">
               <div>
                 <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-4 border border-emerald-500/20">
@@ -169,10 +162,10 @@ export default function Home() {
                   Miami Optical Logistics
                 </span>
                 <h3 className="text-xl font-black text-white uppercase tracking-tight">
-                  Importación Directa USA
+                  ImportaciÃ³n Directa USA
                 </h3>
                 <p className="text-slate-400 text-xs sm:text-sm mt-2 leading-relaxed">
-                  Conexión directa con proveedores de Nueva York y Miami sin intermediarios. Armazones 100% auténticos con estuche de fábrica.
+                  ConexiÃ³n directa con proveedores de Nueva York y Miami sin intermediarios. Armazones 100% autÃ©nticos con estuche de fÃ¡brica.
                 </p>
               </div>
 
@@ -197,10 +190,10 @@ export default function Home() {
                   Cumplimiento Tributario
                 </span>
                 <h3 className="text-xl font-black text-white uppercase tracking-tight">
-                  Facturación Electrónica SII
+                  FacturaciÃ³n ElectrÃ³nica SII
                 </h3>
                 <p className="text-slate-400 text-xs sm:text-sm mt-2 leading-relaxed">
-                  Todos los valores publicados son netos en CLP. Emitimos factura electrónica con IVA 19% deducible para tu óptica.
+                  Todos los valores publicados son netos en CLP. Emitimos factura electrÃ³nica con IVA 19% deducible para tu Ã³ptica.
                 </p>
               </div>
 
@@ -220,76 +213,21 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 2. SECCIÓN DE MARCAS OFICIALES */}
-      <section id="marcas" className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-10 pb-6 border-b border-slate-800/80">
-          <div>
-            <div className="inline-flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              Directorio de Marcas Homologadas
-            </div>
-            <h2 className="text-3xl font-black text-white uppercase tracking-tight">
-              Marcas Oficiales para Distribución
-            </h2>
-            <p className="text-slate-400 text-sm mt-1">
-              Selecciona una marca para explorar su catálogo mayorista sincronizado
-            </p>
-          </div>
+      <BrandMarquee />
 
-          <Link
-            href="/catalogo"
-            className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 transition"
-          >
-            <span>Ver catálogo general completo</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
+      <BrandDirectory />
 
-        {/* Grid de Marcas Destacadas */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {MARCAS_DESTACADAS.map((m) => (
-            <Link
-              key={m.nombre}
-              href={`/catalogo?marca=${encodeURIComponent(m.nombre)}`}
-              className="group bg-slate-900/60 hover:bg-slate-900 border border-slate-800/80 hover:border-emerald-500/50 rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-500/5 flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex justify-between items-start mb-3">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                    {m.origen}
-                  </span>
-                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
-                    {m.disponible}
-                  </span>
-                </div>
-                <h3 className="text-xl font-black text-white tracking-wide uppercase group-hover:text-emerald-400 transition-colors">
-                  {m.nombre}
-                </h3>
-                <p className="text-xs text-slate-400 mt-1 line-clamp-1">
-                  {m.tag}
-                </p>
-              </div>
-
-              <div className="mt-6 pt-3 border-t border-slate-800/60 flex items-center justify-between text-[11px] font-bold text-slate-400 group-hover:text-emerald-400 transition-colors">
-                <span>Ver colección</span>
-                <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* 3. SECCIÓN DE CATEGORÍAS PRINCIPALES B2B */}
+      {/* 3. SECCI�N DE CATEGOR�AS PRINCIPALES B2B */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="text-center max-w-2xl mx-auto mb-12">
           <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block mb-2">
-            Segmentos Ópticos
+            Segmentos Ã“pticos
           </span>
           <h2 className="text-3xl font-black text-white uppercase tracking-tight">
-            Categorías Estratégicas para tu Óptica
+            CategorÃ­as EstratÃ©gicas para tu Ã“ptica
           </h2>
           <p className="text-slate-400 text-sm mt-2">
-            Gama seleccionada según las exigencias clínicas y comerciales del mercado chileno
+            Gama seleccionada segÃºn las exigencias clÃ­nicas y comerciales del mercado chileno
           </p>
         </div>
 
@@ -316,7 +254,7 @@ export default function Home() {
                   href={`/catalogo?marca=${encodeURIComponent(cat.filtro)}`}
                   className="inline-flex items-center gap-2 text-xs font-black text-emerald-400 hover:text-emerald-300 uppercase tracking-wider transition"
                 >
-                  <span>Explorar categoría</span>
+                  <span>Explorar categorÃ­a</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
@@ -325,7 +263,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 4. ARMAZONES DESTACADOS DEL CATÁLOGO EN TIEMPO REAL */}
+      {/* 4. ARMAZONES DESTACADOS DEL CATÃLOGO EN TIEMPO REAL */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-10 pb-6 border-b border-slate-800/80">
           <div>
@@ -345,7 +283,7 @@ export default function Home() {
             href="/catalogo"
             className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 text-white font-bold text-xs uppercase tracking-wider border border-slate-800 hover:border-emerald-500/50 transition flex items-center gap-2"
           >
-            <span>Ver Catálogo Completo</span>
+            <span>Ver CatÃ¡logo Completo</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
@@ -422,15 +360,15 @@ export default function Home() {
         )}
       </section>
 
-      {/* 5. PILARES CORPORATIVOS Y GARANTÍAS B2B */}
+      {/* 5. PILARES CORPORATIVOS Y GARANTÃAS B2B */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-8 sm:p-12">
           <div className="text-center max-w-2xl mx-auto mb-10">
             <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight">
-              ¿Por qué las Ópticas Eligen OptiHub?
+              Â¿Por quÃ© las Ã“pticas Eligen OptiHub?
             </h2>
             <p className="text-slate-400 text-sm mt-2">
-              Infraestructura mayorista diseñada para simplificar el abastecimiento de armazones en Chile
+              Infraestructura mayorista diseÃ±ada para simplificar el abastecimiento de armazones en Chile
             </p>
           </div>
 
@@ -441,7 +379,7 @@ export default function Home() {
               </div>
               <h4 className="font-bold text-white text-base">Despacho en 16 Regiones</h4>
               <p className="text-slate-400 text-xs mt-2 leading-relaxed">
-                Coordinamos envíos asegurados directo a tu local u óptica en cualquier punto de Chile.
+                Coordinamos envÃ­os asegurados directo a tu local u Ã³ptica en cualquier punto de Chile.
               </p>
             </div>
 
@@ -449,7 +387,7 @@ export default function Home() {
               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-4">
                 <Layers className="w-5 h-5" />
               </div>
-              <h4 className="font-bold text-white text-base">Mínimo 10 Unidades</h4>
+              <h4 className="font-bold text-white text-base">MÃ­nimo 10 Unidades</h4>
               <p className="text-slate-400 text-xs mt-2 leading-relaxed">
                 Sin exigencias de docenas por modelo. Puedes mezclar libremente armazones de cualquier marca.
               </p>
@@ -459,9 +397,9 @@ export default function Home() {
               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-4">
                 <FileText className="w-5 h-5" />
               </div>
-              <h4 className="font-bold text-white text-base">Factura Electrónica</h4>
+              <h4 className="font-bold text-white text-base">Factura ElectrÃ³nica</h4>
               <p className="text-slate-400 text-xs mt-2 leading-relaxed">
-                Emisión inmediata del DTE con IVA 19% recuperable por la contabilidad de tu óptica.
+                EmisiÃ³n inmediata del DTE con IVA 19% recuperable por la contabilidad de tu Ã³ptica.
               </p>
             </div>
 
@@ -469,16 +407,16 @@ export default function Home() {
               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-4">
                 <ShieldCheck className="w-5 h-5" />
               </div>
-              <h4 className="font-bold text-white text-base">Garantía de Origen</h4>
+              <h4 className="font-bold text-white text-base">GarantÃ­a de Origen</h4>
               <p className="text-slate-400 text-xs mt-2 leading-relaxed">
-                Armazones nuevos, certificados y originales suministrados con su estuche y paño de fábrica.
+                Armazones nuevos, certificados y originales suministrados con su estuche y paÃ±o de fÃ¡brica.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 6. BANNER FINAL CTA DE CONVERSIÓN */}
+      {/* 6. BANNER FINAL CTA DE CONVERSIÃ“N */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="relative bg-gradient-to-r from-emerald-950/60 via-slate-900 to-slate-900 border border-emerald-500/30 rounded-3xl p-8 sm:p-14 text-center sm:text-left flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl overflow-hidden">
           
@@ -487,7 +425,7 @@ export default function Home() {
               Comienza hoy mismo
             </span>
             <h2 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-tight">
-              Abastece tu óptica con precios mayoristas directos
+              Abastece tu Ã³ptica con precios mayoristas directos
             </h2>
             <p className="text-slate-300 text-sm mt-3 leading-relaxed">
               Crea tu cuenta comercial en segundos para ver precios netos y comenzar tu orden de 10 armazones combinables.
@@ -499,14 +437,14 @@ export default function Home() {
               href="/catalogo"
               className="px-8 py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20 text-center"
             >
-              Explorar Catálogo
+              Explorar CatÃ¡logo
             </Link>
             {!isLoggedIn && (
               <Link
                 href="/registro"
                 className="px-8 py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm uppercase tracking-wider transition-all border border-slate-700 text-center"
               >
-                Registrar mi Óptica
+                Registrar mi Ã“ptica
               </Link>
             )}
           </div>
