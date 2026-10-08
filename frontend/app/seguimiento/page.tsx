@@ -147,32 +147,32 @@ export default function SeguimientoPage() {
                     <div key={stage.id} className="flex gap-4 sm:gap-6 items-start group">
                       {/* ICONO / ESTADO */}
                       <div className="flex-shrink-0 relative">
-                        <div className={\`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg \${
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg ${
                           isCompleted 
                             ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
                             : isCurrent 
                               ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/20 animate-pulse'
                               : 'bg-slate-900 text-slate-600 border border-slate-800'
-                        }\`}>
+                        }`}>
                           {isCompleted ? <CheckCircle2 className="w-6 h-6" /> : stage.icon}
                         </div>
                         {/* Línea conectora Mobile */}
                         {index !== stages.length - 1 && (
-                          <div className={\`sm:hidden absolute left-1/2 -translate-x-1/2 top-12 w-0.5 h-8 \${isCompleted ? 'bg-emerald-500/50' : 'bg-slate-800'}\`}></div>
+                          <div className={`sm:hidden absolute left-1/2 -translate-x-1/2 top-12 w-0.5 h-8 ${isCompleted ? 'bg-emerald-500/50' : 'bg-slate-800'}`}></div>
                         )}
                       </div>
 
                       {/* CONTENIDO FASE */}
-                      <div className={\`pt-1 \${isPending ? 'opacity-50' : 'opacity-100'}\`}>
+                      <div className={`pt-1 ${isPending ? 'opacity-50' : 'opacity-100'}`}>
                         <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mb-1">
-                          <h3 className={\`text-lg font-bold \${isCurrent ? 'text-emerald-400' : isCompleted ? 'text-slate-200' : 'text-slate-500'}\`}>
+                          <h3 className={`text-lg font-bold ${isCurrent ? 'text-emerald-400' : isCompleted ? 'text-slate-200' : 'text-slate-500'}`}>
                             {stage.title}
                           </h3>
-                          <span className={\`text-xs font-semibold px-2 py-0.5 rounded-md \${
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
                             isCompleted ? 'bg-emerald-500/10 text-emerald-400' 
                             : isCurrent ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/50'
                             : 'bg-slate-800 text-slate-400'
-                          }\`}>
+                          }`}>
                             {isCompleted ? 'Completado' : isCurrent ? 'En Progreso' : 'Próximamente'}
                           </span>
                         </div>
