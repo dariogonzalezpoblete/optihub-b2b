@@ -103,7 +103,7 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
                       e.stopPropagation(); 
                       setSelectedIndex(i); 
                     }}
-                    className={`w-9 h-9 rounded-lg border overflow-hidden bg-slate-950 transition-all ${
+                    className={`relative w-9 h-9 rounded-lg border overflow-hidden bg-slate-950 transition-all ${
                       i === selectedIndex 
                         ? 'border-emerald-500 ring-1 ring-emerald-500/50 shadow-sm shadow-emerald-500/20' 
                         : 'border-slate-700 opacity-60 hover:opacity-100 hover:border-slate-500 hover:scale-105'
