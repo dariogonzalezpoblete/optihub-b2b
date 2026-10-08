@@ -281,6 +281,10 @@ function CatalogoContent() {
                     src={marco.imagen_principal || "/placeholder.png"} 
                     alt={marco.modelo}
                     className="max-h-full object-contain group-hover:scale-105 transition duration-300"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = "/placeholder.png";
+                    }}
                   />
                   <span className="badge-brand absolute top-3 left-3">
                     {marco.marca}
@@ -340,32 +344,54 @@ function CatalogoContent() {
               <div className="w-full md:w-1/2 bg-slate-950 p-6 flex flex-col gap-4 justify-between border-b md:border-b-0 md:border-r border-slate-800">
                 <div className="relative bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center p-4 h-[300px] md:h-[360px] shadow-inner group">
                   <img 
-                    src={activeImage || selectedProduct.imagen_principal} 
+                    src={activeImage || selectedProduct.imagen_principal || '/placeholder.png'} 
                     alt={selectedProduct.modelo} 
-                    className="max-h-full max-w-full object-contain rounded-lg"
+                    className="max-h-full max-w-full object-contain rounded-lg transition-all duration-200"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = '/placeholder.png';
+                    }}
                   />
                 </div>
 
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  <div 
-                    onClick={() => setActiveImage(selectedProduct.imagen_principal)}
-                    className={`cursor-pointer border-2 rounded-xl overflow-hidden w-16 h-16 flex-shrink-0 bg-slate-900 transition ${
-                      activeImage === selectedProduct.imagen_principal ? 'border-emerald-500 scale-105' : 'border-slate-800 opacity-60 hover:opacity-100'
-                    }`}
-                  >
-                    <img src={selectedProduct.imagen_principal} alt="Principal" className="w-full h-full object-cover" />
-                  </div>
-                  {selectedProduct.imagenes_secundarias && (
-                    <div 
-                      onClick={() => setActiveImage(selectedProduct.imagenes_secundarias)}
-                      className={`cursor-pointer border-2 rounded-xl overflow-hidden w-16 h-16 flex-shrink-0 bg-slate-900 transition ${
-                        activeImage === selectedProduct.imagenes_secundarias ? 'border-emerald-500 scale-105' : 'border-slate-800 opacity-60 hover:opacity-100'
-                      }`}
-                    >
-                      <img src={selectedProduct.imagenes_secundarias} alt="Secundaria" className="w-full h-full object-cover" />
+                {/* Galería de miniaturas (Principal + Secundarias separadas por coma) */}
+                {(() => {
+                  const galleryImages = [
+                    selectedProduct.imagen_principal,
+                    ...(selectedProduct.imagenes_secundarias
+                      ? selectedProduct.imagenes_secundarias.split(',').map((s: string) => s.trim()).filter(Boolean)
+                      : [])
+                  ].filter(Boolean);
+
+                  if (galleryImages.length <= 1) return null;
+
+                  return (
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {galleryImages.map((imgUrl: string, idx: number) => (
+                        <div 
+                          key={idx}
+                          onClick={() => setActiveImage(imgUrl)}
+                          className={`cursor-pointer border-2 rounded-xl overflow-hidden w-16 h-16 flex-shrink-0 bg-slate-900 transition ${
+                            (activeImage === imgUrl || (!activeImage && idx === 0))
+                              ? 'border-emerald-500 scale-105' 
+                              : 'border-slate-800 opacity-60 hover:opacity-100'
+                          }`}
+                        >
+                          <img 
+                            src={imgUrl} 
+                            alt={`Vista ${idx + 1}`} 
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              // Si una miniatura falla, oculta el contenedor limpiamente
+                              const parent = e.currentTarget.parentElement;
+                              if (parent) parent.style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
               </div>
 
               <div className="w-full md:w-1/2 p-6 md:p-8 overflow-y-auto space-y-6">

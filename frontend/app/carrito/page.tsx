@@ -202,6 +202,10 @@ export default function CarritoPage() {
                             src={item.producto.imagen_principal || '/placeholder.png'} 
                             alt={item.producto.modelo}
                             className="max-h-full max-w-full object-contain"
+                            onError={(e) => {
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.src = '/placeholder.png';
+                            }}
                           />
                         </div>
                         <div className="space-y-1 flex-1">

@@ -374,6 +374,10 @@ export default function Home() {
                     src={marco.imagen_principal || '/placeholder.png'}
                     alt={marco.modelo}
                     className="max-h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = '/placeholder.png';
+                    }}
                   />
                   <span className="absolute top-3 left-3 bg-slate-900/90 backdrop-blur-md border border-slate-700/60 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase">
                     {marco.marca}
