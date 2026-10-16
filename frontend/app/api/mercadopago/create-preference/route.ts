@@ -581,7 +581,12 @@ export async function POST(req: NextRequest) {
     // 2.1 ADQUIRIR RESERVA DE CHECKOUT (DISTRIBUTED LEASE BACKED BY POSTGRESQL)
     leaseId = crypto.randomUUID();
     const leaseResult = await acquireUserCheckoutLease(supabaseAdmin, verifiedUserId, cartId, leaseId, 45);
-    if (!leaseResult.success) {
+    if (leaseResult.success) {
+      leaseAcquired = true;
+    } else if (leaseResult.code === 'CHECKOUT_CONCURRENCY_NOT_CONFIGURED') {
+      console.warn('[CreatePref] RPC acquire_checkout_lease aún no configurada en BD; operando con firma compatible (migración 010).');
+      leaseAcquired = false;
+    } else {
       console.warn('[CreatePref] No se pudo adquirir el lease de checkout:', leaseResult);
       return NextResponse.json({
         error: leaseResult.message,
@@ -589,7 +594,6 @@ export async function POST(req: NextRequest) {
         retryAfter: leaseResult.retryAfter
       }, { status: leaseResult.httpStatus || 503 });
     }
-    leaseAcquired = true;
 
     // 3. VALIDAR RUT Y DATOS B2B
     if (!billing || !billing.rut || !isValidRUT(billing.rut)) {
@@ -759,24 +763,48 @@ export async function POST(req: NextRequest) {
       shipping_commune: billing.comuna || profile?.commune || null,
     };
 
-    // Verificar vigencia del lease antes de convertir el carrito y crear la orden
-    const leaseValidityBeforeOrder = await verifyUserCheckoutLease(supabaseAdmin, verifiedUserId, leaseId);
-    if (!leaseValidityBeforeOrder.valid) {
-      console.warn('[CreatePref] Abortando creación de orden por lease inválido/expirado:', leaseValidityBeforeOrder);
-      return NextResponse.json({
-        error: 'Tu reserva de pago expiró o fue transferida antes de registrar la orden. Por favor intenta nuevamente.',
-        code: leaseValidityBeforeOrder.code
-      }, { status: 409 });
-    }
+    let checkoutResult: any = null;
+    let checkoutError: any = null;
 
-    // Ejecutar RPC atómico con Fencing Token (p_lease_id) y Cancelación Atómica (p_cancel_order_id)
-    const { data: checkoutResult, error: checkoutError } = await supabaseAdmin.rpc('process_b2b_checkout', {
-      p_user_id: verifiedUserId,
-      p_cart_id: cartId,
-      p_billing: billingData,
-      p_lease_id: leaseId,
-      p_cancel_order_id: cancelOrderId
-    });
+    if (leaseAcquired) {
+      // Verificar vigencia del lease antes de convertir el carrito y crear la orden
+      const leaseValidityBeforeOrder = await verifyUserCheckoutLease(supabaseAdmin, verifiedUserId, leaseId);
+      if (!leaseValidityBeforeOrder.valid) {
+        console.warn('[CreatePref] Abortando creación de orden por lease inválido/expirado:', leaseValidityBeforeOrder);
+        return NextResponse.json({
+          error: 'Tu reserva de pago expiró o fue transferida antes de registrar la orden. Por favor intenta nuevamente.',
+          code: leaseValidityBeforeOrder.code
+        }, { status: 409 });
+      }
+
+      // Ejecutar RPC atómico con Fencing Token (p_lease_id) y Cancelación Atómica (p_cancel_order_id)
+      const rpcRes = await supabaseAdmin.rpc('process_b2b_checkout', {
+        p_user_id: verifiedUserId,
+        p_cart_id: cartId,
+        p_billing: billingData,
+        p_lease_id: leaseId,
+        p_cancel_order_id: cancelOrderId
+      });
+      checkoutResult = rpcRes.data;
+      checkoutError = rpcRes.error;
+    } else {
+      // Modo compatible con migración 010 (3 argumentos) mientras migración 012 no haya sido ejecutada en BD
+      if (cancelOrderId) {
+        await supabaseAdmin
+          .from('orders')
+          .update({ status: 'cancelled' })
+          .eq('id', cancelOrderId)
+          .eq('user_id', verifiedUserId)
+          .eq('status', 'pending');
+      }
+      const rpcRes = await supabaseAdmin.rpc('process_b2b_checkout', {
+        p_user_id: verifiedUserId,
+        p_cart_id: cartId,
+        p_billing: billingData
+      });
+      checkoutResult = rpcRes.data;
+      checkoutError = rpcRes.error;
+    }
 
     if (checkoutError) {
       console.error('[CreatePref] RPC Checkout Error:', {
