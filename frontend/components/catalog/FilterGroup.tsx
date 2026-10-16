@@ -68,7 +68,7 @@ export default function FilterGroup({
             <div className="grid grid-cols-2 gap-2">
               {visible.map((o) => {
                 const checked = selected.includes(o.key);
-                const disabled = o.count === 0 && !checked;
+                const disabled = false;
                 return (
                   <button
                     key={o.key}
@@ -89,7 +89,7 @@ export default function FilterGroup({
                     </span>
                     <span className="flex justify-between items-center text-[10px] text-slate-500 mt-0.5">
                       <span>{o.hint}</span>
-                      <span className="tabular-nums">{o.count}</span>
+                      
                     </span>
                   </button>
                 );
@@ -99,7 +99,7 @@ export default function FilterGroup({
             <ul className="space-y-0.5">
               {visible.map((o) => {
                 const checked = selected.includes(o.key);
-                const disabled = o.count === 0 && !checked;
+                const disabled = false;
                 return (
                   <li key={o.key}>
                     <label
@@ -124,7 +124,7 @@ export default function FilterGroup({
                       <span className={`flex-1 text-sm ${checked ? 'text-white font-semibold' : 'text-slate-300'}`}>
                         {o.label}
                       </span>
-                      <span className="text-[11px] text-slate-500 tabular-nums">{o.count}</span>
+                      
                     </label>
                   </li>
                 );

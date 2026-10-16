@@ -99,6 +99,12 @@ function LoginForm() {
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
                   Contraseña
                 </label>
+                <Link
+                  href="/recuperar-password"
+                  className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition uppercase tracking-wider"
+                >
+                  ¿Olvidaste tu contraseña?
+                </Link>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useCartStore } from '@/store/useCartStore';
+import { useCartStore, getValidStock, getProductCartKey } from '@/store/useCartStore';
 import { 
   ShoppingBag, 
   Trash2, 
@@ -15,12 +15,14 @@ import {
   FileText, 
   AlertCircle, 
   CheckCircle2,
-  Lock
+  Lock,
+  X
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export default function CarritoPage() {
   const [mounted, setMounted] = useState(false);
+  const [stockWarning, setStockWarning] = useState<string>('');
   const { isLoggedIn } = useAuth();
 
   const cart = useCartStore((state) => state.cart);
@@ -32,6 +34,8 @@ export default function CarritoPage() {
   const getMontoIva = useCartStore((state) => state.getMontoIva);
   const getMontoTotal = useCartStore((state) => state.getMontoTotal);
   const isValidMOQ = useCartStore((state) => state.isValidMOQ);
+  const lastError = useCartStore((state) => state.lastError);
+  const clearLastError = useCartStore((state) => state.clearLastError);
 
   useEffect(() => {
     setMounted(true);
@@ -52,6 +56,14 @@ export default function CarritoPage() {
   const moqValido = isValidMOQ();
   const unidadesFaltantes = Math.max(0, 10 - totalUnits);
   const porcentajeProgreso = Math.min(100, Math.round((totalUnits / 10) * 100));
+
+  // Validación de stock a nivel de carrito
+  const hasStockViolations = cart.some((item) => {
+    const s = getValidStock(item.producto?.stock);
+    return s <= 0 || item.cantidad > s;
+  });
+
+  const activeNotice = stockWarning || lastError;
 
   if (cart.length === 0) {
     return (
@@ -123,6 +135,26 @@ export default function CarritoPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 space-y-8">
         
+        {/* Banner de Aviso de Stock */}
+        {activeNotice && (
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-semibold flex items-center justify-between gap-3 animate-fade-in shadow-lg">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 shrink-0 text-amber-400" />
+              <span>{activeNotice}</span>
+            </div>
+            <button 
+              onClick={() => {
+                setStockWarning('');
+                clearLastError();
+              }}
+              className="text-amber-400/80 hover:text-amber-200 p-1"
+              title="Cerrar aviso"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* BARRA DE PROGRESO DE LA REGLA MOQ (10 UNIDADES) */}
         <div className={`p-6 rounded-3xl border transition-all shadow-xl ${
           moqValido 
@@ -186,117 +218,170 @@ export default function CarritoPage() {
 
               <div className="divide-y divide-slate-800/80">
                 {cart.map((item) => {
-                  const targetId = item.producto.id_ext || item.producto.id || '';
+                  const targetId = getProductCartKey(item.producto);
                   const subtotalItem = (item.producto.precio_neto_clp || 0) * item.cantidad;
-                  const stockMax = typeof item.producto.stock === 'number' ? item.producto.stock : 999;
+                  const stockMax = getValidStock(item.producto.stock);
+                  const isOutOfStock = stockMax <= 0;
+                  const isExceeded = item.cantidad > stockMax;
+                  const isMaxReached = item.cantidad >= stockMax;
 
                   return (
                     <div 
                       key={targetId}
-                      className="p-4 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-slate-800/20 transition"
+                      className="p-4 sm:p-6 flex flex-col gap-3 hover:bg-slate-800/20 transition"
                     >
-                      {/* Imagen y Datos del Armazón */}
-                      <div className="flex items-center gap-4 w-full sm:w-auto">
-                        <div className="w-20 h-20 sm:w-24 sm:h-24 bg-slate-950 border border-slate-800 rounded-2xl p-2 flex-shrink-0 flex items-center justify-center overflow-hidden">
-                          <img 
-                            src={item.producto.imagen_principal || '/placeholder.png'} 
-                            alt={item.producto.modelo}
-                            className="max-h-full max-w-full object-contain"
-                            onError={(e) => {
-                              e.currentTarget.onerror = null;
-                              e.currentTarget.src = '/placeholder.png';
-                            }}
-                          />
-                        </div>
-                        <div className="space-y-1 flex-1">
-                          <span className="inline-block bg-slate-800 border border-slate-700/60 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
-                            {item.producto.marca}
-                          </span>
-                          <h3 className="font-bold text-white text-base leading-tight">
-                            {item.producto.modelo}
-                          </h3>
-                          <div className="flex flex-wrap gap-2 text-xs text-slate-400 font-mono">
-                            <span>SKU: {item.producto.id_ext}</span>
-                            {item.producto.codigo_color && (
-                              <span>• Color: {item.producto.codigo_color}</span>
-                            )}
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        {/* Imagen y Datos del Armazón */}
+                        <div className="flex items-center gap-4 w-full sm:w-auto">
+                          <div className="w-20 h-20 sm:w-24 sm:h-24 bg-slate-950 border border-slate-800 rounded-2xl p-2 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                            <img 
+                              src={item.producto.imagen_principal || '/placeholder.png'} 
+                              alt={item.producto.modelo}
+                              className="max-h-full max-w-full object-contain"
+                              onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = '/placeholder.png';
+                              }}
+                            />
                           </div>
-                          <p className="text-xs text-emerald-400 font-semibold pt-0.5">
-                            ${(item.producto.precio_neto_clp || 0).toLocaleString('es-CL')} CLP Neto c/u
-                          </p>
+                          <div className="space-y-1 flex-1">
+                            <span className="inline-block bg-slate-800 border border-slate-700/60 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
+                              {item.producto.marca}
+                            </span>
+                            <h3 className="font-bold text-white text-base leading-tight">
+                              {item.producto.modelo}
+                            </h3>
+                            <div className="flex flex-wrap gap-2 text-xs text-slate-400 font-mono">
+                              <span>SKU: {item.producto.id_ext}</span>
+                              {item.producto.codigo_color && (
+                                <span>• Color: {item.producto.codigo_color}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 pt-0.5">
+                              <p className="text-xs text-emerald-400 font-semibold">
+                                ${(item.producto.precio_neto_clp || 0).toLocaleString('es-CL')} CLP Neto c/u
+                              </p>
+                              <span className="text-slate-600">•</span>
+                              {isOutOfStock ? (
+                                <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded">
+                                  Sin stock
+                                </span>
+                              ) : isExceeded ? (
+                                <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded">
+                                  Supera stock ({item.cantidad}/{stockMax} un.)
+                                </span>
+                              ) : isMaxReached ? (
+                                <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+                                  Máx. disponible ({stockMax} un.)
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-500">
+                                  Stock: {stockMax} un.
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Controles de Cantidad y Subtotal */}
+                        <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
+                          {/* Selector de cantidad */}
+                          <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl p-1">
+                            <button
+                              onClick={() => {
+                                updateQuantity(targetId, item.cantidad - 1);
+                                setStockWarning('');
+                              }}
+                              className="w-8 h-8 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition border border-slate-800"
+                              title="Disminuir"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            
+                            <span className="w-10 text-center font-bold text-white text-sm">
+                              {item.cantidad}
+                            </span>
+
+                            <button
+                              onClick={() => {
+                                if (item.cantidad < stockMax) {
+                                  const res = updateQuantity(targetId, item.cantidad + 1);
+                                  if (res?.message) {
+                                    setStockWarning(res.message);
+                                  } else {
+                                    setStockWarning('');
+                                  }
+                                } else {
+                                  setStockWarning(`Stock máximo disponible: ${stockMax} ${stockMax === 1 ? 'unidad' : 'unidades'}.`);
+                                }
+                              }}
+                              disabled={isMaxReached || isOutOfStock}
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center transition border ${
+                                isMaxReached || isOutOfStock
+                                  ? 'bg-slate-900/50 border-slate-800 text-slate-600 cursor-not-allowed'
+                                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800'
+                              }`}
+                              title={
+                                isOutOfStock 
+                                  ? 'Producto sin stock disponible' 
+                                  : isMaxReached 
+                                    ? `Stock máximo disponible: ${stockMax} unidades` 
+                                    : 'Aumentar'
+                              }
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Subtotal del item */}
+                          <div className="text-right min-w-[110px]">
+                            <span className="text-[10px] text-slate-400 block uppercase">Subtotal Neto</span>
+                            <span className="text-base font-black text-white">
+                              ${subtotalItem.toLocaleString('es-CL')} CLP
+                            </span>
+                          </div>
+
+                          {/* Botón eliminar */}
+                          <button
+                            onClick={() => removeFromCart(targetId)}
+                            className="text-slate-500 hover:text-rose-400 p-2 rounded-xl hover:bg-rose-500/10 transition"
+                            title="Eliminar del pedido"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
 
-                      {/* Controles de Cantidad y Subtotal */}
-                      <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
-                        {/* Selector de cantidad */}
-                        <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl p-1">
-                          <button
-                            onClick={() => updateQuantity(targetId, item.cantidad - 1)}
-                            className="w-8 h-8 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition border border-slate-800"
-                            title="Disminuir"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          
-                          <span className="w-10 text-center font-bold text-white text-sm">
-                            {item.cantidad}
-                          </span>
-
+                      {/* Alerta contextual si el item supera el stock */}
+                      {isExceeded && (
+                        <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-xs font-semibold flex items-center justify-between gap-3 animate-fade-in">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                            <span>Stock máximo disponible: {stockMax} {stockMax === 1 ? 'unidad' : 'unidades'}. Se requiere ajustar la cantidad.</span>
+                          </div>
                           <button
                             onClick={() => {
-                              if (item.cantidad < stockMax) {
-                                updateQuantity(targetId, item.cantidad + 1);
-                              }
+                              updateQuantity(targetId, stockMax);
+                              setStockWarning('');
                             }}
-                            disabled={item.cantidad >= stockMax}
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition border ${
-                              item.cantidad >= stockMax
-                                ? 'bg-slate-900/50 border-slate-800 text-slate-600 cursor-not-allowed'
-                                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800'
-                            }`}
-                            title={item.cantidad >= stockMax ? 'Stock máximo alcanzado' : 'Aumentar'}
+                            className="px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-lg text-[10px] font-bold uppercase transition"
                           >
-                            <Plus className="w-3.5 h-3.5" />
+                            Ajustar a {stockMax}
                           </button>
                         </div>
-
-                        {/* Subtotal del item */}
-                        <div className="text-right min-w-[110px]">
-                          <span className="text-[10px] text-slate-400 block uppercase">Subtotal Neto</span>
-                          <span className="text-base font-black text-white">
-                            ${subtotalItem.toLocaleString('es-CL')} CLP
-                          </span>
-                        </div>
-
-                        {/* Botón eliminar */}
-                        <button
-                          onClick={() => removeFromCart(targetId)}
-                          className="text-slate-500 hover:text-rose-400 p-2 rounded-xl hover:bg-rose-500/10 transition"
-                          title="Eliminar del pedido"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            {/* Garantías y condiciones comerciales */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-              <div className="bg-slate-900/50 border border-slate-800/80 p-4 rounded-2xl flex items-start gap-3">
-                <Truck className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-xs font-bold text-white">Importación 10-15 días</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Despacho coordinado directo a tu óptica en Chile.</p>
-                </div>
-              </div>
+            {/* Garantías B2B */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="bg-slate-900/50 border border-slate-800/80 p-4 rounded-2xl flex items-start gap-3">
                 <FileText className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-xs font-bold text-white">Facturación B2B SII</h4>
+                  <h4 className="text-xs font-bold text-white">Factura Electrónica B2B</h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">Emitimos factura con IVA recuperable por tu empresa.</p>
                 </div>
               </div>
@@ -349,7 +434,20 @@ export default function CarritoPage() {
 
             {/* BOTÓN DE ACCIÓN AL CHECKOUT */}
             <div className="pt-2">
-              {moqValido ? (
+              {hasStockViolations ? (
+                <div className="space-y-3">
+                  <button
+                    disabled
+                    className="w-full bg-rose-950/40 text-rose-400 font-bold py-4 px-6 rounded-2xl cursor-not-allowed text-center uppercase tracking-wider text-sm border border-rose-800/50 flex items-center justify-center gap-2"
+                  >
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    Stock Insuficiente en el Pedido
+                  </button>
+                  <p className="text-[11px] text-center text-rose-400">
+                    Uno o más productos superan el stock disponible. Ajusta las cantidades antes de continuar.
+                  </p>
+                </div>
+              ) : moqValido ? (
                 isLoggedIn ? (
                   <Link
                     href="/checkout"

@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCartStore } from '@/store/useCartStore';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabaseClient';
+import { isValidRUT, formatRUT } from '@/lib/utils/rut';
+import { ensureCartSynced } from '@/lib/cartService';
 import { 
   Building2, 
   MapPin, 
@@ -16,8 +19,9 @@ import {
   CreditCard, 
   AlertCircle,
   Truck,
-  Lock
-, Check } from 'lucide-react';
+  Lock,
+  Check 
+} from 'lucide-react';
 
 const REGIONES_CHILE = [
   'Región Metropolitana de Santiago',
@@ -27,7 +31,7 @@ const REGIONES_CHILE = [
   'Región de Atacama',
   'Región de Coquimbo',
   'Región de Valparaíso',
-  'Región del Libertador Gral. Bernardo O’Higgins',
+  'Región del Libertador Gral. Bernardo O\'Higgins',
   'Región del Maule',
   'Región de Ñuble',
   'Región del Biobío',
@@ -42,20 +46,24 @@ export default function CheckoutPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const { user, isLoggedIn, opticaData, loading: authLoading } = useAuth();
+  const { user, isLoggedIn, loading: authLoading } = useAuth();
   const cart = useCartStore((state) => state.cart);
+  const setCart = useCartStore((state) => state.setCart);
+  const cartId = useCartStore((state) => state.cartId);
+  const setCartId = useCartStore((state) => state.setCartId);
+  const setLastSyncedAt = useCartStore((state) => state.setLastSyncedAt);
+  const setSyncStatus = useCartStore((state) => state.setSyncStatus);
   const getTotalUnits = useCartStore((state) => state.getTotalUnits);
   const getMontoNeto = useCartStore((state) => state.getMontoNeto);
   const getMontoIva = useCartStore((state) => state.getMontoIva);
   const getMontoTotal = useCartStore((state) => state.getMontoTotal);
   const isValidMOQ = useCartStore((state) => state.isValidMOQ);
-  const clearCart = useCartStore((state) => state.clearCart);
 
-  // Formulario de facturación y despacho B2B
   const [formData, setFormData] = useState({
     razon_social: '',
     rut: '',
@@ -73,7 +81,6 @@ export default function CheckoutPage() {
     setMounted(true);
   }, []);
 
-  // Pre-llenar datos con el perfil de la óptica
   useEffect(() => {
     if (mounted && !authLoading) {
       if (!isLoggedIn) {
@@ -81,72 +88,177 @@ export default function CheckoutPage() {
         return;
       }
 
-      setFormData((prev) => ({
-        ...prev,
-        razon_social: opticaData?.nombre_optica || prev.razon_social,
-        rut: opticaData?.rut_empresa || prev.rut,
-        contacto_nombre: opticaData?.nombre_contacto || prev.contacto_nombre,
-        contacto_telefono: opticaData?.telefono || prev.contacto_telefono,
-        contacto_email: user?.email || prev.contacto_email,
-        comuna: opticaData?.ciudad || prev.comuna,
-      }));
+      // Fetch Perfil real B2B
+      const fetchProfile = async () => {
+        if (!user) return;
+        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        if (data) {
+          setFormData((prev) => ({
+            ...prev,
+            razon_social: data.business_name || prev.razon_social,
+            rut: data.rut || prev.rut,
+            contacto_nombre: data.first_name || prev.contacto_nombre,
+            contacto_telefono: data.phone || prev.contacto_telefono,
+            contacto_email: user.email || prev.contacto_email,
+            direccion: data.billing_address || prev.direccion,
+            comuna: data.commune || prev.comuna,
+            region: data.region || prev.region,
+          }));
+        } else {
+          setFormData(prev => ({ ...prev, contacto_email: user.email || '' }));
+        }
+      };
+      
+      fetchProfile();
     }
-  }, [mounted, authLoading, isLoggedIn, opticaData, user, router]);
+  }, [mounted, authLoading, isLoggedIn, router, user]);
 
-  if (!mounted || authLoading) {
+  // Pre-sincronización de fondo si el carrito tiene productos y no tiene cartId
+  useEffect(() => {
+    if (mounted && user?.id && cart.length > 0 && !cartId) {
+      ensureCartSynced(user.id, cart)
+        .then((res) => {
+          if (res.reconciledCart) {
+            setCart(res.reconciledCart);
+          }
+          setCartId(res.cartId);
+          setLastSyncedAt(res.updatedAt);
+          setSyncStatus('synced');
+        })
+        .catch((err) => {
+          console.warn('[Checkout] Background pre-sync aviso:', err);
+        });
+    }
+  }, [mounted, user?.id, cart.length, cartId, setCart, setCartId, setLastSyncedAt, setSyncStatus]);
+
+  if (!mounted || authLoading) return null;
+
+  // Pantalla de carga mientras se navega hacia la pasarela segura de Mercado Pago.
+  // Evita que aparezca el guardián de "Requisitos no cumplidos / Carrito vacío".
+  if (isRedirecting) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center py-20">
-        <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  const totalUnits = getTotalUnits();
-  const montoNeto = getMontoNeto();
-  const montoIva = getMontoIva();
-  const montoTotal = getMontoTotal();
-
-  if (cart.length === 0 || !isValidMOQ()) {
-    return (
-      <div className="min-h-[80vh] bg-slate-950 text-slate-100 flex items-center justify-center px-4 py-16">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center shadow-2xl">
-          <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-white">Tu pedido no cumple los requisitos</h2>
-          <p className="text-slate-400 text-sm mt-2 leading-relaxed">
-            Para continuar al checkout debes tener al menos <span className="text-emerald-400 font-bold">10 unidades mayoristas</span> en tu carrito. Actualmente tienes {totalUnits}.
+      <div className="min-h-screen pt-24 pb-12 flex items-center justify-center bg-slate-950 px-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 md:p-12 text-center max-w-md w-full">
+          <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
+            <CreditCard className="w-10 h-10 text-emerald-400 animate-pulse" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Redirigiendo a Mercado Pago</h2>
+          <p className="text-slate-400 mb-6 text-sm">
+            Estamos conectando con la pasarela de pagos segura. Serás transferido en unos segundos...
           </p>
-          <div className="mt-6">
-            <Link
-              href="/carrito"
-              className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 px-6 rounded-xl transition text-sm uppercase"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Volver al Carrito
-            </Link>
+          <div className="flex justify-center items-center gap-2 text-xs font-semibold text-emerald-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            Transferencia segura SSL
           </div>
         </div>
       </div>
     );
   }
 
+  if (cart.length === 0 || !isValidMOQ()) {
+    return (
+      <div className="min-h-screen pt-24 pb-12 flex items-center justify-center bg-slate-950 px-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 md:p-12 text-center max-w-md w-full">
+          <div className="w-20 h-20 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-rose-500/20">
+            <AlertCircle className="w-10 h-10 text-rose-500" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Requisitos no cumplidos</h2>
+          <p className="text-slate-400 mb-8">
+            {cart.length === 0 
+              ? 'Tu carrito está vacío.' 
+              : 'El pedido mínimo mayorista (MOQ) es de 10 unidades.'}
+          </p>
+          <Link 
+            href="/carrito"
+            className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 px-6 rounded-xl transition text-sm uppercase"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Volver al Carrito
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    let value = e.target.value;
+    
+    // Auto-formatear RUT
+    if (e.target.name === 'rut') {
+      value = formatRUT(value);
+    }
+    
     setFormData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [e.target.name]: value,
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    
+    // Validación de cliente B2B
+    if (!isValidRUT(formData.rut)) {
+      setErrorMsg('El RUT ingresado no es válido. Por favor verifica e intenta nuevamente.');
+      return;
+    }
+
+    if (!acceptTerms) {
+      setErrorMsg('Debes aceptar los Términos y Condiciones Comerciales B2B para continuar.');
+      return;
+    }
+
     setLoading(true);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.user?.id) {
+        setErrorMsg('Debes iniciar sesión para completar la compra.');
+        setLoading(false);
+        return;
+      }
+
+      // Sincronización bloqueante y confirmada del carrito antes del checkout
+      let confirmedCartId = cartId;
+      try {
+        setSyncStatus('syncing');
+        const syncResult = await ensureCartSynced(session.user.id, cart);
+        confirmedCartId = syncResult.cartId;
+        if (syncResult.reconciledCart) {
+          setCart(syncResult.reconciledCart);
+        }
+        setCartId(syncResult.cartId);
+        setLastSyncedAt(syncResult.updatedAt);
+        setSyncStatus('synced');
+      } catch (syncErr: any) {
+        console.error('[Checkout] Error de sincronización obligatoria:', syncErr);
+        setSyncStatus('error');
+        setErrorMsg(
+          syncErr?.message === 'OCC_PERSISTENT_CONFLICT'
+            ? 'Detectamos cambios simultáneos en tu carrito. Por favor, revisa tus productos y vuelve a intentar.'
+            : 'No se pudo sincronizar tu pedido con el servidor. Por favor, reintenta en unos instantes.'
+        );
+        setLoading(false);
+        return;
+      }
+
+      if (!confirmedCartId) {
+        setErrorMsg('No se pudo obtener el identificador del carrito en el servidor. Reintenta la operación.');
+        setLoading(false);
+        return;
+      }
+
       const response = await fetch('/api/mercadopago/create-preference', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({
           cart,
+          cartId: confirmedCartId,
           billing: formData,
         }),
       });
@@ -154,399 +266,327 @@ export default function CheckoutPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Error al conectar con la pasarela de pago');
+        throw new Error(data.error || 'Ocurrió un error al procesar el checkout.');
       }
 
-      // Vaciar carrito tras iniciar el proceso
-      clearCart();
-
-      // Redirigir al checkout seguro de Mercado Pago (o simulación en modo dev)
-      if (data.init_point) {
-        window.location.href = data.init_point;
+      if (data.initPoint) {
+        // Activar pantalla de redirección. Conservamos el carrito en Zustand y localStorage
+        // para que no se pierdan productos si el pago se cancela, queda pendiente o falla.
+        setIsRedirecting(true);
+        if (typeof window !== 'undefined') {
+          window.location.href = data.initPoint;
+        }
+        return;
       } else {
-        throw new Error('No se recibió la URL de pago de Mercado Pago');
+        // initPoint ausente: mostrar error pero mantener la orden identificable
+        console.error('[Checkout] Preference creada sin initPoint', data);
+        setErrorMsg('No se pudo obtener la URL de pago de Mercado Pago. Por favor contacte soporte.');
+        // Mantener la posibilidad de inspeccionar la orden manualmente
+        router.push(`/mis-pedidos/${data.orderId}`);
+        return;
       }
-    } catch (err: any) {
-      console.error(err);
-      setErrorMsg(err.message || 'Ocurrió un error al procesar la orden');
+
+    } catch (error: any) {
+      setIsRedirecting(false);
+      setErrorMsg(error.message || 'Error de conexión. Intenta nuevamente.');
+    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-24">
-      {/* Encabezado */}
-      <div className="border-b border-slate-800/80 bg-slate-900/40 py-8 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <main className="min-h-screen pt-24 pb-20 bg-slate-950">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        {/* Cabecera Segura */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 border-b border-slate-800 pb-8">
           <div>
-            <div className="flex items-center gap-2 text-xs text-slate-400 mb-2">
-              <Link href="/carrito" className="hover:text-emerald-400 transition flex items-center gap-1">
-                <ArrowLeft className="w-3.5 h-3.5" />
-                Volver al Carrito
-              </Link>
-              <span>/</span>
-              <span className="text-emerald-400 font-medium">Facturación y Pago B2B</span>
-            </div>
-            <h1 className="text-3xl font-black text-white tracking-tight uppercase">
-              Checkout Mayorista OptiHub
+            <h1 className="text-3xl font-black text-white flex items-center gap-3 tracking-tight">
+              Checkout B2B
             </h1>
+            <p className="text-slate-400 mt-2 flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              Tus datos están protegidos y encriptados.
+            </p>
           </div>
-
-          <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 px-3.5 py-1.5 rounded-xl text-emerald-400 text-xs font-bold">
-            <Lock className="w-4 h-4" />
-            Transacción B2B Segura 256-bit SSL
-          </div>
+          <Link href="/carrito" className="text-sm font-bold text-slate-400 hover:text-emerald-400 transition flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" /> Modificar Carrito
+          </Link>
         </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
         {errorMsg && (
-          <div className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-rose-400" />
-            <span>{errorMsg}</span>
+          <div className="mb-8 bg-rose-500/10 border border-rose-500/20 p-4 rounded-xl flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+            <p className="text-rose-400 font-semibold">{errorMsg}</p>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
           
-          {/* COLUMNA IZQUIERDA: FORMULARIO B2B */}
-          <div className="lg:col-span-2 space-y-6">
+          {/* Columna Izquierda: Formulario B2B */}
+          <div className="lg:col-span-7 space-y-8">
             
-            {/* SECCIÓN 1: DATOS DE FACTURACIÓN ELECTRÓNICA */}
-            <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800">
-                <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-white">Datos de Facturación Electrónica (SII)</h2>
-                  <p className="text-xs text-slate-400">Emisión de factura con IVA 19% recuperable para tu empresa</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                    Razón Social / Nombre de la Óptica *
-                  </label>
+            {/* Facturación */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8">
+              <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-emerald-400" />
+                Datos de Facturación
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-400">RUT Empresa (con guion)</label>
                   <input
                     type="text"
-                    required
-                    name="razon_social"
-                    value={formData.razon_social}
-                    onChange={handleChange}
-                    placeholder="Ej: Óptica y Contactología Visión SpA"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                    RUT de la Empresa *
-                  </label>
-                  <input
-                    type="text"
-                    required
                     name="rut"
                     value={formData.rut}
                     onChange={handleChange}
-                    placeholder="Ej: 76.543.210-K"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition"
+                    required
+                    placeholder="Ej: 76.123.456-K"
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
                   />
                 </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                    Giro Comercial *
-                  </label>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-400">Razón Social</label>
                   <input
                     type="text"
+                    name="razon_social"
+                    value={formData.razon_social}
+                    onChange={handleChange}
                     required
+                    placeholder="Ej: Ópticas Visión SpA"
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
+                  />
+                </div>
+                
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-bold text-slate-400">Giro Comercial</label>
+                  <input
+                    type="text"
                     name="giro"
                     value={formData.giro}
                     onChange={handleChange}
-                    placeholder="Ej: Comercialización de artículos ópticos"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition"
+                    required
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
                   />
                 </div>
               </div>
             </div>
 
-            {/* SECCIÓN 2: DIRECCIÓN DE DESPACHO EN CHILE */}
-            <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800">
-                <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
-                  <Truck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-white">Dirección de Despacho Mayorista</h2>
-                  <p className="text-xs text-slate-400">Entrega directa en local u óptica (10 a 15 días hábiles)</p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                      Región *
-                    </label>
-                    <select
-                      name="region"
-                      value={formData.region}
-                      onChange={handleChange}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition"
-                    >
-                      {REGIONES_CHILE.map((reg) => (
-                        <option key={reg} value={reg} className="bg-slate-900 text-white">
-                          {reg}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                      Comuna / Ciudad *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      name="comuna"
-                      value={formData.comuna}
-                      onChange={handleChange}
-                      placeholder="Ej: Providencia, Santiago"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                    Dirección (Calle, Número, Oficina o Local) *
-                  </label>
+            {/* Contacto */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8">
+              <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-emerald-400" />
+                Contacto del Encargado
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-400 flex items-center gap-2"><Lock className="w-3 h-3"/> Nombre Completo</label>
                   <input
                     type="text"
-                    required
-                    name="direccion"
-                    value={formData.direccion}
-                    onChange={handleChange}
-                    placeholder="Ej: Av. Nueva Providencia 1881, Oficina 502"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                    Instrucciones Especiales de Entrega (Opcional)
-                  </label>
-                  <textarea
-                    rows={2}
-                    name="instrucciones_entrega"
-                    value={formData.instrucciones_entrega}
-                    onChange={handleChange}
-                    placeholder="Ej: Horario de atención óptica de 10:00 a 19:00 hrs. Dejar en recepción."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition resize-none"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* SECCIÓN 3: CONTACTO DE RECEPCIÓN */}
-            <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800">
-                <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
-                  <Building2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-white">Persona de Contacto para Recepción</h2>
-                  <p className="text-xs text-slate-400">Coordinación telefónica y notificación de seguimiento</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                    Nombre Completo *
-                  </label>
-                  <input
-                    type="text"
-                    required
                     name="contacto_nombre"
                     value={formData.contacto_nombre}
                     onChange={handleChange}
-                    placeholder="Ej: María José Peña"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition"
+                    required
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
                   />
                 </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                    Teléfono / WhatsApp *
-                  </label>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-400 flex items-center gap-2"><Phone className="w-3 h-3"/> Teléfono B2B</label>
                   <input
                     type="tel"
-                    required
                     name="contacto_telefono"
                     value={formData.contacto_telefono}
                     onChange={handleChange}
+                    required
                     placeholder="+56 9 1234 5678"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition"
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                    Email de Confirmación *
-                  </label>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-bold text-slate-400 flex items-center gap-2"><Mail className="w-3 h-3"/> Email B2B (Donde recibirás la confirmación)</label>
                   <input
                     type="email"
-                    required
                     name="contacto_email"
                     value={formData.contacto_email}
                     onChange={handleChange}
-                    placeholder="compras@tuoptica.cl"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition"
+                    required
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Despacho */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8">
+              <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                <Truck className="w-5 h-5 text-emerald-400" />
+                Despacho y Bodega
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-bold text-slate-400">Región</label>
+                  <select
+                    name="region"
+                    value={formData.region}
+                    onChange={handleChange}
+                    required
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition appearance-none"
+                  >
+                    {REGIONES_CHILE.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-400">Comuna</label>
+                  <input
+                    type="text"
+                    name="comuna"
+                    value={formData.comuna}
+                    onChange={handleChange}
+                    required
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-bold text-slate-400 flex items-center gap-2"><MapPin className="w-3 h-3"/> Dirección Exacta</label>
+                  <input
+                    type="text"
+                    name="direccion"
+                    value={formData.direccion}
+                    onChange={handleChange}
+                    required
+                    placeholder="Calle Principal 123, Local 4B"
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
+                  />
+                </div>
+                
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-bold text-slate-400">Instrucciones Adicionales (Opcional)</label>
+                  <textarea
+                    name="instrucciones_entrega"
+                    value={formData.instrucciones_entrega}
+                    onChange={handleChange}
+                    rows={3}
+                    placeholder="Horario de recepción, referencias, etc."
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition resize-none"
                   />
                 </div>
               </div>
             </div>
 
           </div>
-
-          {/* COLUMNA DERECHA: RESUMEN Y BOTÓN MERCADO PAGO */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl sticky top-28">
-            <h2 className="text-xl font-black text-white uppercase tracking-tight pb-4 border-b border-slate-800">
-              Resumen del Pedido
-            </h2>
-
-            {/* Miniatura de modelos incluidos */}
-            <div className="space-y-3 max-h-48 overflow-y-auto pr-1 divide-y divide-slate-800/60 scrollbar-thin">
-              {cart.map((item) => (
-                <div key={item.producto.id_ext} className="pt-2 first:pt-0 flex justify-between items-center text-xs">
-                  <div className="truncate pr-2">
-                    <span className="font-bold text-white">{item.cantidad}x </span>
-                    <span className="text-slate-300">{item.producto.marca} {item.producto.modelo}</span>
+          
+          {/* Columna Derecha: Resumen de Orden */}
+          <div className="lg:col-span-5 space-y-6">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8 sticky top-28">
+              <h2 className="text-lg font-bold text-white mb-6">Resumen de Orden</h2>
+              
+              <div className="flex justify-between items-center pb-4 border-b border-slate-800">
+                <span className="text-slate-400">Total Unidades</span>
+                <span className="text-white font-bold">{getTotalUnits()} armazones</span>
+              </div>
+              
+              <div className="py-4 space-y-4 border-b border-slate-800">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-400">Subtotal Neto</span>
+                  <span className="text-white font-semibold">${getMontoNeto().toLocaleString('es-CL')}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-400">IVA (19%)</span>
+                  <span className="text-white font-semibold">${getMontoIva().toLocaleString('es-CL')}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-400">Despacho Nacional</span>
+                  <span className="text-emerald-400 font-bold">Por calcular</span>
+                </div>
+              </div>
+              
+              <div className="pt-4 pb-8">
+                <div className="flex justify-between items-end">
+                  <span className="text-slate-400 text-sm font-bold uppercase tracking-wider">Total B2B</span>
+                  <div className="text-right">
+                    <p className="text-2xl md:text-3xl font-black text-white">
+                      ${getMontoTotal().toLocaleString('es-CL')}
+                    </p>
                   </div>
-                  <span className="font-mono text-slate-400 flex-shrink-0">
-                    ${((item.producto.precio_neto_clp || 0) * item.cantidad).toLocaleString('es-CL')}
+                </div>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <div className="relative flex items-center justify-center mt-0.5">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only"
+                      checked={acceptTerms}
+                      onChange={(e) => setAcceptTerms(e.target.checked)}
+                    />
+                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors
+                      ${acceptTerms ? 'bg-emerald-500 border-emerald-500' : 'bg-slate-950 border-slate-700 group-hover:border-emerald-500'}
+                    `}>
+                      {acceptTerms && <Check className="w-3.5 h-3.5 text-slate-950" />}
+                    </div>
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium leading-relaxed">
+                    Confirmo que los datos ingresados son correctos, represento legalmente a la empresa y acepto las <button type="button" onClick={() => setShowTerms(true)} className="text-emerald-400 underline">Condiciones de Venta B2B</button>.
                   </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="space-y-3 text-sm pt-4 border-t border-slate-800">
-              <div className="flex justify-between items-center text-slate-300">
-                <span>Total Armazones:</span>
-                <span className="font-bold text-white">{totalUnits} unidades</span>
-              </div>
-              <div className="flex justify-between items-center text-slate-300">
-                <span>Subtotal Neto:</span>
-                <span className="font-bold text-white">${montoNeto.toLocaleString('es-CL')} CLP</span>
-              </div>
-              <div className="flex justify-between items-center text-slate-300">
-                <span className="flex items-center gap-1.5">
-                  IVA (19%):
-                  <span className="text-[10px] text-slate-400 uppercase bg-slate-800 px-1.5 py-0.5 rounded">Chile</span>
-                </span>
-                <span className="font-bold text-emerald-400">${montoIva.toLocaleString('es-CL')} CLP</span>
+                </label>
               </div>
 
-              <div className="pt-4 border-t border-slate-800 flex justify-between items-end">
-                <div>
-                  <span className="text-xs text-slate-400 block font-medium uppercase">Total Factura B2B</span>
-                  <span className="text-xs text-emerald-400 font-bold">Impuestos Incluidos</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-3xl font-black text-white tracking-tight">
-                    ${montoTotal.toLocaleString('es-CL')}
-                  </span>
-                  <span className="text-xs text-slate-400 block font-bold">CLP</span>
-                </div>
-              </div>
-            </div>
-
-            
-            {/* TERMINOS Y CONDICIONES */}
-            <div className="pt-2 pb-2">
-              <label className="flex items-start gap-3 cursor-pointer group">
-                <div className="relative flex items-center justify-center mt-0.5">
-                  <input
-                    type="checkbox"
-                    required
-                    checked={acceptTerms}
-                    onChange={(e) => setAcceptTerms(e.target.checked)}
-                    className="peer sr-only"
-                  />
-                  <div className="w-5 h-5 border-2 border-slate-600 rounded bg-slate-900 peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-all"></div>
-                  <Check className="absolute w-3.5 h-3.5 text-slate-950 opacity-0 peer-checked:opacity-100 transition-opacity" />
-                </div>
-                <div className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors leading-relaxed">
-                  Acepto los <button type="button" onClick={() => setShowTerms(true)} className="text-emerald-400 hover:underline font-bold">términos y condiciones de importación directa</button> (plazos de 10 a 15 días hábiles y valores más IVA).
-                </div>
-              </label>
-            </div>
-
-            {/* BOTÓN MERCADO PAGO */}
-
-            <div className="pt-2">
               <button
                 type="submit"
                 disabled={loading || !acceptTerms}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-black py-4 px-6 rounded-2xl transition duration-200 shadow-lg shadow-emerald-500/20 text-center flex items-center justify-center gap-2 uppercase tracking-wider text-sm"
+                className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-black py-4 px-6 rounded-xl transition-all flex justify-center items-center gap-2 group"
               >
                 {loading ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
-                    <span>Conectando con Mercado Pago...</span>
-                  </>
+                  <span className="animate-pulse">Sincronizando y procesando orden segura...</span>
                 ) : (
                   <>
                     <CreditCard className="w-5 h-5" />
-                    <span>Pagar con Mercado Pago</span>
+                    Proceder al Pago
                   </>
                 )}
               </button>
-            </div>
-
-            {/* Medios de Pago Disponibles */}
-            <div className="pt-4 border-t border-slate-800 text-center space-y-2">
-              <span className="text-[11px] text-slate-400 block">
-                Pasarela Oficial Mercado Pago Chile
-              </span>
-              <p className="text-[11px] text-slate-500">
-                Acepta Webpay Plus, Redcompra, Tarjetas de Débito, y Tarjetas de Crédito con cuotas.
-              </p>
+              
+              <div className="mt-6 flex flex-col items-center gap-2 text-xs text-slate-500 font-semibold text-center">
+                <p className="flex items-center gap-1">
+                  <ShieldCheck className="w-4 h-4 text-emerald-500/50" />
+                  Transacción 100% segura. Verificación SSL.
+                </p>
+                <p>Las facturas se emiten según Ley de la República de Chile.</p>
+              </div>
             </div>
           </div>
-
+          
         </form>
       </div>
 
-      {/* MODAL TÉRMINOS Y CONDICIONES */}
       {showTerms && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setShowTerms(false)}></div>
-          <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-3xl p-6 sm:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-white">Términos de Importación Directa</h3>
-              <button type="button" onClick={() => setShowTerms(false)} className="text-slate-400 hover:text-white">
-                Cerrar
-              </button>
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <h2 className="text-2xl font-black text-white mb-6">Condiciones B2B</h2>
+            <div className="space-y-4 text-sm text-slate-400 mb-8">
+              <p>1. OptiHub opera estrictamente en modalidad de importación al por mayor (B2B).</p>
+              <p>2. El tiempo estimado logístico no depende de OptiHub sino de los transportistas aéreos internacionales.</p>
+              <p>3. Los pagos realizados se procesan server-side y el inventario solo se compromete transaccionalmente una vez confirmado.</p>
             </div>
-            <div className="overflow-y-auto custom-scrollbar flex-grow text-sm text-slate-300 space-y-4 pr-2">
-              <p><strong>1. Tiempos de Entrega:</strong> Al ser productos de importación directa desde nuestra bodega en Miami, EE.UU., el plazo de entrega estimado es de 10 a 15 días hábiles desde la confirmación del pago.</p>
-              <p><strong>2. Valores e Impuestos:</strong> Los valores expresados en la plataforma corresponden al precio neto. El IVA (19%) ha sido calculado y agregado en el resumen final de la compra para la emisión de su Factura Electrónica.</p>
-              <p><strong>3. Políticas de Garantía:</strong> Todos los armazones cuentan con garantía por defectos de fábrica válida por 3 meses. Los reclamos deben estar respaldados por evidencia fotográfica.</p>
-              <p><strong>4. Consolidación de Pedidos:</strong> Si el pedido supera los volúmenes estándar o incluye marcas que requieren verificación aduanera especial, OptiHub se reserva el derecho de contactar a la óptica para coordinar la mejor vía de despacho.</p>
-            </div>
-            <div className="mt-6 pt-6 border-t border-slate-800 text-right">
-              <button type="button" onClick={() => setShowTerms(false)} className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-6 py-2.5 rounded-xl transition">
-                Entendido
-              </button>
-            </div>
+            <button 
+              onClick={() => setShowTerms(false)}
+              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-6 rounded-xl transition"
+            >
+              Cerrar y volver al checkout
+            </button>
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }

@@ -24,6 +24,7 @@ export function useCatalogFilters() {
     const sortParam = searchParams.get('sort') as SortKey | null;
     return {
       q: searchParams.get('q') ?? '',
+      page: Number(searchParams.get('page')) || 1,
       marca: parseList(searchParams.get('marca')),
       genero: parseList(searchParams.get('genero')),
       material: parseList(searchParams.get('material')),
@@ -41,6 +42,8 @@ export function useCatalogFilters() {
         if (next[f].length) params.set(f, next[f].join(','));
       }
       if (next.sort !== 'relevancia') params.set('sort', next.sort);
+      if (next.page && next.page > 1) params.set('page', next.page.toString());
+      else params.delete('page');
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
@@ -51,13 +54,14 @@ export function useCatalogFilters() {
     (facet: FacetKey, key: string) => {
       const current = state[facet];
       const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key];
-      commit({ ...state, [facet]: next });
+      commit({ ...state, [facet]: next, page: 1 });
     },
     [state, commit]
   );
 
-  const setQuery = useCallback((q: string) => commit({ ...state, q }), [state, commit]);
-  const setSort = useCallback((sort: SortKey) => commit({ ...state, sort }), [state, commit]);
+  const setQuery = useCallback((q: string) => commit({ ...state, q, page: 1 }), [state, commit]);
+  const setSort = useCallback((sort: SortKey) => commit({ ...state, sort, page: 1 }), [state, commit]);
+  const setPage = useCallback((page: number) => commit({ ...state, page }), [state, commit]);
 
   const clearAll = useCallback(
     () =>
@@ -65,5 +69,5 @@ export function useCatalogFilters() {
     [state.sort, commit]
   );
 
-  return { state, toggle, setQuery, setSort, clearAll };
+  return { state, toggle, setQuery, setSort, setPage, clearAll };
 }

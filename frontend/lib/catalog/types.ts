@@ -40,6 +40,7 @@ export interface FilterState {
   forma: string[];
   calibre: string[];
   sort: SortKey;
+  page?: number;
 }
 
 export interface FacetOption {
@@ -63,4 +64,83 @@ export interface EnrichedMarco extends Marco {
   _k: Record<FacetKey, string>;
   _search: string;
   _dims: FrameDims | null;
+}
+
+
+// --- NUEVOS TIPOS B2B (Capa Transaccional) ---
+
+export interface Profile {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  rut: string | null;
+  business_name: string | null;
+  business_giro: string | null;
+  billing_address: string | null;
+  commune: string | null;
+  region: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Order {
+  id: string;
+  user_id: string;
+  status: 'pending' | 'payment_pending' | 'paid' | 'preparing' | 'shipped' | 'delivered' | 'cancelled' | 'refunded' | 'requires_attention';
+  payment_status: 'pending' | 'approved' | 'rejected' | 'refunded';
+  payment_provider?: string;
+  payment_id?: string;
+  subtotal_net: number;
+  tax_amount: number;
+  shipping_amount: number;
+  total_amount: number;
+  currency: string;
+  stock_decremented?: boolean;
+  stock_error?: string | null;
+  customer_name?: string;
+  customer_email?: string;
+  customer_phone?: string;
+  business_name?: string;
+  business_rut?: string;
+  billing_address?: string;
+  shipping_address?: string;
+  shipping_region?: string;
+  shipping_commune?: string;
+  tracking_number?: string;
+  shipping_provider?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  product_id: string;
+  sku: string;
+  product_name: string;
+  brand_name: string;
+  unit_price_net: number;
+  quantity: number;
+  subtotal_net: number;
+  created_at: string;
+}
+
+export interface Cart {
+  id: string;
+  user_id?: string;
+  status: 'active' | 'converted' | 'abandoned';
+  created_at: string;
+  updated_at: string;
+  converted_at?: string;
+}
+
+export interface CartItem {
+  id: string;
+  cart_id: string;
+  product_id: string;
+  quantity: number;
+  created_at: string;
+  updated_at: string;
 }

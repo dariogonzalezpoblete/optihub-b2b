@@ -64,7 +64,29 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input]);
 
-  const { items: suggestions, total } = useMemo(() => searchSuggestions(items, input, 6), [items, input]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  
+  useEffect(() => {
+    if (input.trim().length < 2) {
+      setSuggestions([]);
+      setTotal(0);
+      return;
+    }
+    let isMounted = true;
+    const fetchSearch = async () => {
+      try {
+        const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(input.trim())}&limit=6`);
+        const data = await res.json();
+        if (isMounted && data.items) {
+          setSuggestions(data.items);
+          setTotal(data.total);
+        }
+      } catch(err) { console.error(err); }
+    };
+    const t = setTimeout(fetchSearch, 300);
+    return () => { isMounted = false; clearTimeout(t); };
+  }, [input]);
 
   // Cerrar al hacer click afuera
   useEffect(() => {

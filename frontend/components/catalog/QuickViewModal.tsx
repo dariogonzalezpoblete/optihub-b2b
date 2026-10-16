@@ -4,9 +4,9 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
-import { useCartStore } from '@/store/useCartStore';
+import { useCartStore, getValidStock, getProductCartKey } from '@/store/useCartStore';
 import type { EnrichedMarco } from '@/lib/catalog/types';
-import { X, Lock, ShoppingBag, Ruler } from 'lucide-react';
+import { X, Lock, ShoppingBag, Ruler, AlertCircle } from 'lucide-react';
 
 interface Props {
   variants: EnrichedMarco[];
@@ -16,6 +16,7 @@ interface Props {
 
 export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
   const { isLoggedIn } = useAuth();
+  const cart = useCartStore((state) => state.cart);
   const addToCart = useCartStore((state) => state.addToCart);
 
   const [activeVariantId, setActiveVariantId] = useState<string | null>(null);
@@ -23,6 +24,7 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [isAdding, setIsAdding] = useState(false);
+  const [stockWarning, setStockWarning] = useState<string>('');
 
   // Initialize
   useEffect(() => {
@@ -30,9 +32,11 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
       setActiveVariantId(variants[0].id_ext);
       setActiveImageIndex(0);
       setQuantities({});
+      setStockWarning('');
       document.body.style.overflow = 'hidden'; // Lock scroll
     } else {
       document.body.style.overflow = '';
+      setStockWarning('');
     }
     return () => {
       document.body.style.overflow = '';
@@ -50,10 +54,15 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
   }
   const currentImageUrl = currentImages[activeImageIndex] || currentImages[0];
 
-  const handleQuantityChange = (id_ext: string, val: string, maxStock: number) => {
+  const handleQuantityChange = (id_ext: string, val: string, maxStock: number, remainingStock: number) => {
     let num = parseInt(val, 10);
     if (isNaN(num) || num < 0) num = 0;
-    if (num > maxStock) num = maxStock;
+    if (num > remainingStock) {
+      num = remainingStock;
+      setStockWarning(`Stock máximo disponible: ${maxStock} ${maxStock === 1 ? 'unidad' : 'unidades'}.`);
+    } else {
+      setStockWarning('');
+    }
     setQuantities(prev => ({ ...prev, [id_ext]: num }));
   };
 
@@ -64,23 +73,35 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
   const handleAddAllToCart = () => {
     if (!isLoggedIn) return;
     setIsAdding(true);
+    setStockWarning('');
     
     let addedCount = 0;
+    let warningMsg = '';
+
     Object.entries(quantities).forEach(([id_ext, qty]) => {
       if (qty > 0) {
         const variant = variants.find(v => v.id_ext === id_ext);
         if (variant) {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { _k, _search, _dims, ...base } = variant;
-          addToCart(base, qty);
-          addedCount += qty;
+          const res = addToCart(base, qty);
+          if (res.message) {
+            warningMsg = res.message;
+          }
+          addedCount += res.added;
         }
       }
     });
 
+    if (warningMsg) {
+      setStockWarning(warningMsg);
+    }
+
     setTimeout(() => {
       setIsAdding(false);
-      onClose(); // Close modal after adding
+      if (!warningMsg) {
+        onClose();
+      }
     }, 600);
   };
 
@@ -109,85 +130,60 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
                   alt="Product" 
                   fill
                   sizes="(max-width: 768px) 100vw, 40vw"
-                  className="object-contain filter drop-shadow-xl p-4 transition-transform group-hover:scale-105" 
+                  className="object-contain p-4 transition-transform duration-300 group-hover:scale-105"
                 />
               ) : (
-                <span className="text-slate-600 font-bold">Sin imagen</span>
+                <div className="text-slate-600 text-sm">Sin imagen</div>
               )}
             </div>
-            
-            {/* Ángulos del Variante Actual */}
+
+            {/* Selector de Miniaturas */}
             {currentImages.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto w-full custom-scrollbar pb-2 justify-center">
-                {currentImages.map((imgUrl, idx) => (
+              <div className="flex gap-2 mb-4 overflow-x-auto max-w-full pb-2">
+                {currentImages.map((img, idx) => (
                   <button
                     key={idx}
+                    type="button"
                     onClick={() => setActiveImageIndex(idx)}
-                    className={`relative w-14 h-14 flex-shrink-0 rounded-xl border-2 bg-slate-900 p-1 transition ${activeImageIndex === idx ? 'border-emerald-500' : 'border-slate-800 opacity-60 hover:opacity-100'}`}
+                    className={`relative w-14 h-14 rounded-xl border overflow-hidden flex-shrink-0 transition-all ${
+                      idx === activeImageIndex 
+                        ? 'border-emerald-500 ring-2 ring-emerald-500/20' 
+                        : 'border-slate-800 opacity-60 hover:opacity-100'
+                    }`}
                   >
-                    <Image unoptimized src={imgUrl} alt="Ángulo" fill className="object-contain p-1" sizes="56px" />
+                    <Image unoptimized src={img} alt="Thumbnail" fill sizes="56px" className="object-cover" />
                   </button>
                 ))}
               </div>
             )}
-
-            {/* Selector de Colores (Variantes) */}
-            <div className="mt-4 w-full">
-              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 text-center">Colores Disponibles</h4>
-              <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2 justify-center">
-                {variants.map((v) => (
-                  <button
-                    key={v.id_ext}
-                    onClick={() => {
-                      setActiveVariantId(v.id_ext);
-                      setActiveImageIndex(0);
-                    }}
-                    className={`relative w-10 h-10 rounded-xl border-2 flex-shrink-0 bg-slate-900 transition-all ${
-                      activeVariant?.id_ext === v.id_ext ? 'border-emerald-500 opacity-100 scale-110 shadow-lg shadow-emerald-500/20' : 'border-slate-800 opacity-50 hover:opacity-100'
-                    }`}
-                    title={v.color}
-                  >
-                    {v.imagen_principal && (
-                      <Image unoptimized src={v.imagen_principal} alt={v.color || 'Color'} fill className="object-contain p-1" sizes="40px" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
-          
-          <Link 
-            href={`/producto/${encodeURIComponent(baseProduct.marca)}/${encodeURIComponent(baseProduct.modelo)}`}
-            className="mt-6 text-xs font-bold text-emerald-400 hover:text-emerald-300 uppercase tracking-wider underline underline-offset-4 text-center block"
-          >
-            Ver Ficha Completa (PDP)
-          </Link>
+
+          <div className="mt-4 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+            <span>Envío mayorista consolidado</span>
+            <Link href={`/producto/${encodeURIComponent(baseProduct.marca)}/${encodeURIComponent(baseProduct.modelo)}`} className="text-emerald-400 hover:underline font-bold">
+              Ver ficha completa →
+            </Link>
+          </div>
         </div>
 
-        {/* Detalles y Grilla B2B */}
-        <div className="w-full md:w-7/12 flex flex-col h-full max-h-[90vh] overflow-y-auto">
-          <div className="p-6 md:p-8 border-b border-slate-800/80">
-            <span className="text-[10px] font-black tracking-widest text-emerald-400 uppercase">{baseProduct.marca}</span>
-            <h2 className="text-3xl font-black text-white mt-1 mb-4">{baseProduct.modelo}</h2>
-            
-            <div className="grid grid-cols-4 gap-2 text-center">
-              <div className="bg-slate-950 rounded-xl p-2 border border-slate-800">
-                <span className="text-[9px] text-slate-500 uppercase block">Aro</span>
-                <span className="font-bold text-slate-200 text-sm">{dims?.calibre || '-'}</span>
+        {/* Información y Compra */}
+        <div className="w-full md:w-7/12 flex flex-col max-h-[90vh] overflow-y-auto">
+          <div className="p-6 md:p-8 border-b border-slate-800">
+            <span className="text-xs uppercase tracking-wider font-extrabold text-emerald-400 mb-1 block">
+              {baseProduct.marca}
+            </span>
+            <h2 className="text-2xl font-black text-white">{baseProduct.modelo}</h2>
+            <p className="text-slate-400 text-xs mt-1">Material: {baseProduct.material || 'Estándar'} • Género: {baseProduct.genero || 'Unisex'}</p>
+
+            {/* Dimensiones */}
+            {dims && (
+              <div className="flex items-center gap-4 mt-4 bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs">
+                <Ruler className="w-4 h-4 text-slate-500" />
+                <span className="text-slate-400">Calibre: <strong className="text-slate-200">{dims.calibre} mm</strong></span>
+                <span className="text-slate-400">Puente: <strong className="text-slate-200">{dims.puente} mm</strong></span>
+                <span className="text-slate-400">Varilla: <strong className="text-slate-200">{dims.varilla} mm</strong></span>
               </div>
-              <div className="bg-slate-950 rounded-xl p-2 border border-slate-800">
-                <span className="text-[9px] text-slate-500 uppercase block">Puente</span>
-                <span className="font-bold text-slate-200 text-sm">{dims?.puente || '-'}</span>
-              </div>
-              <div className="bg-slate-950 rounded-xl p-2 border border-slate-800">
-                <span className="text-[9px] text-slate-500 uppercase block">Varilla</span>
-                <span className="font-bold text-slate-200 text-sm">{dims?.varilla || '-'}</span>
-              </div>
-              <div className="bg-slate-950 rounded-xl p-2 border border-slate-800">
-                <span className="text-[9px] text-slate-500 uppercase block">Material</span>
-                <span className="font-bold text-slate-200 text-sm truncate block" title={baseProduct.material}>{baseProduct.material || '-'}</span>
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="p-6 md:p-8 flex-1 bg-slate-900/50 flex flex-col">
@@ -206,29 +202,53 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
               <div className="flex flex-col flex-1">
                 <div className="space-y-2 mb-6 max-h-[30vh] overflow-y-auto custom-scrollbar pr-2">
                   {variants.map(v => {
-                    const isOut = v.stock <= 0;
+                    const maxStock = getValidStock(v.stock);
+                    const inCart = cart.find(item => getProductCartKey(item.producto) === v.id_ext)?.cantidad || 0;
+                    const remainingStock = Math.max(0, maxStock - inCart);
+                    const isOut = maxStock <= 0;
+                    const isMaxInCart = !isOut && remainingStock <= 0;
+
                     return (
-                      <div key={v.id_ext} className={`flex items-center justify-between p-3 bg-slate-950 rounded-xl border ${isOut ? 'border-slate-800 opacity-50' : 'border-slate-700'}`}>
+                      <div key={v.id_ext} className={`flex items-center justify-between p-3 bg-slate-950 rounded-xl border ${isOut ? 'border-slate-800 opacity-50' : isMaxInCart ? 'border-amber-500/30' : 'border-slate-700'}`}>
                         <div className="flex-1">
                           <p className="font-bold text-slate-200 text-sm">{v.color || v.codigo_color}</p>
                           <p className="text-[10px] text-slate-500">SKU: {v.id_ext}</p>
                         </div>
-                        <div className="text-right mr-4 w-24">
+                        <div className="text-right mr-4 w-28">
                           <p className="font-black text-emerald-400">${v.precio_neto_clp?.toLocaleString('es-CL')}</p>
-                          <p className="text-[10px] text-slate-500">Stock: {v.stock}</p>
+                          {isOut ? (
+                            <p className="text-[10px] text-rose-400 font-bold">Sin stock</p>
+                          ) : isMaxInCart ? (
+                            <p className="text-[10px] text-amber-400 font-bold">Máx. en carrito ({maxStock})</p>
+                          ) : inCart > 0 ? (
+                            <p className="text-[10px] text-slate-400">Disp: {remainingStock} ({inCart} en carrito)</p>
+                          ) : (
+                            <p className="text-[10px] text-slate-500">Stock: {maxStock}</p>
+                          )}
                         </div>
                         <div>
                           <input 
-                            type="number" min="0" max={v.stock} disabled={isOut}
-                            value={quantities[v.id_ext] || ''} placeholder="0"
-                            onChange={(e) => handleQuantityChange(v.id_ext, e.target.value, v.stock)}
+                            type="number" 
+                            min="0" 
+                            max={remainingStock} 
+                            disabled={isOut || isMaxInCart}
+                            value={quantities[v.id_ext] || ''} 
+                            placeholder="0"
+                            onChange={(e) => handleQuantityChange(v.id_ext, e.target.value, maxStock, remainingStock)}
                             className="w-16 bg-slate-900 border border-slate-600 rounded-lg py-1.5 text-center text-white font-bold text-sm focus:border-emerald-500 outline-none disabled:opacity-50"
                           />
                         </div>
                       </div>
-                    )
+                    );
                   })}
                 </div>
+
+                {stockWarning && (
+                  <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 text-xs font-semibold flex items-center gap-2 animate-fade-in">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                    <span>{stockWarning}</span>
+                  </div>
+                )}
 
                 <div className="mt-auto flex items-center justify-between border-t border-slate-800 pt-4">
                   <div>

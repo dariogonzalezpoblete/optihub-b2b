@@ -4,6 +4,7 @@ import './globals.css';
 import Navbar from '@/components/Navbar';
 import AIChatbox from '@/components/ui/AIChatbox';
 import { AuthProvider } from '@/context/AuthContext';
+import CartSync from '@/components/CartSync';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -38,7 +39,7 @@ export default function RootLayout({
 
           {/* Barra de navegación principal */}
           <Navbar />
-          
+          <CartSync />
           {/* Contenido de las páginas */}
           {children}
 

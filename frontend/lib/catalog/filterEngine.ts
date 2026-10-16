@@ -119,6 +119,37 @@ export function applyFilters(
  * Conteos dinámicos: cada opción muestra cuántos resultados quedarían al marcarla,
  * considerando la búsqueda y todos los demás filtros activos (excepto su propio grupo).
  */
+
+export const STATIC_FACETS = {
+  marca: AUTHORIZED_BRANDS.map(b => ({ key: normalizeText(b), label: b, count: 0 })),
+  genero: [
+    { key: 'men', label: 'Hombre', count: 0 },
+    { key: 'women', label: 'Mujer', count: 0 },
+    { key: 'unisex', label: 'Unisex', count: 0 },
+  ],
+  material: [
+    { key: 'acetate', label: 'Acetato', count: 0 },
+    { key: 'metal', label: 'Metal', count: 0 },
+    { key: 'injectedpropionate', label: 'Propionato inyectado', count: 0 },
+    { key: 'plastic', label: 'Plástico', count: 0 },
+    { key: 'titanium', label: 'Titanio', count: 0 },
+    { key: 'acetatemetal', label: 'Acetato / Metal', count: 0 },
+    { key: 'tr90', label: 'TR90', count: 0 },
+  ],
+  forma: [
+    { key: 'rectangular', label: 'Rectangular', count: 0 },
+    { key: 'round', label: 'Redondo', count: 0 },
+    { key: 'cateye', label: 'Cat eye', count: 0 },
+    { key: 'aviator', label: 'Aviador', count: 0 },
+    { key: 'shield', label: 'Máscara', count: 0 },
+    { key: 'oval', label: 'Ovalado', count: 0 },
+    { key: 'sportwraparound', label: 'Deportivo envolvente', count: 0 },
+    { key: 'oversized', label: 'Oversized', count: 0 },
+    { key: 'square', label: 'Cuadrado', count: 0 },
+  ],
+  calibre: CALIBRE_RANGES.map(r => ({ key: r.key, label: r.label, hint: r.hint, count: 0 }))
+};
+
 export function getFacets(list: EnrichedMarco[], state: FilterState): Facets {
   const tokens = queryTokens(state.q);
   const base = tokens.length ? list.filter((m) => matchesQuery(m, tokens)) : list;

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Lock } from 'lucide-react';
 import type { EnrichedMarco, FacetOption } from '@/lib/catalog/types';
+import { getValidStock } from '@/store/useCartStore';
 
 interface ProductCardProps {
   variants: EnrichedMarco[];
@@ -23,7 +24,8 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
   }, [variants]);
 
   const active = variants[selectedIndex] || variants[0];
-  const inStock = active.stock > 0;
+  const activeStock = getValidStock(active.stock);
+  const inStock = activeStock > 0;
   const materialLabel = materialLabels.find((o) => o.key === active._k.material)?.label ?? active.material;
 
   return (
@@ -141,7 +143,7 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
 
           <div className="text-right">
             <span className="badge-stock">
-              {active.stock} un.
+              {activeStock} un.
             </span>
           </div>
         </div>

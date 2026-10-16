@@ -1,380 +1,99 @@
-"use client";
+import { Suspense } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import CatalogoClient from '@/components/catalog/CatalogoClient';
+import { AUTHORIZED_BRANDS } from '@/lib/catalog/filterEngine';
 
-import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
-import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
-import { useCartStore } from "@/store/useCartStore";
-import { useAuth } from "@/context/AuthContext";
-import { Check, ShoppingBag, ArrowRight, Lock, Search, SlidersHorizontal } from "lucide-react";
+// Optamos por revalidar frecuentemente o dejar como dinámico dado que es un catálogo
+export const revalidate = 60; // SSR cache 60s
 
-import type { EnrichedMarco, Marco } from "@/lib/catalog/types";
-import {
-  applyFilters,
-  countActiveFilters,
-  enrichMarcos,
-  getFacets,
-  stripEnriched,
-} from "@/lib/catalog/filterEngine";
-import { useCatalogFilters } from "@/hooks/useCatalogFilters";
-import FilterSidebar from "@/components/catalog/FilterSidebar";
-import FilterDrawer from "@/components/catalog/FilterDrawer";
-import ActiveFilterChips from "@/components/catalog/ActiveFilterChips";
-import PredictiveSearch from "@/components/catalog/PredictiveSearch";
-import SortSelect from "@/components/catalog/SortSelect";
-import ProductCard from "@/components/catalog/ProductCard";
-import QuickViewModal from "@/components/catalog/QuickViewModal";
+export default async function CatalogoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  // 1. Parsing params de URL
+  const page = Math.max(1, parseInt(params.page as string) || 1);
+  const limitStr = parseInt(params.limit as string) || 48; // aprox 12-24 modelos agrupados
+  const limit = Math.max(1, Math.min(limitStr, 120)); // Límite técnico
+  const q = (params.q as string) || '';
+  const sort = (params.sort as string) || 'relevancia';
 
-function CatalogoContent() {
-  const [marcos, setMarcos] = useState<Marco[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<EnrichedMarco | null>(null);
-  const [activeImage, setActiveImage] = useState<string>("");
-  const [toastMessage, setToastMessage] = useState<string>("");
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  // 2. Construcción de Query a Supabase
+  let query = supabase.from('marcos').select('*', { count: 'exact' });
 
-  // Auth Context
-  const { isLoggedIn } = useAuth();
+  // 3. Filtros
+  if (q) {
+    // Permite encontrar "RB 2140" o código o marca
+    const cleanQ = q.trim();
+    query = query.or(`modelo.ilike.%${cleanQ}%,marca.ilike.%${cleanQ}%,id_ext.ilike.%${cleanQ}%`);
+  }
 
-  // Store global de Zustand
-  const addToCart = useCartStore((state) => state.addToCart);
-  const clearCart = useCartStore((state) => state.clearCart);
-  const getTotalUnits = useCartStore((state) => state.getTotalUnits);
-  const getMontoNeto = useCartStore((state) => state.getMontoNeto);
-
-  // Filtros sincronizados con la URL
-  const { state: filters, toggle, setQuery, setSort, clearAll } = useCatalogFilters();
-
-  useEffect(() => {
-    setMounted(true);
-    fetchMarcos();
-  }, []);
-
-  const fetchMarcos = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("marcos")
-        .select("*");
-
-      if (error) {
-        console.error("❌ Error de Supabase:", error.message);
-      } else if (data) {
-        setMarcos(data);
-      }
-    } catch (error) {
-      console.error("❌ Error inesperado:", error);
-    } finally {
-      setLoading(false);
-    }
+  const parseList = (str: string | string[] | undefined) => {
+    if (!str) return [];
+    if (Array.isArray(str)) return str;
+    return str.split(',').filter(Boolean);
   };
 
-  // Datos derivados (memoizados: se recalculan solo cuando cambian datos o filtros)
-  const enriched = useMemo(() => enrichMarcos(marcos), [marcos]);
-  const facets = useMemo(() => getFacets(enriched, filters), [enriched, filters]);
-  const results = useMemo(
-    () => applyFilters(enriched, filters, mounted && isLoggedIn),
-    [enriched, filters, mounted, isLoggedIn]
-  );
-  const activeCount = countActiveFilters(filters);
+  const marcas = parseList(params.marca);
+  if (marcas.length > 0) {
+    // Si hay marca exacta usamos ilike para case insensitive o .in si están normalizadas
+    query = query.in('marca', marcas.map(m => m.trim()));
+  } else {
+    // Solo marcas autorizadas
+    query = query.in('marca', AUTHORIZED_BRANDS);
+  }
 
-  // Agrupación de resultados por marca y modelo para las ProductCards interactiva (PASO 2)
-  const groupedResults = useMemo(() => {
-    const map = new Map<string, EnrichedMarco[]>();
-    for (const m of results) {
-      const key = `${m.marca}:::${m.modelo}`;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(m);
-    }
-    return Array.from(map.values());
-  }, [results]);
+  const generos = parseList(params.genero);
+  if (generos.length > 0) query = query.in('genero', generos);
 
-  const openProduct = useCallback((m: EnrichedMarco) => {
-    setSelectedProduct(m);
-    setActiveImage(m.imagen_principal);
-  }, []);
+  const materiales = parseList(params.material);
+  if (materiales.length > 0) query = query.in('material', materiales);
 
-  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const formas = parseList(params.forma);
+  if (formas.length > 0) query = query.in('forma', formas);
 
-  const agregarAlCarrito = (producto: EnrichedMarco, cantidadSeleccionada: number) => {
-    if (!isLoggedIn) return;
+  // 4. Ordenamiento
+  switch (sort) {
+    case 'precio-asc':
+      query = query.order('precio_neto_clp', { ascending: true });
+      break;
+    case 'precio-desc':
+      query = query.order('precio_neto_clp', { ascending: false });
+      break;
+    case 'stock':
+      query = query.order('stock', { ascending: false });
+      break;
+    case 'modelo':
+      query = query.order('modelo', { ascending: true });
+      break;
+    default:
+      query = query.order('id_ext', { ascending: true }); // relevancia
+  }
 
-    addToCart(stripEnriched(producto), cantidadSeleccionada);
-    setSelectedProduct(null);
-    setToastMessage(`✓ ${cantidadSeleccionada}x ${producto.marca} ${producto.modelo} añadido al carrito`);
-    setTimeout(() => {
-      setToastMessage("");
-    }, 4000);
-  };
+  // 5. Paginación Server-Side real
+  const offset = (page - 1) * limit;
+  query = query.range(offset, offset + limit - 1);
 
-  const totalUnidades = mounted ? getTotalUnits() : 0;
-  const montoNeto = mounted ? getMontoNeto() : 0;
-  const moqAlcanzado = totalUnidades >= 10;
+  // 6. Ejecución
+  const { data, count, error } = await query;
+  
+  if (error) {
+    console.error('Error fetching catalog server-side:', error);
+  }
 
-  const filterPanelProps = { facets, state: filters, onToggle: toggle };
+  const total = count || 0;
+  const marcos = data || [];
+  const totalPages = Math.ceil(total / limit);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-32">
-      
-      {/* Toast flotante de confirmación */}
-      {toastMessage && (
-        <div className="fixed top-24 right-4 z-50 bg-emerald-500 text-slate-950 font-bold px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 animate-slide-down">
-          <Check className="w-5 h-5" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
-      {/* --- ENCABEZADO DE CATÁLOGO --- */}
-      <div className="bg-slate-900/50 border-b border-slate-800/80 py-8 px-4 sm:px-6 lg:px-8 mb-6">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="text-center md:text-left">
-            <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold px-3 py-1 rounded-full mb-3">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              Distribución Exclusiva B2B para Ópticas
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Catálogo Mayorista de Armazones
-            </h1>
-            <p className="mt-2 text-base text-slate-300 max-w-2xl">
-              Importación directa desde EE.UU. con sincronización en tiempo real. 
-              <span className="text-emerald-400 font-semibold"> Compra mínima de 10 unidades</span> combinables entre cualquier marca.
-            </p>
-          </div>
-
-          <div className="bg-slate-800/80 border border-slate-700/60 p-4 rounded-xl shadow-lg flex items-center gap-3 backdrop-blur-sm">
-            <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-lg">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400 font-medium">Plazo de entrega</p>
-              <p className="text-sm font-bold text-white">10 a 15 días hábiles</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto space-y-6 px-4 sm:px-6 lg:px-8">
-        
-        {/* BANNER INFORMATIVO PARA USUARIOS NO LOGUEADOS (GATEKEEPING B2B) */}
-        {mounted && !isLoggedIn && (
-          <div className="bg-gradient-to-r from-amber-950/40 via-slate-900/80 to-slate-900/60 border border-amber-500/30 rounded-3xl p-5 sm:p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-amber-500/20 text-amber-400 rounded-2xl border border-amber-500/30 flex-shrink-0">
-                <Lock className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-                  <span>Precios Mayoristas Reservados para Ópticas</span>
-                  <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full uppercase">
-                    Exclusivo B2B
-                  </span>
-                </h3>
-                <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                  Para proteger los márgenes comerciales de nuestros clientes, los precios netos en CLP y el pedido mayorista solo son visibles para ópticas registradas.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              <Link
-                href="/login?redirect=/catalogo"
-                className="flex-1 md:flex-none bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs px-5 py-3 rounded-xl transition uppercase tracking-wider text-center shadow-lg shadow-emerald-500/20"
-              >
-                Iniciar Sesión
-              </Link>
-              <Link
-                href="/registro?redirect=/catalogo"
-                className="flex-1 md:flex-none bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-5 py-3 rounded-xl transition uppercase tracking-wider text-center border border-slate-700"
-              >
-                Registrar Óptica
-              </Link>
-            </div>
-          </div>
-        )}
-
-        {/* --- LAYOUT: SIDEBAR DE FILTROS + RESULTADOS --- */}
-        <div className="flex gap-8 items-start">
-          <FilterSidebar {...filterPanelProps} activeCount={activeCount} onClearAll={clearAll} />
-
-          <div className="flex-1 min-w-0 space-y-5">
-            {/* Barra de herramientas: buscador + filtros mobile + orden */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <PredictiveSearch
-                  items={enriched}
-                  value={filters.q}
-                  onCommit={setQuery}
-                  onSelect={openProduct}
-                />
-              </div>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setDrawerOpen(true)}
-                  className="lg:hidden flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-200 transition"
-                >
-                  <SlidersHorizontal className="w-4 h-4 text-emerald-400" />
-                  Filtros
-                  {activeCount > 0 && (
-                    <span className="min-w-5 h-5 px-1.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black flex items-center justify-center">
-                      {activeCount}
-                    </span>
-                  )}
-                </button>
-                <SortSelect value={filters.sort} onChange={setSort} canSeePrices={mounted && isLoggedIn} />
-              </div>
-            </div>
-
-            {/* Conteo de resultados + chips de filtros activos */}
-            <div className="space-y-3">
-              <p className="text-sm text-slate-400">
-                {loading ? (
-                  "Cargando catálogo…"
-                ) : (
-                  <>
-                    <span className="text-white font-bold tabular-nums">{results.length}</span>{" "}
-                    {results.length === 1 ? "armazón" : "armazones"}
-                    {results.length !== enriched.length && (
-                      <span className="text-slate-500"> de {enriched.length}</span>
-                    )}
-                  </>
-                )}
-              </p>
-              <ActiveFilterChips
-                state={filters}
-                facets={facets}
-                onRemove={toggle}
-                onClearQuery={() => setQuery("")}
-                onClearAll={() => clearAll()}
-              />
-            </div>
-
-            {/* Grid de Productos */}
-            {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <div key={i} className="bg-slate-900 border border-slate-800/80 rounded-2xl overflow-hidden shadow-lg animate-pulse">
-                    <div className="h-48 bg-slate-800/60" />
-                    <div className="p-4 space-y-3">
-                      <div className="h-3 skeleton w-1/3" />
-                      <div className="h-4 skeleton w-3/4" />
-                      <div className="h-3 skeleton w-1/2" />
-                      <div className="pt-3 border-t border-slate-800 flex justify-between items-center">
-                        <div className="h-4 skeleton w-20" />
-                        <div className="h-6 skeleton w-14" />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : results.length === 0 ? (
-              <div className="text-center py-20 bg-slate-900/30 border border-slate-800/80 rounded-2xl">
-                <Search className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                <p className="text-slate-300 font-semibold">No hay armazones con esta combinación de filtros.</p>
-                <p className="text-slate-500 text-sm mt-1">Prueba quitando algún filtro o ampliando la búsqueda.</p>
-                <button
-                  onClick={() => clearAll()}
-                  className="mt-5 text-xs text-emerald-400 hover:text-emerald-300 font-bold uppercase tracking-wider transition"
-                >
-                  Limpiar filtros
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                {groupedResults.map((variants, idx) => (
-                  <ProductCard 
-                    key={`${variants[0].marca}-${variants[0].modelo}`}
-                    variants={variants}
-                    idx={idx}
-                    isLoggedIn={mounted && isLoggedIn}
-                    onOpen={openProduct}
-                    materialLabels={facets.material}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Modal de Vista Rapida (Quick View) */}
-          <QuickViewModal 
-            variants={selectedProduct ? groupedResults.find((g: EnrichedMarco[]) => g[0].modelo === selectedProduct.modelo && g[0].marca === selectedProduct.marca) || [selectedProduct] : []}
-            isOpen={!!selectedProduct} 
-            onClose={() => setSelectedProduct(null)} 
-          />
-
-      </div>
-
-      {/* Drawer de filtros (mobile) */}
-      <FilterDrawer
-        {...filterPanelProps}
-        open={drawerOpen}
-        onClose={closeDrawer}
-        resultCount={results.length}
-        activeCount={activeCount}
-        onClearAll={clearAll}
+    <Suspense fallback={<div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">Cargando catálogo SSR OptiHub...</div>}>
+      <CatalogoClient 
+        initialMarcos={marcos} 
+        totalCount={total} 
+        currentPage={page}
+        totalPages={totalPages}
       />
-
-      {/* --- BARRA FLOTANTE INFERIOR SINCRONIZADA CON EL STORE --- */}
-      {mounted && totalUnidades > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-800 backdrop-blur-md p-4 z-40 shadow-2xl">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-4">
-              <div className="bg-emerald-500/20 text-emerald-400 p-3 rounded-xl border border-emerald-500/30">
-                <ShoppingBag className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-white flex items-center gap-2">
-                  <span>Carrito B2B: {totalUnidades} {totalUnidades === 1 ? 'unidad' : 'unidades'}</span>
-                  {isLoggedIn && (
-                    <>
-                      <span className="text-slate-400">•</span>
-                      <span className="text-emerald-400 font-extrabold">${montoNeto.toLocaleString('es-CL')} CLP Neto</span>
-                    </>
-                  )}
-                </p>
-                <p className="text-xs text-slate-400">
-                  {!moqAlcanzado ? (
-                    <span className="text-amber-400 font-semibold">
-                      ⚠️ Faltan {10 - totalUnidades} unidades para el mínimo B2B (10 un.)
-                    </span>
-                  ) : (
-                    <span className="text-emerald-400 font-semibold">
-                      ✅ ¡Mínimo de 10 unidades cumplido!
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <button 
-                onClick={() => clearCart()}
-                className="text-xs text-slate-400 hover:text-rose-400 px-3 py-2 transition"
-              >
-                Vaciar
-              </button>
-              <Link 
-                href="/carrito"
-                className="flex-1 sm:flex-none font-black px-6 py-3 rounded-xl transition text-sm flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/20"
-              >
-                Revisar Carrito B2B
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
-}
-
-export default function CatalogoPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">Cargando catálogo OptiHub...</div>}>
-      <CatalogoContent />
     </Suspense>
   );
 }
