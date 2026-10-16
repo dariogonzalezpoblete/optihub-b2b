@@ -1,20 +1,125 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { CheckCircle2, AlertTriangle, XCircle, ArrowRight, Glasses, Truck, FileText, ShoppingBag } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, ArrowRight, Truck, FileText, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
+import { isValidUuid, resolveVerifiedCheckoutResult } from '@/lib/checkoutWebhookAndResult';
+
+interface VerifiedOrderRow {
+  id: string;
+  status: string;
+  payment_status: string;
+  payment_id?: string | null;
+  total_amount?: number | string | null;
+}
 
 function ResultadoContent() {
   const searchParams = useSearchParams();
-  const status = searchParams.get('status') || searchParams.get('collection_status') || 'approved';
-  const ref = searchParams.get('ref') || searchParams.get('external_reference') || 'OPTI-PEDIDO';
-  const paymentId = searchParams.get('payment_id') || searchParams.get('collection_id');
+  const urlStatus = searchParams.get('status') || searchParams.get('collection_status');
+  const urlRef = searchParams.get('ref') || searchParams.get('external_reference');
   const isMock = searchParams.get('mock') === 'true';
 
-  const isApproved = status === 'approved';
-  const isPending = status === 'pending' || status === 'in_process';
-  const isRejected = !isApproved && !isPending;
+  const [verifiedState, setVerifiedState] = useState<{
+    checkedRef: string | null;
+    order: VerifiedOrderRow | null;
+    completed: boolean;
+  }>({
+    checkedRef: null,
+    order: null,
+    completed: false,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!isValidUuid(urlRef)) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const verifyOrderInDatabase = async () => {
+      const maxAttempts = 4;
+      const retryDelayMs = 1500;
+      const normalizedUrlStatus = String(urlStatus || '').toLowerCase();
+      let latestOrder: VerifiedOrderRow | null = null;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        if (cancelled) return;
+
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id, status, payment_status, payment_id, total_amount')
+          .eq('id', urlRef)
+          .maybeSingle();
+
+        if (cancelled) return;
+
+        if (!error && data) {
+          latestOrder = data;
+          const dbPayStatus = String(data.payment_status || '').toLowerCase();
+          if (
+            dbPayStatus === 'approved' ||
+            dbPayStatus === 'rejected' ||
+            dbPayStatus === 'refunded' ||
+            data.status === 'cancelled' ||
+            data.status === 'requires_attention' ||
+            ['failure', 'rejected', 'null'].includes(normalizedUrlStatus)
+          ) {
+            setVerifiedState({
+              checkedRef: urlRef,
+              order: data,
+              completed: true,
+            });
+            return;
+          }
+
+          setVerifiedState({
+            checkedRef: urlRef,
+            order: data,
+            completed: false,
+          });
+        }
+
+        if (attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+        }
+      }
+
+      if (!cancelled) {
+        setVerifiedState({
+          checkedRef: urlRef,
+          order: latestOrder,
+          completed: true,
+        });
+      }
+    };
+
+    verifyOrderInDatabase();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [urlRef, urlStatus]);
+
+  const isRefValid = isValidUuid(urlRef);
+  const verificationComplete = !isRefValid || (verifiedState.checkedRef === urlRef && verifiedState.completed);
+  const orderFromDb = isRefValid && verifiedState.checkedRef === urlRef ? verifiedState.order : null;
+
+  const { displayState, requiresAttention, verifiedOrderId, verifiedPaymentId } = resolveVerifiedCheckoutResult({
+    urlStatus,
+    urlRef,
+    orderFromDb,
+    verificationComplete,
+  });
+
+  const isVerifying = displayState === 'verifying';
+  const isApproved = displayState === 'approved';
+  const isPending = displayState === 'pending';
+  const isRejected = displayState === 'rejected';
+  const displayRef = verifiedOrderId || (isValidUuid(urlRef) ? urlRef : 'SIN-REFERENCIA');
 
   return (
     <div className="min-h-[85vh] bg-slate-950 text-slate-100 flex items-center justify-center px-4 py-16">
@@ -27,7 +132,24 @@ function ResultadoContent() {
           </div>
         )}
 
-        {/* ESTADO: APROBADO */}
+        {/* ESTADO: VERIFICANDO EN SERVIDOR */}
+        {isVerifying && (
+          <div>
+            <div className="w-20 h-20 bg-sky-500/10 text-sky-400 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-sky-500/20">
+              <Loader2 className="w-10 h-10 animate-spin" />
+            </div>
+
+            <h1 className="text-2xl font-black text-white uppercase tracking-tight">
+              Verificando estado del pago...
+            </h1>
+
+            <p className="text-slate-300 text-sm mt-3 leading-relaxed">
+              Estamos confirmando la acreditación de tu orden directamente con el servidor. Por favor espera unos segundos.
+            </p>
+          </div>
+        )}
+
+        {/* ESTADO: APROBADO (Únicamente cuando está confirmado en Base de Datos y en estado activo procesado) */}
         {isApproved && (
           <div>
             <div className="w-20 h-20 bg-emerald-500/10 text-emerald-400 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-emerald-500/20 shadow-lg shadow-emerald-500/10">
@@ -50,12 +172,12 @@ function ResultadoContent() {
             <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 my-6 text-left space-y-2 text-xs">
               <div className="flex justify-between items-center pb-2 border-b border-slate-800">
                 <span className="text-slate-400 font-medium">N° de Referencia:</span>
-                <span className="font-mono font-bold text-white text-sm">{ref}</span>
+                <span className="font-mono font-bold text-white text-sm">{displayRef}</span>
               </div>
-              {paymentId && (
+              {verifiedPaymentId && (
                 <div className="flex justify-between items-center pb-2 border-b border-slate-800">
                   <span className="text-slate-400 font-medium">Comprobante Mercado Pago:</span>
-                  <span className="font-mono text-slate-300">#{paymentId}</span>
+                  <span className="font-mono text-slate-300">#{verifiedPaymentId}</span>
                 </div>
               )}
               <div className="flex justify-between items-center pb-2 border-b border-slate-800">
@@ -83,6 +205,14 @@ function ResultadoContent() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
+              {verifiedOrderId && (
+                <Link
+                  href={`/mis-pedidos/${verifiedOrderId}`}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3.5 px-6 rounded-xl transition text-sm uppercase tracking-wider flex items-center justify-center border border-slate-700"
+                >
+                  Ver Detalle del Pedido
+                </Link>
+              )}
               <Link
                 href="/catalogo"
                 className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3.5 px-6 rounded-xl transition text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
@@ -94,7 +224,7 @@ function ResultadoContent() {
           </div>
         )}
 
-        {/* ESTADO: PENDIENTE */}
+        {/* ESTADO: PENDIENTE DE CONFIRMACIÓN O EN CONCILIACIÓN MANUAL */}
         {isPending && (
           <div>
             <div className="w-20 h-20 bg-amber-500/10 text-amber-400 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-amber-500/20">
@@ -102,17 +232,29 @@ function ResultadoContent() {
             </div>
 
             <h1 className="text-2xl font-black text-white uppercase tracking-tight">
-              Pago Pendiente de Acreditación
+              {requiresAttention
+                ? 'Pedido en Revisión y Conciliación'
+                : 'Pago Pendiente de Acreditación'}
             </h1>
 
             <p className="text-slate-300 text-sm mt-3 leading-relaxed">
-              Mercado Pago está procesando la transacción. Si pagaste a través de transferencia bancaria, tu orden se activará automáticamente una vez confirmado el abono.
+              {requiresAttention
+                ? `Hemos registrado el comprobante ${verifiedPaymentId ? `#${verifiedPaymentId}` : 'de pago'} para la referencia ${displayRef}, pero el pedido requiere verificación manual de inventario o conciliación antes de procesarse.`
+                : `Estamos esperando la confirmación definitiva de Mercado Pago en nuestro servidor. Tu orden (${displayRef}) se actualizará automáticamente apenas se confirme el abono.`}
             </p>
 
-            <div className="mt-8">
+            <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+              {verifiedOrderId && (
+                <Link
+                  href={`/mis-pedidos/${verifiedOrderId}`}
+                  className="inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3.5 px-6 rounded-xl transition text-sm uppercase"
+                >
+                  Revisar Estado del Pedido
+                </Link>
+              )}
               <Link
                 href="/catalogo"
-                className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3.5 px-6 rounded-xl transition text-sm uppercase"
+                className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3.5 px-6 rounded-xl transition text-sm uppercase"
               >
                 Volver al Catálogo
               </Link>
@@ -120,7 +262,7 @@ function ResultadoContent() {
           </div>
         )}
 
-        {/* ESTADO: RECHAZADO */}
+        {/* ESTADO: RECHAZADO O NO VERIFICADO */}
         {isRejected && (
           <div>
             <div className="w-20 h-20 bg-rose-500/10 text-rose-400 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-rose-500/20">
@@ -132,7 +274,7 @@ function ResultadoContent() {
             </h1>
 
             <p className="text-slate-300 text-sm mt-3 leading-relaxed">
-              La transacción fue cancelada o rechazada por la entidad bancaria. No se ha realizado ningún cobro a tu cuenta.
+              La transacción fue cancelada, rechazada por la entidad bancaria o no cuenta con una orden verificada. No se ha confirmado ningún cobro para esta referencia.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row gap-3">

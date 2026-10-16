@@ -1,38 +1,48 @@
 // frontend/app/api/mercadopago/webhook/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-
 import { createClient } from '@supabase/supabase-js';
 import { MercadoPagoConfig, Payment, WebhookSignatureValidator } from 'mercadopago';
-
-// Supabase client: must use service role key exclusively
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!supabaseServiceKey) {
-  console.error('[Webhook] Service role key not defined');
-  // We will throw at request time if the client cannot be instantiated
-}
-const supabaseAdmin = supabaseServiceKey
-  ? createClient(supabaseUrl, supabaseServiceKey)
-  : null;
+import { evaluateWebhookPaymentTransition, isValidUuid } from '@/lib/checkoutWebhookAndResult';
 
 export async function POST(req: NextRequest) {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const mpAccessToken = process.env.MP_ACCESS_TOKEN;
     const mpWebhookSecret = process.env.MP_WEBHOOK_SECRET;
 
-    if (!mpAccessToken || !mpWebhookSecret) {
-      console.error('[Webhook] Missing MP secrets');
+    if (!supabaseUrl || !supabaseServiceKey || !mpAccessToken || !mpWebhookSecret) {
+      console.error('[Webhook] Missing required server configuration (Supabase or Mercado Pago secrets)');
       return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 
-    // 1️⃣ Extract required headers
+    // 1️⃣ Extract required headers & parameters (query params first, body fallback)
     const xSignature = req.headers.get('x-signature');
     const xRequestId = req.headers.get('x-request-id');
-    const dataId = req.nextUrl.searchParams.get('data.id');
-    const type = req.nextUrl.searchParams.get('type') || req.nextUrl.searchParams.get('topic');
+
+    let dataId = req.nextUrl.searchParams.get('data.id') || req.nextUrl.searchParams.get('id');
+    let type = req.nextUrl.searchParams.get('type') || req.nextUrl.searchParams.get('topic');
+
+    if (!dataId || !type) {
+      try {
+        const clonedBody = await req.clone().json();
+        if (!dataId && clonedBody?.data?.id) {
+          dataId = String(clonedBody.data.id);
+        }
+        if (!type && (clonedBody?.type || clonedBody?.topic)) {
+          type = String(clonedBody.type || clonedBody.topic);
+        }
+      } catch {
+        // Ignore JSON body parse errors when query params are used
+      }
+    }
+
+    if (type && type !== 'payment') {
+      return NextResponse.json({ message: 'ACK. Event ignored' }, { status: 200 });
+    }
 
     if (!xSignature || !xRequestId || !dataId) {
-      console.warn('[Webhook] Missing validation headers');
+      console.warn('[Webhook] Missing validation headers or data.id');
       return NextResponse.json({ error: 'Bad Request: Missing validation parameters' }, { status: 400 });
     }
 
@@ -43,58 +53,50 @@ export async function POST(req: NextRequest) {
     // 2️⃣ Signature validation using official SDK
     try {
       WebhookSignatureValidator.validate({
-        xSignature: xSignature!,
-        xRequestId: xRequestId!,
-        dataId: dataId!,
-        secret: mpWebhookSecret!
+        xSignature,
+        xRequestId,
+        dataId,
+        secret: mpWebhookSecret
       });
     } catch (e) {
       console.error('[Webhook] Invalid signature', e);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 3️⃣ Server‑to‑server fetch of the payment
+    // 3️⃣ Server‑to‑server fetch of the payment from Mercado Pago API
     const client = new MercadoPagoConfig({ accessToken: mpAccessToken });
     const paymentClient = new Payment(client);
-    let paymentData;
+    let paymentData: {
+      id?: string | number;
+      status?: string;
+      external_reference?: string | null;
+      transaction_amount?: number | string | null;
+      currency_id?: string | null;
+    };
     try {
       paymentData = await paymentClient.get({ id: dataId });
-    } catch (mpError: any) {
-      console.error(`[Webhook] Error retrieving payment ${dataId}:`, mpError);
+    } catch (mpError: unknown) {
+      const errMsg = mpError instanceof Error ? mpError.message : String(mpError);
+      console.error(`[Webhook] Error retrieving payment ${dataId}:`, errMsg);
       return NextResponse.json({ error: 'Error communicating with Mercado Pago' }, { status: 502 });
     }
 
-    // 4️⃣ Verify payment status – only process approved payments
-    if (paymentData.status !== 'approved') {
-      console.info(`[Webhook] Ignored payment ${paymentData.id} with status ${paymentData.status}`);
-      return NextResponse.json({ message: `ACK. Payment status ${paymentData.status} ignored` }, { status: 200 });
-    }
-
-    // 5️⃣ Extract and validate business data from the payment
-    const externalReference = paymentData.external_reference;
-    const transactionAmount = paymentData.transaction_amount;
-    const currencyId = paymentData.currency_id;
-
-    // Validate external_reference as UUID
-    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+    // 4️⃣ Extract and validate external_reference before querying DB
+    const externalReference = paymentData?.external_reference;
     if (!externalReference) {
-      console.warn(`[Webhook] Payment ${paymentData.id} missing external_reference`);
+      console.warn(`[Webhook] Payment ${paymentData?.id} missing external_reference`);
       return NextResponse.json({ message: 'ACK. No external_reference' }, { status: 200 });
     }
-    if (!uuidRegex.test(externalReference)) {
+    if (!isValidUuid(externalReference)) {
       console.warn(`[Webhook] Invalid external_reference UUID: ${externalReference}`);
       return NextResponse.json({ message: 'ACK. Invalid external_reference' }, { status: 200 });
     }
 
-    // Ensure we have a supabase admin client
-    if (!supabaseAdmin) {
-      console.error('[Webhook] Supabase admin client not initialized');
-      return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-    }
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, total_amount')
+      .select('id, total_amount, currency, status, payment_status, payment_id, stock_decremented, stock_error, notes')
       .eq('id', externalReference)
       .single();
 
@@ -103,32 +105,112 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'ACK. Order not found' }, { status: 200 });
     }
 
-    // 6️⃣ Validate amount and currency
-    if (Math.round(Number(transactionAmount)) !== Math.round(Number(order.total_amount))) {
-      console.error(`[Webhook] Amount mismatch for order ${order.id}: payment ${transactionAmount} vs order ${order.total_amount}`);
-      return NextResponse.json({ error: 'Amount mismatch' }, { status: 400 });
-    }
-    if (currencyId !== 'CLP') {
-      console.error(`[Webhook] Currency mismatch for payment ${paymentData.id}: ${currencyId}`);
-      return NextResponse.json({ error: 'Currency mismatch' }, { status: 400 });
+    // 5️⃣ Evaluate deterministic transition (validates currency, amount, cancelled-order guard, and non-approved states)
+    const decision = evaluateWebhookPaymentTransition({
+      order,
+      payment: {
+        id: paymentData.id ?? dataId,
+        status: paymentData.status ?? '',
+        external_reference: externalReference,
+        transaction_amount: paymentData.transaction_amount,
+        currency_id: paymentData.currency_id,
+      },
+    });
+
+    if (decision.action === 'reject') {
+      console.error(
+        `[Webhook] Validation failed (${decision.reason}) for order ${order.id} and payment ${paymentData.id}`
+      );
+      return NextResponse.json({ error: decision.error }, { status: decision.httpStatus });
     }
 
-    // 7️⃣ Call the RPC to process the approved payment
-    let rpcResult: any = null;
+    if (decision.action === 'ignore_ack') {
+      console.info(`[Webhook] ${decision.message}`);
+      return NextResponse.json(
+        {
+          message: decision.message,
+          reason: decision.reason,
+          ...(decision.rpcEquivalentResult ? { result: decision.rpcEquivalentResult } : {}),
+        },
+        { status: 200 }
+      );
+    }
+
+    // 6️⃣ Defence-in-depth: Late approved payment on a cancelled order (protects even before Migration 011 is applied)
+    if (decision.action === 'record_cancelled_order_paid_incident') {
+      if (!decision.alreadyProcessed && decision.updateFields) {
+        const { error: updateErr } = await supabaseAdmin
+          .from('orders')
+          .update(decision.updateFields)
+          .eq('id', order.id)
+          .eq('status', 'cancelled')
+          .or(`payment_id.is.null,payment_id.eq.${decision.updateFields.payment_id}`);
+
+        if (updateErr) {
+          console.error('[Webhook] Error recording cancelled-order payment incident:', updateErr);
+          return NextResponse.json({ error: 'Internal Server Error processing incident' }, { status: 502 });
+        }
+      }
+
+      console.warn(
+        `[Webhook] [ALERTA OPERACIONAL CRÍTICA] Pago ${paymentData.id} aprobado recibido para la orden cancelada/reemplazada ${order.id}. Stock NO descontado. Orden guardada en 'requires_attention' para conciliación o reembolso.`,
+        { orderId: order.id, paymentId: paymentData.id, result: decision.rpcEquivalentResult }
+      );
+      return NextResponse.json({
+        message: 'ACK. Payment recorded for cancelled order; stock skipped, requires manual attention/refund',
+        result: decision.rpcEquivalentResult
+      }, { status: 200 });
+    }
+
+    // 7️⃣ Non-approved valid transitions (pending/in_process, rejected/cancelled, refunded/charged_back)
+    if (decision.action === 'update_order_non_approved') {
+      let query = supabaseAdmin
+        .from('orders')
+        .update(decision.updateFields)
+        .eq('id', order.id);
+
+      if (decision.reason === 'payment_pending' || decision.reason === 'payment_rejected') {
+        query = query.neq('payment_status', 'approved');
+      } else if (decision.reason === 'payment_refunded') {
+        query = query.eq('payment_status', 'approved');
+      }
+
+      const { error: updateError } = await query;
+      if (updateError) {
+        console.error(`[Webhook] Error updating order ${order.id} for ${decision.reason}:`, updateError);
+        return NextResponse.json({ error: 'Internal Server Error updating order state' }, { status: 502 });
+      }
+
+      console.info(`[Webhook] Updated order ${order.id} for ${decision.reason} (payment ${paymentData.id})`);
+      return NextResponse.json({
+        message: `ACK. Order updated (${decision.reason})`,
+        reason: decision.reason
+      }, { status: 200 });
+    }
+
+    // 8️⃣ Approved payment on active order -> Call transactional RPC process_approved_mp_payment
+    interface ApprovedPaymentRpcResult {
+      success?: boolean;
+      code?: string;
+      error?: string;
+      [key: string]: unknown;
+    }
+    let rpcResult: ApprovedPaymentRpcResult | null = null;
     try {
       const { data, error } = await supabaseAdmin.rpc('process_approved_mp_payment', {
         p_order_id: externalReference,
         p_payment_id: String(paymentData.id)
       });
-      rpcResult = data;
+      rpcResult = (data ?? null) as ApprovedPaymentRpcResult | null;
       if (error) throw error;
-    } catch (rpcError: any) {
-      console.error('[Webhook] RPC error processing payment', rpcError.message || rpcError);
+    } catch (rpcError: unknown) {
+      const errMsg = rpcError instanceof Error ? rpcError.message : String(rpcError);
+      console.error('[Webhook] RPC error processing payment', errMsg);
       // Propagate as 5xx so Mercado Pago can retry
       return NextResponse.json({ error: 'Internal Server Error processing payment' }, { status: 502 });
     }
 
-    // 8️⃣ Interpret RPC response
+    // 9️⃣ Interpret RPC response
     if (rpcResult?.code === 'cancelled_order_paid_requires_attention') {
       console.warn(
         `[Webhook] [ALERTA OPERACIONAL CRÍTICA] Pago ${paymentData.id} aprobado recibido para la orden cancelada/reemplazada ${order.id}. Stock NO descontado. Orden guardada en 'requires_attention' para conciliación o reembolso.`,
@@ -163,16 +245,14 @@ export async function POST(req: NextRequest) {
     }
 
     const successCodes = ['processed', 'idempotent', 'payment_duplicate', 'payment_conflict', 'order_not_found', 'cancelled_order_paid_requires_attention'];
-    if (rpcResult?.success || successCodes.includes(rpcResult?.code)) {
-      // These are considered successful outcomes for the webhook perspective
+    if (rpcResult?.success || (rpcResult?.code && successCodes.includes(rpcResult.code))) {
       console.info(`[Webhook] RPC processed payment ${paymentData.id} for order ${order.id}`, rpcResult);
       return NextResponse.json({ message: 'ACK. Payment processed', result: rpcResult }, { status: 200 });
     } else {
-      // Unexpected failure – treat as server error
       console.error('[Webhook] Unexpected RPC failure', rpcResult);
       return NextResponse.json({ error: 'Internal Server Error processing payment' }, { status: 502 });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Webhook] Unexpected internal error', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }

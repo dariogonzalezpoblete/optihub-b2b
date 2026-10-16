@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCartStore } from '@/store/useCartStore';
@@ -50,6 +50,7 @@ export default function CheckoutPage() {
   const [showTerms, setShowTerms] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const submittingRef = useRef(false);
 
   const { user, isLoggedIn, loading: authLoading } = useAuth();
   const cart = useCartStore((state) => state.cart);
@@ -78,7 +79,8 @@ export default function CheckoutPage() {
   });
 
   useEffect(() => {
-    setMounted(true);
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
   }, []);
 
   useEffect(() => {
@@ -129,7 +131,7 @@ export default function CheckoutPage() {
           console.warn('[Checkout] Background pre-sync aviso:', err);
         });
     }
-  }, [mounted, user?.id, cart.length, cartId, setCart, setCartId, setLastSyncedAt, setSyncStatus]);
+  }, [mounted, user?.id, cart, cartId, setCart, setCartId, setLastSyncedAt, setSyncStatus]);
 
   if (!mounted || authLoading) return null;
 
@@ -196,6 +198,9 @@ export default function CheckoutPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current || loading || isRedirecting) {
+      return;
+    }
     setErrorMsg('');
     
     // Validación de cliente B2B
@@ -209,6 +214,7 @@ export default function CheckoutPage() {
       return;
     }
 
+    submittingRef.current = true;
     setLoading(true);
 
     try {
@@ -216,7 +222,6 @@ export default function CheckoutPage() {
       
       if (!session?.user?.id) {
         setErrorMsg('Debes iniciar sesión para completar la compra.');
-        setLoading(false);
         return;
       }
 
@@ -232,21 +237,20 @@ export default function CheckoutPage() {
         setCartId(syncResult.cartId);
         setLastSyncedAt(syncResult.updatedAt);
         setSyncStatus('synced');
-      } catch (syncErr: any) {
+      } catch (syncErr: unknown) {
         console.error('[Checkout] Error de sincronización obligatoria:', syncErr);
         setSyncStatus('error');
+        const syncErrMsg = syncErr instanceof Error ? syncErr.message : '';
         setErrorMsg(
-          syncErr?.message === 'OCC_PERSISTENT_CONFLICT'
+          syncErrMsg === 'OCC_PERSISTENT_CONFLICT'
             ? 'Detectamos cambios simultáneos en tu carrito. Por favor, revisa tus productos y vuelve a intentar.'
             : 'No se pudo sincronizar tu pedido con el servidor. Por favor, reintenta en unos instantes.'
         );
-        setLoading(false);
         return;
       }
 
       if (!confirmedCartId) {
         setErrorMsg('No se pudo obtener el identificador del carrito en el servidor. Reintenta la operación.');
-        setLoading(false);
         return;
       }
 
@@ -263,13 +267,23 @@ export default function CheckoutPage() {
         }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Ocurrió un error al procesar el checkout.');
+      let data: { error?: string; initPoint?: string; orderId?: string } | null = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
       }
 
-      if (data.initPoint) {
+      if (!response.ok) {
+        const rawServerError = typeof data?.error === 'string' ? data.error.trim() : '';
+        const friendlyError =
+          !rawServerError || rawServerError === 'Internal Server Error'
+            ? 'No se pudo procesar la solicitud de pago en el servidor. Por favor intenta nuevamente en unos momentos.'
+            : rawServerError;
+        throw new Error(friendlyError);
+      }
+
+      if (data?.initPoint) {
         // Activar pantalla de redirección. Conservamos el carrito en Zustand y localStorage
         // para que no se pierdan productos si el pago se cancela, queda pendiente o falla.
         setIsRedirecting(true);
@@ -281,15 +295,18 @@ export default function CheckoutPage() {
         // initPoint ausente: mostrar error pero mantener la orden identificable
         console.error('[Checkout] Preference creada sin initPoint', data);
         setErrorMsg('No se pudo obtener la URL de pago de Mercado Pago. Por favor contacte soporte.');
-        // Mantener la posibilidad de inspeccionar la orden manualmente
-        router.push(`/mis-pedidos/${data.orderId}`);
+        if (data?.orderId) {
+          router.push(`/mis-pedidos/${data.orderId}`);
+        }
         return;
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       setIsRedirecting(false);
-      setErrorMsg(error.message || 'Error de conexión. Intenta nuevamente.');
+      const errMsg = error instanceof Error ? error.message : '';
+      setErrorMsg(errMsg || 'Error de conexión. Intenta nuevamente.');
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };

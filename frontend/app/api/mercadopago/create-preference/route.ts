@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { isValidRUT } from '@/lib/utils/rut';
+import { classifyCheckoutLeaseError, evaluatePendingOrdersForCheckout } from '@/lib/checkoutWebhookAndResult';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -425,21 +427,15 @@ export async function acquireUserCheckoutLease(
     });
 
     if (error) {
-      // Diferenciación explícita según auditoría:
-      // Si la RPC no existe (42883 o PGRST202), detener con 503 CHECKOUT_CONCURRENCY_NOT_CONFIGURED
-      if (error.code === '42883' || error.code === 'PGRST202' || error.message?.includes('not found')) {
-        return {
-          success: false,
-          httpStatus: 503,
-          code: 'CHECKOUT_CONCURRENCY_NOT_CONFIGURED',
-          message: 'El servicio de checkout requiere la configuración de concurrencia en base de datos. Por favor contacta al administrador.'
-        };
-      }
+      // Clasificación estricta según Fase 1 / Fase 4:
+      // Distingue entre ausencia de RPC/tabla (migración 012 pendiente), permisos insuficientes (42501)
+      // y errores de datos o fallos internos de PostgreSQL.
+      const classified = classifyCheckoutLeaseError(error);
       return {
         success: false,
-        httpStatus: 503,
-        code: 'CHECKOUT_LEASE_UNAVAILABLE',
-        message: 'No se pudo establecer la reserva de checkout en el servidor. Por favor intenta nuevamente.'
+        httpStatus: classified.httpStatus,
+        code: classified.code,
+        message: classified.message
       };
     }
 
@@ -545,9 +541,9 @@ export async function POST(req: NextRequest) {
   let supabaseAdmin: any = null;
 
   try {
-    // Ensure service role key is present
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      console.error('[CreatePref] Service role key not defined');
+    // Ensure required Supabase server configuration is present
+    if (!supabaseUrl || !supabaseAnonKey || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('[CreatePref] Missing required Supabase server configuration');
       return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
     supabaseAdmin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!);
@@ -626,115 +622,88 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: cartCalc.error }, { status: 400 });
     }
 
-    // 6. ETAPA 1 & ETAPA 2A: GESTIÓN DE ÓRDENES PENDIENTES RECIENTES (< 2 HORAS)
+    // 6. ETAPA 1, 2A, 2A.5 & 2D.2: GESTIÓN DE TODAS LAS ÓRDENES EN ESTADO 'pending' DEL USUARIO
     let cancelOrderId: string | null = null;
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const { data: recentPendingOrders } = await supabaseAdmin
+    let ordersToCancel: string[] = [];
+
+    const { data: allPendingOrders, error: pendingOrdersError } = await supabaseAdmin
       .from('orders')
       .select('id, cart_id, total_amount, subtotal_net, tax_amount, preference_id, init_point, created_at, customer_name, customer_email, status, payment_status, notes')
       .eq('user_id', verifiedUserId)
       .eq('status', 'pending')
-      .eq('payment_status', 'pending')
-      .gte('created_at', twoHoursAgo)
       .order('created_at', { ascending: false });
 
-    if (recentPendingOrders && recentPendingOrders.length > 0) {
-      const candidateOrder = recentPendingOrders[0];
-      const { data: candidateItems } = await supabaseAdmin
-        .from('order_items')
-        .select('*')
-        .eq('order_id', candidateOrder.id);
+    if (pendingOrdersError) {
+      console.error('[CreatePref] Error consultando órdenes pendientes del usuario:', pendingOrdersError);
+      return NextResponse.json({
+        error: 'No se pudo verificar el estado de tus órdenes pendientes en el servidor. Por favor intenta nuevamente.',
+        code: 'PENDING_ORDERS_QUERY_FAILED'
+      }, { status: 500 });
+    }
 
-      if (matchesCandidateOrder(candidateOrder, candidateItems || [], itemsPayload, cartCalc)) {
-        // Coincidencia exacta: REUTILIZAR LA ORDEN EXISTENTE (Etapa 1)
-        // Caso 6.A: Ya tiene preferencia válida creada previamente
-        if (candidateOrder.preference_id && candidateOrder.init_point) {
-          return NextResponse.json({
-            id: candidateOrder.preference_id,
-            initPoint: candidateOrder.init_point,
-            orderId: candidateOrder.id
-          });
-        }
+    const pendingDecision = await evaluatePendingOrdersForCheckout({
+      pendingOrders: allPendingOrders || [],
+      fetchOrderItems: async (candidateOrderId: string) => {
+        const { data: items } = await supabaseAdmin
+          .from('order_items')
+          .select('*')
+          .eq('order_id', candidateOrderId);
+        return items || [];
+      },
+      matchesOrder: (candidateOrder, candidateItems) =>
+        matchesCandidateOrder(candidateOrder, candidateItems, itemsPayload, cartCalc),
+      checkPaymentStatus: (candidateOrderId: string) =>
+        checkCandidateOrderPaymentStatus(candidateOrderId, process.env.MP_ACCESS_TOKEN!),
+      invalidatePreference: (preferenceId: string) =>
+        invalidateCandidateOrderPreference(preferenceId, process.env.MP_ACCESS_TOKEN!),
+    });
 
-        // Caso 6.B: Recuperación de orden sin preferencia (fallo de MP previo)
-        try {
-          const pref = await createMpPreference({
-            orderId: candidateOrder.id,
-            customerName: candidateOrder.customer_name || billing.contacto_nombre || 'Cliente B2B',
-            customerEmail: candidateOrder.customer_email || billing.contacto_email || user.email || '',
-            orderItems: candidateItems || [],
-            taxAmount: Number(candidateOrder.tax_amount),
-            siteUrl
-          });
+    if (pendingDecision.outcome === 'reuse_existing_preference') {
+      return NextResponse.json({
+        id: pendingDecision.order.preference_id,
+        initPoint: pendingDecision.order.init_point,
+        orderId: pendingDecision.order.id
+      });
+    }
 
-          const result = await persistPreferenceAtomic(
-            supabaseAdmin,
-            candidateOrder.id,
-            pref.id,
-            pref.paymentUrl
-          );
+    if (pendingDecision.outcome === 'recover_missing_preference') {
+      try {
+        const candidateOrder = pendingDecision.order;
+        const pref = await createMpPreference({
+          orderId: candidateOrder.id,
+          customerName: candidateOrder.customer_name || billing.contacto_nombre || 'Cliente B2B',
+          customerEmail: candidateOrder.customer_email || billing.contacto_email || user.email || '',
+          orderItems: pendingDecision.candidateItems,
+          taxAmount: Number(candidateOrder.tax_amount),
+          siteUrl
+        });
 
-          return NextResponse.json(result);
-        } catch (mpError: any) {
-          console.error('[CreatePref] Error recuperando preferencia MP para orden existente:', mpError?.message || mpError);
-          const sanitized = sanitizeMercadoPagoError(mpError);
-          return NextResponse.json({ error: sanitized.error }, { status: sanitized.status });
-        }
-      } else {
-        // ETAPA 2A & 2A.5: Carrito MODIFICADO respecto a la orden pendiente previa.
-        // Se debe verificar si existen pagos en curso antes de permitir la creación de una nueva orden.
-        for (const pendingOrder of recentPendingOrders) {
-          // 1. Consultar estado de pagos en Mercado Pago
-          const paymentCheck = await checkCandidateOrderPaymentStatus(
-            pendingOrder.id,
-            process.env.MP_ACCESS_TOKEN!
-          );
+        const result = await persistPreferenceAtomic(
+          supabaseAdmin,
+          candidateOrder.id,
+          pref.id,
+          pref.paymentUrl
+        );
 
-          if (paymentCheck.status === 'error') {
-            console.error('[CreatePref] Fallo consultando pagos en MP para orden previa:', pendingOrder.id, paymentCheck.error);
-            return NextResponse.json({
-              error: 'No se pudo verificar el estado de los pagos de tu orden previa en Mercado Pago. Por seguridad, por favor espera un momento y vuelve a intentarlo.',
-              code: 'FAILED_TO_VERIFY_PRIOR_PAYMENTS'
-            }, { status: 502 });
-          }
-
-          if (paymentCheck.status === 'has_active_payment') {
-            if (paymentCheck.activeState === 'approved') {
-              return NextResponse.json({
-                error: 'Ya tienes un pago aprobado para tu orden anterior. No es necesario crear una nueva orden.',
-                code: 'PAYMENT_ALREADY_APPROVED',
-                orderId: pendingOrder.id
-              }, { status: 409 });
-            } else {
-              return NextResponse.json({
-                error: 'Tienes un pago en procesamiento para tu orden anterior. Por favor espera a que se confirme antes de realizar otro pedido.',
-                code: 'PAYMENT_IN_PROCESS',
-                orderId: pendingOrder.id
-              }, { status: 409 });
-            }
-          }
-
-          // 2. Si no tiene pagos activos, invalidar la preferencia en MP si existe
-          if (pendingOrder.preference_id) {
-            const invalidation = await invalidateCandidateOrderPreference(
-              pendingOrder.preference_id,
-              process.env.MP_ACCESS_TOKEN!
-            );
-
-            if (!invalidation.success) {
-              console.error('[CreatePref] Fallo al invalidar preferencia MP para orden previa:', pendingOrder.id, invalidation.error);
-              return NextResponse.json({
-                error: 'No se pudo desactivar la pasarela de pago de tu orden previa. Por seguridad, por favor intenta nuevamente en unos instantes.',
-                code: 'PREFERENCE_INVALIDATION_FAILED'
-              }, { status: 502 });
-            }
-          }
-
-          // 3. Etapa 2A.5: Registrar la orden previa candidata para cancelación atómica en process_b2b_checkout
-          cancelOrderId = pendingOrder.id;
-        }
+        return NextResponse.json(result);
+      } catch (mpError: any) {
+        console.error('[CreatePref] Error recuperando preferencia MP para orden existente:', mpError?.message || mpError);
+        const sanitized = sanitizeMercadoPagoError(mpError);
+        return NextResponse.json({ error: sanitized.error }, { status: sanitized.status });
       }
     }
+
+    if (pendingDecision.outcome === 'block') {
+      console.warn('[CreatePref] Reemplazo de orden pendiente bloqueado por seguridad:', pendingDecision);
+      return NextResponse.json({
+        error: pendingDecision.error,
+        code: pendingDecision.code,
+        orderId: pendingDecision.orderId
+      }, { status: pendingDecision.httpStatus });
+    }
+
+    ordersToCancel = pendingDecision.ordersToCancel;
+    cancelOrderId = ordersToCancel.length > 0 ? ordersToCancel[0] : null;
 
     // 7. FLUJO NORMAL: No hay orden previa reutilizable o el carrito fue modificado
     // Forzar sincronización del carrito en Supabase
@@ -777,6 +746,26 @@ export async function POST(req: NextRequest) {
         }, { status: 409 });
       }
 
+      // Si existían múltiples órdenes pendientes históricas ya verificadas sin pagos activos,
+      // cancelar las adicionales antes de pasar la orden principal a p_cancel_order_id en la RPC de 5 argumentos
+      if (ordersToCancel.length > 1) {
+        const extraOrdersToCancel = ordersToCancel.slice(1);
+        const { error: extraCancelErr } = await supabaseAdmin
+          .from('orders')
+          .update({ status: 'cancelled' })
+          .in('id', extraOrdersToCancel)
+          .eq('user_id', verifiedUserId)
+          .eq('status', 'pending');
+
+        if (extraCancelErr) {
+          console.error('[CreatePref] Error cancelando órdenes pendientes adicionales:', extraCancelErr);
+          return NextResponse.json({
+            error: 'No se pudieron cancelar todas las órdenes pendientes previas antes de crear el nuevo pedido.',
+            code: 'PRIOR_ORDER_CANCELLATION_FAILED'
+          }, { status: 500 });
+        }
+      }
+
       // Ejecutar RPC atómico con Fencing Token (p_lease_id) y Cancelación Atómica (p_cancel_order_id)
       const rpcRes = await supabaseAdmin.rpc('process_b2b_checkout', {
         p_user_id: verifiedUserId,
@@ -789,13 +778,21 @@ export async function POST(req: NextRequest) {
       checkoutError = rpcRes.error;
     } else {
       // Modo compatible con migración 010 (3 argumentos) mientras migración 012 no haya sido ejecutada en BD
-      if (cancelOrderId) {
-        await supabaseAdmin
+      if (ordersToCancel.length > 0) {
+        const { error: cancelErr } = await supabaseAdmin
           .from('orders')
           .update({ status: 'cancelled' })
-          .eq('id', cancelOrderId)
+          .in('id', ordersToCancel)
           .eq('user_id', verifiedUserId)
           .eq('status', 'pending');
+
+        if (cancelErr) {
+          console.error('[CreatePref] Error cancelando órdenes pendientes en modo compatible 010:', cancelErr);
+          return NextResponse.json({
+            error: 'No se pudo cancelar la orden pendiente previa antes de crear el nuevo pedido.',
+            code: 'PRIOR_ORDER_CANCELLATION_FAILED'
+          }, { status: 500 });
+        }
       }
       const rpcRes = await supabaseAdmin.rpc('process_b2b_checkout', {
         p_user_id: verifiedUserId,

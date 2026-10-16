@@ -14,25 +14,28 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import { WebhookSignatureValidator } from './frontend/node_modules/mercadopago/dist/index.js';
+import {
+  classifyCheckoutLeaseError,
+  evaluateWebhookPaymentTransition,
+  resolveVerifiedCheckoutResult,
+  isValidUuid,
+  evaluatePendingOrdersForCheckout,
+  isOrderWithinReuseWindow,
+} from './frontend/lib/checkoutWebhookAndResult.ts';
 
 // Helper simulando acquireUserCheckoutLease de route.ts
 async function simulateAcquireUserCheckoutLease(mockRpcResult) {
   const { data, error } = mockRpcResult;
 
   if (error) {
-    if (error.code === '42883' || error.code === 'PGRST202' || error.message?.includes('not found')) {
-      return {
-        success: false,
-        httpStatus: 503,
-        code: 'CHECKOUT_CONCURRENCY_NOT_CONFIGURED',
-        message: 'El servicio de checkout requiere la configuración de concurrencia en base de datos. Por favor contacta al administrador.'
-      };
-    }
+    const classified = classifyCheckoutLeaseError(error);
     return {
       success: false,
-      httpStatus: 503,
-      code: 'CHECKOUT_LEASE_UNAVAILABLE',
-      message: 'No se pudo establecer la reserva de checkout en el servidor. Por favor intenta nuevamente.'
+      httpStatus: classified.httpStatus,
+      code: classified.code,
+      message: classified.message
     };
   }
 
@@ -922,4 +925,815 @@ test('Caso 8.11 (Alineación Estricta de Identificador): El UUID exacto devuelto
   assert.equal(preferencePayload.external_reference, expectedOrderId);
 });
 
+// ============================================================================
+// SECCIÓN 9: ETAPA 2D — VALIDACIÓN DE CHECKOUT, COMPATIBILIDAD 010/012,
+//            WEBHOOK MERCADO PAGO Y VERIFICACIÓN DE /checkout/resultado
+// ============================================================================
 
+test('Caso 9.1 (Etapa 2D): Fallo 500 por configuración ausente en servidor (create-preference y webhook)', () => {
+  function simulateConfigCheck({ supabaseUrl, supabaseAnonKey, serviceRoleKey, mpAccessToken, mpWebhookSecret, isWebhook }) {
+    if (isWebhook) {
+      if (!supabaseUrl || !serviceRoleKey || !mpAccessToken || !mpWebhookSecret) {
+        return { status: 500, body: { error: 'Internal Server Error' } };
+      }
+      return { status: 200 };
+    }
+    if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
+      return { status: 500, body: { error: 'Internal Server Error' } };
+    }
+    return { status: 200 };
+  }
+
+  const missingServiceRole = simulateConfigCheck({
+    supabaseUrl: 'https://test.supabase.co',
+    supabaseAnonKey: 'anon-key',
+    serviceRoleKey: '',
+    isWebhook: false,
+  });
+  assert.equal(missingServiceRole.status, 500);
+  assert.equal(missingServiceRole.body.error, 'Internal Server Error');
+
+  const missingWebhookSecret = simulateConfigCheck({
+    supabaseUrl: 'https://test.supabase.co',
+    serviceRoleKey: 'service-key',
+    mpAccessToken: 'APP_USR-123',
+    mpWebhookSecret: '',
+    isWebhook: true,
+  });
+  assert.equal(missingWebhookSecret.status, 500);
+  assert.equal(missingWebhookSecret.body.error, 'Internal Server Error');
+});
+
+test('Caso 9.2 (Etapa 2D): Clasificación estricta de errores SQL en acquire_checkout_lease (ausencia de función/tabla vs permisos vs fallo interno)', () => {
+  // 1. Ausencia real de función o tabla (migración 012 pendiente) -> NOT_CONFIGURED
+  for (const missingErr of [
+    { code: '42883', message: 'function public.acquire_checkout_lease(uuid, uuid, uuid, integer) does not exist' },
+    { code: 'PGRST202', message: 'Could not find the function public.acquire_checkout_lease in the schema cache' },
+    { code: '42P01', message: 'relation "public.user_checkout_leases" does not exist' },
+    { code: 'PGRST205', message: 'Could not find the table public.user_checkout_leases in the schema cache' },
+  ]) {
+    const res = classifyCheckoutLeaseError(missingErr);
+    assert.equal(res.kind, 'NOT_CONFIGURED');
+    assert.equal(res.code, 'CHECKOUT_CONCURRENCY_NOT_CONFIGURED');
+  }
+
+  // 2. Permisos insuficientes (42501) -> PERMISSION_DENIED (nunca debe activar fallback de 3 argumentos)
+  const permRes = classifyCheckoutLeaseError({
+    code: '42501',
+    message: 'permission denied for table user_checkout_leases',
+  });
+  assert.equal(permRes.kind, 'PERMISSION_DENIED');
+  assert.equal(permRes.code, 'CHECKOUT_LEASE_PERMISSION_DENIED');
+  assert.equal(permRes.httpStatus, 503);
+
+  // 3. Error de datos o infraestructura (incluso si el mensaje contiene palabras engañosas como "not found" de otro recurso) -> UNAVAILABLE
+  const genericNotFoundRes = classifyCheckoutLeaseError({
+    code: 'P0002',
+    message: 'user profile record not found',
+  });
+  assert.equal(genericNotFoundRes.kind, 'UNAVAILABLE');
+  assert.equal(genericNotFoundRes.code, 'CHECKOUT_LEASE_UNAVAILABLE');
+  assert.equal(genericNotFoundRes.httpStatus, 503);
+});
+
+test('Caso 9.3 (Etapa 2D): Compatibilidad de RPC process_b2b_checkout con 3 argumentos (migración 010) y 5 argumentos (migración 012)', async () => {
+  const rpcCalls = [];
+  const cancelledOrderIds = [];
+
+  async function simulateCheckoutRpcExecution({ leaseResult, verifiedUserId, cartId, billingData, ordersToCancel }) {
+    const cancelOrderId = ordersToCancel.length > 0 ? ordersToCancel[ordersToCancel.length - 1] : null;
+    if (leaseResult.success) {
+      rpcCalls.push({
+        fn: 'process_b2b_checkout',
+        argsCount: 5,
+        payload: {
+          p_user_id: verifiedUserId,
+          p_cart_id: cartId,
+          p_billing: billingData,
+          p_lease_id: 'lease-uuid-123',
+          p_cancel_order_id: cancelOrderId,
+        },
+      });
+      return { status: 200, mode: '5-args' };
+    } else if (leaseResult.code === 'CHECKOUT_CONCURRENCY_NOT_CONFIGURED') {
+      if (ordersToCancel.length > 0) {
+        cancelledOrderIds.push(...ordersToCancel);
+      }
+      rpcCalls.push({
+        fn: 'process_b2b_checkout',
+        argsCount: 3,
+        payload: {
+          p_user_id: verifiedUserId,
+          p_cart_id: cartId,
+          p_billing: billingData,
+        },
+      });
+      return { status: 200, mode: '3-args' };
+    } else {
+      return { status: leaseResult.httpStatus || 503, code: leaseResult.code };
+    }
+  }
+
+  // Subcaso A: Migración 012 activa -> llama firma de 5 argumentos
+  const res5 = await simulateCheckoutRpcExecution({
+    leaseResult: { success: true },
+    verifiedUserId: 'user-1',
+    cartId: 'cart-1',
+    billingData: { business_rut: '76.123.456-7' },
+    ordersToCancel: ['old-order-1'],
+  });
+  assert.equal(res5.mode, '5-args');
+  assert.equal(rpcCalls[0].argsCount, 5);
+
+  // Subcaso B: Migración 010 activa (NOT_CONFIGURED) -> cancela órdenes reemplazables y llama firma de 3 argumentos
+  const res3 = await simulateCheckoutRpcExecution({
+    leaseResult: classifyCheckoutLeaseError({ code: 'PGRST202', message: 'Could not find the function acquire_checkout_lease' }),
+    verifiedUserId: 'user-1',
+    cartId: 'cart-2',
+    billingData: { business_rut: '76.123.456-7' },
+    ordersToCancel: ['old-order-a', 'old-order-b'],
+  });
+  assert.equal(res3.mode, '3-args');
+  assert.equal(rpcCalls[1].argsCount, 3);
+  assert.deepEqual(cancelledOrderIds, ['old-order-a', 'old-order-b']);
+
+  // Subcaso C: Error de permisos (42501) -> detiene con 503 sin llamar a la RPC de 3 argumentos
+  const resPerm = await simulateCheckoutRpcExecution({
+    leaseResult: classifyCheckoutLeaseError({ code: '42501', message: 'permission denied' }),
+    verifiedUserId: 'user-1',
+    cartId: 'cart-3',
+    billingData: { business_rut: '76.123.456-7' },
+    ordersToCancel: [],
+  });
+  assert.equal(resPerm.status, 503);
+  assert.equal(resPerm.code, 'CHECKOUT_LEASE_PERMISSION_DENIED');
+  assert.equal(rpcCalls.length, 2);
+});
+
+test('Caso 9.4 (Etapa 2D): Validación criptográfica real de firma de Webhook (WebhookSignatureValidator)', () => {
+  const secret = 'test-webhook-secret-optihub-2026';
+  const dataId = '9988776655';
+  const xRequestId = 'req-id-abc-123';
+  const ts = '1760640000';
+  const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+  const validHash = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
+
+  // 1. Firma legítima -> no lanza excepción
+  assert.doesNotThrow(() => {
+    WebhookSignatureValidator.validate({
+      xSignature: `ts=${ts},v1=${validHash}`,
+      xRequestId,
+      dataId,
+      secret,
+    });
+  });
+
+  // 2. Firma alterada -> lanza excepción (se traduce en HTTP 401 en webhook/route.ts)
+  assert.throws(() => {
+    WebhookSignatureValidator.validate({
+      xSignature: `ts=${ts},v1=${validHash.replace(/^./, validHash[0] === 'a' ? 'b' : 'a')}`,
+      xRequestId,
+      dataId,
+      secret,
+    });
+  });
+
+  // 3. dataId distinto al firmado -> lanza excepción
+  assert.throws(() => {
+    WebhookSignatureValidator.validate({
+      xSignature: `ts=${ts},v1=${validHash}`,
+      xRequestId,
+      dataId: '1111111111',
+      secret,
+    });
+  });
+});
+
+test('Caso 9.5 (Etapa 2D): Webhook rechaza desajuste de importe, moneda distinta de CLP y external_reference inválido', () => {
+  const baseOrder = {
+    id: '0f205418-b5f9-484f-8047-fa24b52cc923',
+    status: 'pending',
+    payment_status: 'pending',
+    total_amount: 119000,
+    currency: 'CLP',
+  };
+
+  // Desajuste de importe -> 400 amount_mismatch
+  const amountMismatch = evaluateWebhookPaymentTransition({
+    order: baseOrder,
+    payment: {
+      id: 'pay-1',
+      status: 'approved',
+      transaction_amount: 95000,
+      currency_id: 'CLP',
+    },
+  });
+  assert.equal(amountMismatch.action, 'reject');
+  assert.equal(amountMismatch.httpStatus, 400);
+  assert.equal(amountMismatch.reason, 'amount_mismatch');
+
+  // Desajuste de moneda -> 400 currency_mismatch
+  const currencyMismatch = evaluateWebhookPaymentTransition({
+    order: baseOrder,
+    payment: {
+      id: 'pay-2',
+      status: 'approved',
+      transaction_amount: 119000,
+      currency_id: 'USD',
+    },
+  });
+  assert.equal(currencyMismatch.action, 'reject');
+  assert.equal(currencyMismatch.httpStatus, 400);
+  assert.equal(currencyMismatch.reason, 'currency_mismatch');
+
+  // Validación estricta de UUID en external_reference
+  assert.equal(isValidUuid('0f205418-b5f9-484f-8047-fa24b52cc923'), true);
+  assert.equal(isValidUuid('OPTI-PEDIDO'), false);
+  assert.equal(isValidUuid(''), false);
+  assert.equal(isValidUuid(null), false);
+});
+
+test('Caso 9.6 (Etapa 2D): Transiciones del webhook (approved, pending, rejected, refunded, duplicados y orden cancelada con pago tardío)', () => {
+  const orderId = '0f205418-b5f9-484f-8047-fa24b52cc923';
+
+  // 1. Pago en proceso (in_process) sobre orden pending -> pasa a payment_pending
+  const pendingDecision = evaluateWebhookPaymentTransition({
+    order: { id: orderId, status: 'pending', payment_status: 'pending', total_amount: 119000, currency: 'CLP' },
+    payment: { id: 'pay-100', status: 'in_process', transaction_amount: 119000, currency_id: 'CLP' },
+  });
+  assert.equal(pendingDecision.action, 'update_order_non_approved');
+  assert.equal(pendingDecision.reason, 'payment_pending');
+  assert.deepEqual(pendingDecision.updateFields, { status: 'payment_pending', payment_status: 'pending' });
+
+  // 2. Pago rechazado (rejected) sobre orden pending -> marca payment_status = rejected
+  const rejectedDecision = evaluateWebhookPaymentTransition({
+    order: { id: orderId, status: 'pending', payment_status: 'pending', total_amount: 119000, currency: 'CLP' },
+    payment: { id: 'pay-100', status: 'rejected', transaction_amount: 119000, currency_id: 'CLP' },
+  });
+  assert.equal(rejectedDecision.action, 'update_order_non_approved');
+  assert.equal(rejectedDecision.reason, 'payment_rejected');
+  assert.deepEqual(rejectedDecision.updateFields, { payment_status: 'rejected' });
+
+  // 3. Pago aprobado sobre orden activa -> delega en RPC process_approved_mp_payment
+  const approvedDecision = evaluateWebhookPaymentTransition({
+    order: { id: orderId, status: 'pending', payment_status: 'rejected', total_amount: 119000, currency: 'CLP' },
+    payment: { id: 'pay-101', status: 'approved', transaction_amount: 119000, currency_id: 'CLP' },
+  });
+  assert.equal(approvedDecision.action, 'call_approved_rpc');
+
+  // 4. Notificación atrasada/fuera de orden (rejected o in_process) después de que la orden ya fue aprobada -> se ignora (inmunidad)
+  const staleRejection = evaluateWebhookPaymentTransition({
+    order: {
+      id: orderId,
+      status: 'preparing',
+      payment_status: 'approved',
+      payment_id: 'pay-101',
+      stock_decremented: true,
+      total_amount: 119000,
+      currency: 'CLP',
+    },
+    payment: { id: 'pay-100', status: 'rejected', transaction_amount: 119000, currency_id: 'CLP' },
+  });
+  assert.equal(staleRejection.action, 'ignore_ack');
+  assert.equal(staleRejection.reason, 'stale_rejection_notification');
+
+  // 5. Orden cancelada que recibe un pago aprobado tardío -> defensa en profundidad (protege aunque migración 011 no esté aplicada)
+  const latePaidOnCancelled = evaluateWebhookPaymentTransition({
+    order: {
+      id: orderId,
+      status: 'cancelled',
+      payment_status: 'pending',
+      stock_decremented: false,
+      total_amount: 119000,
+      currency: 'CLP',
+    },
+    payment: { id: 'pay-late-999', status: 'approved', transaction_amount: 119000, currency_id: 'CLP' },
+  });
+  assert.equal(latePaidOnCancelled.action, 'record_cancelled_order_paid_incident');
+  assert.equal(latePaidOnCancelled.alreadyProcessed, false);
+  assert.equal(latePaidOnCancelled.updateFields.status, 'requires_attention');
+  assert.equal(latePaidOnCancelled.updateFields.payment_status, 'approved');
+  assert.equal(latePaidOnCancelled.updateFields.stock_decremented, false);
+
+  // 6. Reintento del webhook sobre la misma orden en requires_attention -> idempotente
+  const duplicateLatePaid = evaluateWebhookPaymentTransition({
+    order: {
+      id: orderId,
+      status: 'requires_attention',
+      payment_status: 'approved',
+      payment_id: 'pay-late-999',
+      stock_decremented: false,
+      total_amount: 119000,
+      currency: 'CLP',
+    },
+    payment: { id: 'pay-late-999', status: 'approved', transaction_amount: 119000, currency_id: 'CLP' },
+  });
+  assert.equal(duplicateLatePaid.action, 'record_cancelled_order_paid_incident');
+  assert.equal(duplicateLatePaid.alreadyProcessed, true);
+  assert.equal(duplicateLatePaid.rpcEquivalentResult.code, 'incident_pending');
+
+  // 7. Reembolso (refunded) de orden aprobada con stock descontado -> pasa a requires_attention y payment_status = refunded
+  const refundDecision = evaluateWebhookPaymentTransition({
+    order: {
+      id: orderId,
+      status: 'preparing',
+      payment_status: 'approved',
+      payment_id: 'pay-101',
+      stock_decremented: true,
+      total_amount: 119000,
+      currency: 'CLP',
+    },
+    payment: { id: 'pay-101', status: 'refunded', transaction_amount: 119000, currency_id: 'CLP' },
+  });
+  assert.equal(refundDecision.action, 'update_order_non_approved');
+  assert.equal(refundDecision.reason, 'payment_refunded');
+  assert.equal(refundDecision.updateFields.payment_status, 'refunded');
+  assert.equal(refundDecision.updateFields.status, 'requires_attention');
+});
+
+test('Caso 9.7 (Etapa 2D - Fase 3.7): /checkout/resultado jamás declara aprobado solo por query params de la URL', () => {
+  const validOrderId = '0f205418-b5f9-484f-8047-fa24b52cc923';
+
+  // 1. URL manipulada con ?status=approved pero sin ref UUID válida -> rejected
+  const spoofedNoRef = resolveVerifiedCheckoutResult({
+    urlStatus: 'approved',
+    urlRef: 'OPTI-PEDIDO',
+    orderFromDb: null,
+    verificationComplete: true,
+  });
+  assert.equal(spoofedNoRef.displayState, 'rejected');
+
+  // 2. URL con ?status=approved&ref=<uuid> mientras aún se consulta la BD -> verifying (NO approved)
+  const whileLoading = resolveVerifiedCheckoutResult({
+    urlStatus: 'approved',
+    urlRef: validOrderId,
+    orderFromDb: null,
+    verificationComplete: false,
+  });
+  assert.equal(whileLoading.displayState, 'verifying');
+
+  // 3. URL con ?status=approved&ref=<uuid> pero la orden NO existe en BD (o pertenece a otro usuario) -> rejected
+  const spoofedMissingOrder = resolveVerifiedCheckoutResult({
+    urlStatus: 'approved',
+    urlRef: validOrderId,
+    orderFromDb: null,
+    verificationComplete: true,
+  });
+  assert.equal(spoofedMissingOrder.displayState, 'rejected');
+
+  // 4. URL con ?status=approved&ref=<uuid> pero en BD la orden sigue payment_status = 'pending' -> pending (NUNCA approved)
+  const unconfirmedInDb = resolveVerifiedCheckoutResult({
+    urlStatus: 'approved',
+    urlRef: validOrderId,
+    orderFromDb: {
+      id: validOrderId,
+      status: 'pending',
+      payment_status: 'pending',
+      payment_id: null,
+    },
+    verificationComplete: true,
+  });
+  assert.equal(unconfirmedInDb.displayState, 'pending');
+
+  // 5. URL con ?status=approved&ref=<uuid> pero en BD la orden está cancelada o rechazada -> rejected
+  const cancelledInDb = resolveVerifiedCheckoutResult({
+    urlStatus: 'approved',
+    urlRef: validOrderId,
+    orderFromDb: {
+      id: validOrderId,
+      status: 'cancelled',
+      payment_status: 'pending',
+      payment_id: null,
+    },
+    verificationComplete: true,
+  });
+  assert.equal(cancelledInDb.displayState, 'rejected');
+
+  // 6. ÚNICO caso que devuelve 'approved': orden verificada en BD con payment_status === 'approved' y estado operativo válido
+  const verifiedApproved = resolveVerifiedCheckoutResult({
+    urlStatus: 'approved',
+    urlRef: validOrderId,
+    orderFromDb: {
+      id: validOrderId,
+      status: 'preparing',
+      payment_status: 'approved',
+      payment_id: 'mp-pay-777',
+    },
+    verificationComplete: true,
+  });
+  assert.equal(verifiedApproved.displayState, 'approved');
+  assert.equal(verifiedApproved.requiresAttention, false);
+  assert.equal(verifiedApproved.verifiedOrderId, validOrderId);
+  assert.equal(verifiedApproved.verifiedPaymentId, 'mp-pay-777');
+});
+
+// ============================================================================
+// SECCIÓN 10: ETAPA 2D.2 — CORRECCIONES CRÍTICAS PREVIAS A LA MIGRACIÓN 012
+// ============================================================================
+
+test('Caso 9.8 (Etapa 2D.2 - Corrección 1): Órdenes pending antiguas (> 2h), con payment_status = rejected o múltiples se verifican en MP y se reemplazan sin conflicto con idx_uniq_user_pending_order', async () => {
+  const nowMs = Date.parse('2026-10-16T18:00:00.000Z');
+  const recentIso = new Date(nowMs - 15 * 60 * 1000).toISOString(); // hace 15 min (< 2h)
+  const staleIso = new Date(nowMs - 5 * 60 * 60 * 1000).toISOString(); // hace 5 horas (> 2h)
+
+  assert.equal(isOrderWithinReuseWindow(recentIso, nowMs), true);
+  assert.equal(isOrderWithinReuseWindow(staleIso, nowMs), false);
+
+  // Subcaso A: Exactamente 1 orden pending reciente, payment_status = pending, coincide con carrito -> reuse_existing_preference
+  let mpCheckCallsA = 0;
+  const reuseRes = await evaluatePendingOrdersForCheckout({
+    pendingOrders: [
+      {
+        id: 'order-recent-match',
+        status: 'pending',
+        payment_status: 'pending',
+        total_amount: 119000,
+        subtotal_net: 100000,
+        tax_amount: 19000,
+        created_at: recentIso,
+        preference_id: 'pref-123',
+        init_point: 'https://www.mercadopago.cl/checkout/v1/redirect?pref_id=pref-123',
+      },
+    ],
+    fetchOrderItems: async () => [{ product_id: 'prod-1', quantity: 10 }],
+    matchesOrder: () => true,
+    checkPaymentStatus: async () => {
+      mpCheckCallsA++;
+      return { status: 'clean' };
+    },
+    invalidatePreference: async () => ({ success: true }),
+    nowMs,
+  });
+  assert.equal(reuseRes.outcome, 'reuse_existing_preference');
+  assert.equal(reuseRes.order.id, 'order-recent-match');
+  assert.equal(mpCheckCallsA, 0, 'No necesita cancelar cuando reutiliza preferencia vigente');
+
+  // Subcaso B: Orden pending antigua (> 2h) aunque coincida con el carrito -> NO se reutiliza, se verifica en MP, se invalida preferencia y pasa a ordersToCancel
+  const checkedOrderIdsB = [];
+  const invalidatedPrefsB = [];
+  const staleRes = await evaluatePendingOrdersForCheckout({
+    pendingOrders: [
+      {
+        id: 'order-stale-5h',
+        status: 'pending',
+        payment_status: 'pending',
+        total_amount: 119000,
+        subtotal_net: 100000,
+        tax_amount: 19000,
+        created_at: staleIso,
+        preference_id: 'pref-old',
+        init_point: 'https://www.mercadopago.cl/checkout/v1/redirect?pref_id=pref-old',
+      },
+    ],
+    fetchOrderItems: async () => [{ product_id: 'prod-1', quantity: 10 }],
+    matchesOrder: () => true,
+    checkPaymentStatus: async (orderId) => {
+      checkedOrderIdsB.push(orderId);
+      return { status: 'clean' };
+    },
+    invalidatePreference: async (prefId) => {
+      invalidatedPrefsB.push(prefId);
+      return { success: true };
+    },
+    nowMs,
+  });
+  assert.equal(staleRes.outcome, 'proceed_new_order');
+  assert.deepEqual(checkedOrderIdsB, ['order-stale-5h'], 'Debe verificar el pago en MP antes de cancelar orden antigua');
+  assert.deepEqual(invalidatedPrefsB, ['pref-old']);
+  assert.deepEqual(staleRes.ordersToCancel, ['order-stale-5h']);
+
+  // Subcaso C: Orden pending con payment_status = 'rejected' reciente -> NO se reutiliza, SIEMPRE consulta MP antes de cancelar
+  const checkedOrderIdsC = [];
+  const rejectedRes = await evaluatePendingOrdersForCheckout({
+    pendingOrders: [
+      {
+        id: 'order-rejected-1',
+        status: 'pending',
+        payment_status: 'rejected',
+        total_amount: 119000,
+        subtotal_net: 100000,
+        tax_amount: 19000,
+        created_at: recentIso,
+        preference_id: 'pref-rej',
+        init_point: 'https://www.mercadopago.cl/checkout/v1/redirect?pref_id=pref-rej',
+      },
+    ],
+    fetchOrderItems: async () => [{ product_id: 'prod-1', quantity: 10 }],
+    matchesOrder: () => true,
+    checkPaymentStatus: async (orderId) => {
+      checkedOrderIdsC.push(orderId);
+      return { status: 'clean' };
+    },
+    invalidatePreference: async () => ({ success: true }),
+    nowMs,
+  });
+  assert.equal(rejectedRes.outcome, 'proceed_new_order');
+  assert.deepEqual(
+    checkedOrderIdsC,
+    ['order-rejected-1'],
+    'Nunca debe asumir que payment_status = rejected en BD basta sin verificar en MP'
+  );
+  assert.deepEqual(rejectedRes.ordersToCancel, ['order-rejected-1']);
+
+  // Subcaso D: Múltiples órdenes pending del mismo usuario (ej. una reciente y una antigua/rechazada) -> NO reutiliza ninguna, verifica todas en MP y cancela todas
+  const checkedOrderIdsD = [];
+  const multiRes = await evaluatePendingOrdersForCheckout({
+    pendingOrders: [
+      {
+        id: 'order-multi-1',
+        status: 'pending',
+        payment_status: 'pending',
+        total_amount: 119000,
+        subtotal_net: 100000,
+        tax_amount: 19000,
+        created_at: recentIso,
+        preference_id: 'pref-m1',
+        init_point: 'https://www.mercadopago.cl/checkout/v1/redirect?pref_id=pref-m1',
+      },
+      {
+        id: 'order-multi-2',
+        status: 'pending',
+        payment_status: 'rejected',
+        total_amount: 119000,
+        subtotal_net: 100000,
+        tax_amount: 19000,
+        created_at: staleIso,
+        preference_id: 'pref-m2',
+        init_point: 'https://www.mercadopago.cl/checkout/v1/redirect?pref_id=pref-m2',
+      },
+    ],
+    fetchOrderItems: async () => [{ product_id: 'prod-1', quantity: 10 }],
+    matchesOrder: () => true,
+    checkPaymentStatus: async (orderId) => {
+      checkedOrderIdsD.push(orderId);
+      return { status: 'clean' };
+    },
+    invalidatePreference: async () => ({ success: true }),
+    nowMs,
+  });
+  assert.equal(multiRes.outcome, 'proceed_new_order');
+  assert.deepEqual(checkedOrderIdsD, ['order-multi-1', 'order-multi-2']);
+  assert.deepEqual(multiRes.ordersToCancel, ['order-multi-1', 'order-multi-2']);
+});
+
+test('Caso 9.9 (Etapa 2D.2 - Corrección 1): Protección fail-closed ante pago approved, in_process o error/ambiguo en MP y creación posterior sin conflicto con idx_uniq_user_pending_order', async () => {
+  const nowMs = Date.parse('2026-10-16T18:00:00.000Z');
+  const staleIso = new Date(nowMs - 4 * 60 * 60 * 1000).toISOString();
+
+  // 1. Orden con payment_status = 'rejected' en BD pero cuyo segundo intento de pago fue APROBADO en MP -> Bloquea con 409 y NO cancela
+  const approvedInMpRes = await evaluatePendingOrdersForCheckout({
+    pendingOrders: [
+      {
+        id: 'order-secretly-approved',
+        status: 'pending',
+        payment_status: 'rejected',
+        total_amount: 119000,
+        subtotal_net: 100000,
+        tax_amount: 19000,
+        created_at: staleIso,
+        preference_id: 'pref-sec',
+        init_point: 'https://mp/pref-sec',
+      },
+    ],
+    fetchOrderItems: async () => [],
+    matchesOrder: () => false,
+    checkPaymentStatus: async () => ({ status: 'has_active_payment', activeState: 'approved' }),
+    invalidatePreference: async () => ({ success: true }),
+    nowMs,
+  });
+  assert.equal(approvedInMpRes.outcome, 'block');
+  assert.equal(approvedInMpRes.httpStatus, 409);
+  assert.equal(approvedInMpRes.code, 'PAYMENT_ALREADY_APPROVED');
+  assert.equal(approvedInMpRes.orderId, 'order-secretly-approved');
+
+  // 2. Orden cuyo pago está pending / in_process en MP -> Bloquea con 409 PAYMENT_IN_PROCESS y NO cancela
+  const inProcessInMpRes = await evaluatePendingOrdersForCheckout({
+    pendingOrders: [
+      {
+        id: 'order-in-process',
+        status: 'pending',
+        payment_status: 'pending',
+        total_amount: 119000,
+        subtotal_net: 100000,
+        tax_amount: 19000,
+        created_at: staleIso,
+        preference_id: 'pref-proc',
+        init_point: 'https://mp/pref-proc',
+      },
+    ],
+    fetchOrderItems: async () => [],
+    matchesOrder: () => true,
+    checkPaymentStatus: async () => ({ status: 'has_active_payment', activeState: 'in_process' }),
+    invalidatePreference: async () => ({ success: true }),
+    nowMs,
+  });
+  assert.equal(inProcessInMpRes.outcome, 'block');
+  assert.equal(inProcessInMpRes.httpStatus, 409);
+  assert.equal(inProcessInMpRes.code, 'PAYMENT_IN_PROCESS');
+  assert.equal(inProcessInMpRes.orderId, 'order-in-process');
+
+  // 3. Error o respuesta ambigua al consultar Mercado Pago -> Falla en cerrado con 502 FAILED_TO_VERIFY_PRIOR_PAYMENTS y NO cancela la orden
+  for (const badStatus of ['error', 'ambiguous_unexpected_state']) {
+    const errorInMpRes = await evaluatePendingOrdersForCheckout({
+      pendingOrders: [
+        {
+          id: 'order-mp-error',
+          status: 'pending',
+          payment_status: 'pending',
+          total_amount: 119000,
+          subtotal_net: 100000,
+          tax_amount: 19000,
+          created_at: staleIso,
+          preference_id: 'pref-err',
+          init_point: 'https://mp/pref-err',
+        },
+      ],
+      fetchOrderItems: async () => [],
+      matchesOrder: () => true,
+      checkPaymentStatus: async () => ({ status: badStatus }),
+      invalidatePreference: async () => ({ success: true }),
+      nowMs,
+    });
+    assert.equal(errorInMpRes.outcome, 'block');
+    assert.equal(errorInMpRes.httpStatus, 502);
+    assert.equal(errorInMpRes.code, 'FAILED_TO_VERIFY_PRIOR_PAYMENTS');
+    assert.equal(errorInMpRes.orderId, 'order-mp-error');
+  }
+
+  // 4. Simulación de creación posterior de orden con índice único parcial idx_uniq_user_pending_order (WHERE status = 'pending')
+  const simulatedOrdersTable = [
+    {
+      id: 'ord-old-pending',
+      user_id: 'user-b2b-1',
+      status: 'pending',
+      payment_status: 'pending',
+      total_amount: 119000,
+      subtotal_net: 100000,
+      tax_amount: 19000,
+      created_at: staleIso,
+    },
+    {
+      id: 'ord-rej-pending',
+      user_id: 'user-b2b-1',
+      status: 'pending',
+      payment_status: 'rejected',
+      total_amount: 119000,
+      subtotal_net: 100000,
+      tax_amount: 19000,
+      created_at: staleIso,
+    },
+  ];
+
+  // Consulta sin filtro de 2h ni payment_status (tal como hace route.ts)
+  const pendingCandidates = simulatedOrdersTable.filter(
+    (o) => o.user_id === 'user-b2b-1' && o.status === 'pending'
+  );
+
+  const evalDecision = await evaluatePendingOrdersForCheckout({
+    pendingOrders: pendingCandidates,
+    fetchOrderItems: async () => [],
+    matchesOrder: () => false,
+    checkPaymentStatus: async () => ({ status: 'clean' }),
+    invalidatePreference: async () => ({ success: true }),
+    nowMs,
+  });
+  assert.equal(evalDecision.outcome, 'proceed_new_order');
+  assert.deepEqual(evalDecision.ordersToCancel, ['ord-old-pending', 'ord-rej-pending']);
+
+  // Cancelar todas las órdenes en ordersToCancel (sin filtrar por payment_status = 'pending')
+  for (const row of simulatedOrdersTable) {
+    if (
+      row.user_id === 'user-b2b-1' &&
+      row.status === 'pending' &&
+      evalDecision.ordersToCancel.includes(row.id)
+    ) {
+      row.status = 'cancelled';
+    }
+  }
+
+  // Verificar precondición de idx_uniq_user_pending_order antes de insertar la nueva orden
+  const remainingPendingForUser = simulatedOrdersTable.filter(
+    (o) => o.user_id === 'user-b2b-1' && o.status === 'pending'
+  );
+  assert.equal(
+    remainingPendingForUser.length,
+    0,
+    'No debe quedar ninguna orden en status = pending antes de insertar la nueva orden'
+  );
+
+  // Insertar nueva orden pending y verificar que idx_uniq_user_pending_order se cumple (exactamente 1 pending)
+  simulatedOrdersTable.push({
+    id: 'ord-new-pending',
+    user_id: 'user-b2b-1',
+    status: 'pending',
+    payment_status: 'pending',
+    total_amount: 119000,
+    subtotal_net: 100000,
+    tax_amount: 19000,
+    created_at: new Date(nowMs).toISOString(),
+  });
+  const activePendingAfterInsert = simulatedOrdersTable.filter(
+    (o) => o.user_id === 'user-b2b-1' && o.status === 'pending'
+  );
+  assert.equal(activePendingAfterInsert.length, 1);
+  assert.equal(activePendingAfterInsert[0].id, 'ord-new-pending');
+});
+
+test('Caso 9.10 (Etapa 2D.2 - Corrección 2A): requires_attention jamás se presenta como compra aprobada en /checkout/resultado', () => {
+  const validOrderId = '0f205418-b5f9-484f-8047-fa24b52cc923';
+
+  // Orden que recibió un pago tardío tras haber sido cancelada (status = requires_attention, payment_status = approved)
+  const requiresAttentionRes = resolveVerifiedCheckoutResult({
+    urlStatus: 'approved',
+    urlRef: validOrderId,
+    orderFromDb: {
+      id: validOrderId,
+      status: 'requires_attention',
+      payment_status: 'approved',
+      payment_id: 'mp-late-pay-555',
+    },
+    verificationComplete: true,
+  });
+
+  assert.notEqual(
+    requiresAttentionRes.displayState,
+    'approved',
+    'Una orden en requires_attention NUNCA debe devolverse con displayState = approved'
+  );
+  assert.equal(requiresAttentionRes.displayState, 'pending');
+  assert.equal(requiresAttentionRes.requiresAttention, true);
+  assert.equal(requiresAttentionRes.verifiedOrderId, validOrderId);
+  assert.equal(requiresAttentionRes.verifiedPaymentId, 'mp-late-pay-555');
+
+  // Estados operativos válidos con payment_status = approved sí devuelven displayState = approved
+  for (const validStatus of ['paid', 'preparing', 'shipped', 'delivered']) {
+    const okRes = resolveVerifiedCheckoutResult({
+      urlStatus: 'approved',
+      urlRef: validOrderId,
+      orderFromDb: {
+        id: validOrderId,
+        status: validStatus,
+        payment_status: 'approved',
+        payment_id: 'mp-ok-pay-111',
+      },
+      verificationComplete: true,
+    });
+    assert.equal(okRes.displayState, 'approved', `Debe ser approved para status=${validStatus}`);
+    assert.equal(okRes.requiresAttention, false);
+  }
+});
+
+test('Caso 9.11 (Etapa 2D.2 - Corrección 2B): Conflicto de payment_id en orden cancelled o requires_attention no sobrescribe payment_id', () => {
+  const orderId = '0f205418-b5f9-484f-8047-fa24b52cc923';
+
+  // 1. Orden cancelled que ya tenía un payment_id registrado ('pay-original-111') recibe otro pago ('pay-different-222')
+  const conflictOnCancelled = evaluateWebhookPaymentTransition({
+    order: {
+      id: orderId,
+      status: 'cancelled',
+      payment_status: 'approved',
+      payment_id: 'pay-original-111',
+      stock_decremented: false,
+      total_amount: 119000,
+      currency: 'CLP',
+    },
+    payment: {
+      id: 'pay-different-222',
+      status: 'approved',
+      transaction_amount: 119000,
+      currency_id: 'CLP',
+    },
+  });
+
+  assert.equal(conflictOnCancelled.action, 'ignore_ack');
+  assert.equal(conflictOnCancelled.reason, 'payment_conflict');
+  assert.equal(conflictOnCancelled.rpcEquivalentResult.code, 'payment_conflict');
+  assert.equal(
+    'updateFields' in conflictOnCancelled,
+    false,
+    'No debe generar updateFields que sobrescriban payment_id'
+  );
+
+  // 2. Orden en requires_attention que ya tenía payment_id ('pay-late-999') recibe un payment_id distinto ('pay-other-888')
+  const conflictOnRequiresAttention = evaluateWebhookPaymentTransition({
+    order: {
+      id: orderId,
+      status: 'requires_attention',
+      payment_status: 'approved',
+      payment_id: 'pay-late-999',
+      stock_decremented: false,
+      total_amount: 119000,
+      currency: 'CLP',
+    },
+    payment: {
+      id: 'pay-other-888',
+      status: 'approved',
+      transaction_amount: 119000,
+      currency_id: 'CLP',
+    },
+  });
+
+  assert.equal(conflictOnRequiresAttention.action, 'ignore_ack');
+  assert.equal(conflictOnRequiresAttention.reason, 'payment_conflict');
+  assert.equal(conflictOnRequiresAttention.rpcEquivalentResult.code, 'payment_conflict');
+});
