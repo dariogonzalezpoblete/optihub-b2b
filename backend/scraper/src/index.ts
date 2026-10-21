@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs';
+import readline from 'readline';
 import { CONFIG } from './config';
 import { SessionManager } from './services/auth';
 import { NetworkInterceptor } from './services/interceptor';
@@ -9,8 +10,15 @@ import { SupabaseService } from './services/supabase';
 import { ScraperOptions, OptiHubProduct } from './types';
 import { Logger } from './utils/logger';
 
-function parseArgs(): ScraperOptions {
+interface ParsedArgs {
+  options: ScraperOptions;
+  hasExplicitBrand: boolean;
+}
+
+function parseArgs(): ParsedArgs {
   const args = process.argv.slice(2);
+  let hasExplicitBrand = false;
+
   const options: ScraperOptions = {
     brands: CONFIG.SCRAPER.DEFAULT_BRANDS,
     headless: false,
@@ -24,7 +32,13 @@ function parseArgs(): ScraperOptions {
     const arg = args[i];
     if (arg === '--brand' || arg === '-b') {
       const val = args[++i];
-      if (val) options.brands = val.split(',').map((b) => b.trim());
+      if (val) {
+        options.brands = val
+          .split(',')
+          .map((b) => b.trim())
+          .filter(Boolean);
+        hasExplicitBrand = true;
+      }
     } else if (arg === '--headless') {
       options.headless = true;
     } else if (arg === '--pages' || arg === '-p') {
@@ -41,22 +55,57 @@ function parseArgs(): ScraperOptions {
     }
   }
 
-  return options;
+  return { options, hasExplicitBrand };
+}
+
+/**
+ * Prompts user interactively in the terminal to specify one or multiple brands
+ */
+async function promptBrandsInteractive(): Promise<string[]> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question(
+      '\n🏷️  Marcas a extraer (separadas por coma, ej: Guess, Nike, Lacoste, Tom Ford) [Guess]: ',
+      (answer) => {
+        rl.close();
+        const trimmed = answer.trim();
+        if (!trimmed) {
+          resolve(['Guess']);
+        } else {
+          const list = trimmed
+            .split(',')
+            .map((b) => b.trim())
+            .filter(Boolean);
+          resolve(list.length > 0 ? list : ['Guess']);
+        }
+      }
+    );
+  });
 }
 
 async function main() {
   const startTime = Date.now();
-  const options = parseArgs();
+  const { options, hasExplicitBrand } = parseArgs();
 
   console.log('\n╔════════════════════════════════════════════════════════════════╗');
   console.log('║       OptiHub Provider Catalog Scraper (v2.1 Enterprise)       ║');
   console.log('║   • Interactive reCAPTCHA Login & Session State Persistence    ║');
-  console.log('║   • High-Velocity API & DOM Card Extraction Pipeline           ║');
+  console.log('║   • Multi-Brand Batch Extraction & Interactive Selection       ║');
   console.log('║   • Sharp WebP Image Optimization & Lanczos-3 Resampling       ║');
   console.log('║   • Landed Cost (CIF + Ad Valorem 6% + VAT 19%) Gated Pricing  ║');
-  console.log('║   • Idempotent Supabase Batch Upsert & Out-of-Stock Sync       ║');
+  console.log('║   • Dual-Image (Main + Secondary) & Smart Stock Only Sync      ║');
   console.log('╚════════════════════════════════════════════════════════════════╝\n');
 
+  // If no --brand was provided on the command line, prompt interactively
+  if (!hasExplicitBrand && process.stdin.isTTY) {
+    options.brands = await promptBrandsInteractive();
+  }
+
+  Logger.info(`Marcas seleccionadas para procesar (${options.brands.length}): ${options.brands.join(', ')}`);
   Logger.info('Starting scraper with options:', {
     brands: options.brands,
     headless: options.headless,
@@ -84,13 +133,16 @@ async function main() {
     // 2. Attach API Network Interceptor to Page
     interceptor.attach(page);
 
-    // 3. Process each target brand
-    for (const brand of options.brands) {
+    // 3. Process each selected brand sequentially
+    for (let bIndex = 0; bIndex < options.brands.length; bIndex++) {
+      const brand = options.brands[bIndex];
+      Logger.info(`\n[${bIndex + 1}/${options.brands.length}] 🔄 Iniciando procesamiento de marca: '${brand}'...`);
+
       const brandProducts = await catalogRunner.scrapeBrand(page, context, brand, options);
       allExtractedProducts.push(...brandProducts);
 
       if (brandProducts.length > 0) {
-        // Backup local JSON
+        // Save local backup JSON
         const exportFile = `catalog_${brand.toLowerCase().replace(/[^a-z0-9]/g, '_')}.json`;
         fs.writeFileSync(exportFile, JSON.stringify(brandProducts, null, 2), 'utf-8');
         Logger.info(`Saved local JSON backup of ${brandProducts.length} items to ${exportFile}`);

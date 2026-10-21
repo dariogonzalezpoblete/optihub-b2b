@@ -59,14 +59,17 @@ npm test
 ### Ejecución del Scraper
 
 ```bash
-# Iniciar scraper con parámetros por defecto (Marca Guess, modo visible si requiere login)
+# Iniciar scraper (Te solicitará interactivamente qué marcas extraer, ej: Guess, Nike, Lacoste)
 npm start
 
-# Iniciar para marcas específicas con límite de páginas y stock mínimo
-npx tsx src/index.ts --brand "Guess,Nike,Lacoste" --pages 25 --min-stock 5
+# Iniciar directamente para una o más marcas desde la línea de comandos
+npx tsx src/index.ts --brand "Guess, Nike, Lacoste, Tom Ford"
 
-# Modo Simulación / Dry-Run (sin escribir en la base de datos)
-npx tsx src/index.ts --brand "Guess" --dry-run
+# Iniciar para marcas específicas con límite de páginas y stock mínimo
+npx tsx src/index.ts --brand "Guess,Nike,Lacoste" --pages 20 --min-stock 5
+
+# Modo Simulación / Dry-Run (sin escribir en Supabase)
+npx tsx src/index.ts --brand "Guess,Nike" --dry-run
 ```
 
 ### Opciones de Línea de Comandos (CLI Flags)
