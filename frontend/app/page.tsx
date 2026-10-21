@@ -329,8 +329,8 @@ export default function Home() {
                       </div>
                     )}
 
-                    <span className="text-xs bg-slate-800 px-2 py-0.5 rounded-md text-slate-300 font-medium">
-                      {marco.stock} un.
+                    <span className={isLoggedIn ? "text-xs bg-slate-800 px-2 py-0.5 rounded-md text-slate-300 font-medium" : "hidden"}>
+                      {isLoggedIn && `Stock en origen: ${marco.stock} un.`}
                     </span>
                   </div>
                 </div>

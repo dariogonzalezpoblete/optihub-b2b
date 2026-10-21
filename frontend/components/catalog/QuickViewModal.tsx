@@ -189,13 +189,13 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
           <div className="p-6 md:p-8 flex-1 bg-slate-900/50 flex flex-col">
             <h3 className="font-bold text-white mb-4 flex items-center gap-2">
               <ShoppingBag className="w-4 h-4 text-emerald-400" />
-              Grilla B2B de Stock
+              Pedido Mayorista B2B (Stock en Origen)
             </h3>
 
             {!isLoggedIn ? (
                <div className="bg-slate-950 p-6 rounded-2xl border border-amber-500/30 text-center">
                  <Lock className="w-8 h-8 text-amber-500 mx-auto mb-3" />
-                 <p className="text-sm text-slate-300 mb-4">Inicia sesión para ver precios netos y stock mayorista en tiempo real.</p>
+                 <p className="text-sm text-slate-300 mb-4">Inicia sesión para ver precios netos y disponibilidad en origen en tiempo real.</p>
                  <Link href="/login" className="bg-emerald-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm">Iniciar Sesión</Link>
                </div>
             ) : (
@@ -217,13 +217,13 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
                         <div className="text-right mr-4 w-28">
                           <p className="font-black text-emerald-400">${v.precio_neto_clp?.toLocaleString('es-CL')}</p>
                           {isOut ? (
-                            <p className="text-[10px] text-rose-400 font-bold">Sin stock</p>
+                            <p className="text-[10px] text-rose-400 font-bold">Agotado en origen</p>
                           ) : isMaxInCart ? (
                             <p className="text-[10px] text-amber-400 font-bold">Máx. en carrito ({maxStock})</p>
                           ) : inCart > 0 ? (
                             <p className="text-[10px] text-slate-400">Disp: {remainingStock} ({inCart} en carrito)</p>
                           ) : (
-                            <p className="text-[10px] text-slate-500">Stock: {maxStock}</p>
+                            <p className="text-[10px] text-slate-500">Stock en origen: {maxStock}</p>
                           )}
                         </div>
                         <div>

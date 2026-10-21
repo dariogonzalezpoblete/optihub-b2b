@@ -57,15 +57,6 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
           </span>
         )}
 
-        {/* Badge de Disponibilidad (Inferior) */}
-        <span className={`absolute bottom-3 left-3 z-10 text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border backdrop-blur-md shadow-lg transition-colors ${
-          inStock 
-            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-            : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-        }`}>
-          {inStock ? 'En stock' : 'Importación directa'}
-        </span>
-
         {/* Overlay sutil al hover (B2B Glow) */}
         <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/5 transition duration-300 rounded-t-2xl pointer-events-none" />
       </div>
@@ -141,11 +132,16 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
             </span>
           )}
 
-          <div className="text-right">
-            <span className="badge-stock">
-              {activeStock} un.
-            </span>
-          </div>
+          {isLoggedIn && (
+            <div className="text-right">
+              <span className="text-[9px] text-slate-500 block uppercase font-bold tracking-wider mb-0.5">
+                Stock en origen
+              </span>
+              <span className="badge-stock">
+                {activeStock} un.
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>

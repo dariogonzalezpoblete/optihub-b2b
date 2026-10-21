@@ -222,7 +222,7 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                   <div className="hidden sm:grid grid-cols-12 gap-4 text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 px-2">
                     <div className="col-span-5">Color / SKU</div>
                     <div className="col-span-3 text-center">Precio Neto</div>
-                    <div className="col-span-2 text-center">Stock</div>
+                    <div className="col-span-2 text-center">Stock en Origen</div>
                     <div className="col-span-2 text-center">Cant.</div>
                   </div>
                   
@@ -254,10 +254,10 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                           </div>
                           
                           <div className="col-span-1 sm:col-span-2 text-left sm:text-center">
-                            <span className="sm:hidden text-xs text-slate-500 mr-2">Stock:</span>
+                            <span className="sm:hidden text-xs text-slate-500 mr-2">Stock en origen:</span>
                             {outOfStock ? (
                               <span className="text-xs font-bold px-2 py-1 rounded-md bg-red-500/10 text-red-400">
-                                Sin stock
+                                Agotado en origen
                               </span>
                             ) : isMaxInCart ? (
                               <span className="text-xs font-bold px-2 py-1 rounded-md bg-amber-500/10 text-amber-400" title={`Ya tienes ${inCart} en el carrito`}>
