@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+dist/
+
+# Environment and sensitive state
+.env
+.env.*
+auth_state.json
+sesion_navegador/
+chrome_user_data/
+
+# Python remnants (if any)
+.venv/
+.venv-*/
+venv/
+__pycache__/
+*.pyc
+
+# Data outputs & logs
+*.csv
+*.log

@@ -1,0 +1,32 @@
+{
+  "name": "optihub-provider-scraper",
+  "version": "2.0.0",
+  "description": "High-performance Playwright scraper with session state persistence, API network interception, and B2B gated pricing transformation",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/index.ts",
+    "scrape": "tsx src/index.ts",
+    "test": "tsx test/pricing.test.ts && tsx test/interceptor.test.ts"
+  },
+  "keywords": [
+    "optihub",
+    "scraper",
+    "playwright",
+    "session-storage",
+    "api-interception",
+    "b2b-pricing"
+  ],
+  "author": "OptiHub Engineering",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "dotenv": "^16.4.7",
+    "playwright": "^1.50.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}
