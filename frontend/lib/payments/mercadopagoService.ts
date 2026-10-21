@@ -104,6 +104,9 @@ export async function createOrderPaymentPreference(
     throw new Error('El parámetro userId es requerido.');
   }
 
+  const cleanOrderId = orderId.trim();
+  const cleanUserId = userId.trim();
+
   const siteUrl = getSiteUrl();
 
   // Internal worker that can run inside or outside a caller transaction
@@ -116,22 +119,22 @@ export async function createOrderPaymentPreference(
       WHERE id = $1
     `;
     const orderResult = client
-      ? await client.query(orderQuery, [orderId])
-      : await executeQuery(orderQuery, [orderId]);
+      ? await client.query(orderQuery, [cleanOrderId])
+      : await executeQuery(orderQuery, [cleanOrderId]);
 
     if (orderResult.rows.length === 0) {
-      throw new Error(`La orden de compra "${orderId}" no existe en la base de datos.`);
+      throw new Error(`La orden de compra "${cleanOrderId}" no existe en la base de datos.`);
     }
 
     const order = orderResult.rows[0];
 
-    if (order.user_id !== userId) {
+    if (order.user_id !== cleanUserId) {
       throw new Error('Acceso no autorizado: la orden pertenece a otro usuario.');
     }
 
     if (order.status !== 'pending' && order.status !== 'payment_pending') {
       throw new Error(
-        `La orden "${orderId}" no es elegible para pago porque se encuentra en estado "${order.status}".`
+        `La orden "${cleanOrderId}" no es elegible para pago porque se encuentra en estado "${order.status}".`
       );
     }
 
@@ -144,8 +147,8 @@ export async function createOrderPaymentPreference(
       WHERE order_id = $1
     `;
     const itemsResult = client
-      ? await client.query(itemsQuery, [orderId])
-      : await executeQuery(itemsQuery, [orderId]);
+      ? await client.query(itemsQuery, [cleanOrderId])
+      : await executeQuery(itemsQuery, [cleanOrderId]);
 
     if (itemsResult.rows.length > 0) {
       itemsToProcess = itemsResult.rows.map((row) => ({
@@ -338,26 +341,48 @@ export async function createOrderPaymentPreference(
       throw new Error('La respuesta de Mercado Pago no incluyó un ID de preferencia o URL de pago válida.');
     }
 
-    // 7. Persist preference to PostgreSQL orders table
+    // 7. Persist preference to PostgreSQL orders table with defensive SQL error handling
     const updateOrderQuery = `
       UPDATE orders
       SET preference_id = $1,
           init_point = $2,
           updated_at = NOW()
       WHERE id = $3
+      RETURNING id, preference_id, init_point
     `;
 
-    if (client) {
-      await client.query(updateOrderQuery, [preferenceId, initPoint, orderId]);
-    } else {
-      await executeQuery(updateOrderQuery, [preferenceId, initPoint, orderId]);
+    try {
+      const updateResult = client
+        ? await client.query(updateOrderQuery, [preferenceId, initPoint, cleanOrderId])
+        : await executeQuery(updateOrderQuery, [preferenceId, initPoint, cleanOrderId]);
+
+      if (updateResult.rowCount === 0) {
+        console.warn(`[MercadoPago Service] La orden "${cleanOrderId}" no fue actualizada al persistir preference (posiblemente ID inexistente o estado no elegible).`);
+      }
+    } catch (dbErr: any) {
+      console.error('[MercadoPago Service] Error detallado SQL en orders al persistir preferencia:', {
+        code: dbErr?.code,
+        message: dbErr?.message,
+        detail: dbErr?.detail,
+        hint: dbErr?.hint,
+        table: dbErr?.table,
+        constraint: dbErr?.constraint,
+        orderId: cleanOrderId,
+        preferenceId,
+      });
+      const enrichedDbError = new Error(
+        `Error al persistir la preferencia en la base de datos [${dbErr?.code || 'SQL_ERROR'}]: ${dbErr?.message || 'Fallo de consulta SQL'}`
+      );
+      (enrichedDbError as any).code = dbErr?.code;
+      (enrichedDbError as any).originalError = dbErr;
+      throw enrichedDbError;
     }
 
     return {
       preferenceId,
       initPoint,
       sandboxInitPoint,
-      orderId,
+      orderId: cleanOrderId,
       totalAmount: calculatedTotal,
       currency: 'CLP',
     };

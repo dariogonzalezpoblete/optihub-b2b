@@ -497,34 +497,210 @@ export async function persistPreferenceAtomic(
 
   const userId = typeof options?.userId === 'string' ? options.userId.trim() : '';
   const leaseId = typeof options?.leaseId === 'string' ? options.leaseId.trim() : '';
+  const cleanOrderId = typeof orderId === 'string' ? orderId.trim() : '';
+  const cleanPrefId = typeof prefId === 'string' ? prefId.trim() : '';
+  const cleanPaymentUrl = typeof paymentUrl === 'string' ? paymentUrl.trim() : '';
 
   if (!userId || !leaseId) {
     await safeInvalidateCreatedPreference('missing_user_or_lease_id');
     throw new CheckoutLeaseInvalidError(
-      orderId,
+      cleanOrderId,
       'LEASE_REQUIRED',
       'Se requiere una reserva de checkout válida (leaseId) para persistir la pasarela de pago.'
     );
   }
 
-  if (!supabaseAdmin || typeof supabaseAdmin.rpc !== 'function') {
-    await safeInvalidateCreatedPreference('missing_rpc_client');
-    throw new Error('Error interno al persistir la Preference: cliente RPC no disponible.');
+  if (!supabaseAdmin) {
+    await safeInvalidateCreatedPreference('missing_supabase_client');
+    throw new Error('Error interno al persistir la Preference: cliente de base de datos no disponible.');
   }
 
-  const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc(
-    'persist_order_preference_with_lease',
-    {
-      p_user_id: userId,
-      p_order_id: orderId,
-      p_lease_id: leaseId,
-      p_preference_id: prefId,
-      p_init_point: paymentUrl,
-      p_expected_stale_preference_id: options?.expectedStalePreferenceId ?? null
-    }
-  );
+  let rpcData: any = null;
+  let rpcError: any = null;
+  let rpcExecuted = false;
 
-  if (rpcError || !rpcData || typeof rpcData !== 'object') {
+  if (typeof supabaseAdmin.rpc === 'function') {
+    try {
+      const rpcRes = await supabaseAdmin.rpc(
+        'persist_order_preference_with_lease',
+        {
+          p_user_id: userId,
+          p_order_id: cleanOrderId,
+          p_lease_id: leaseId,
+          p_preference_id: cleanPrefId,
+          p_init_point: cleanPaymentUrl,
+          p_expected_stale_preference_id: options?.expectedStalePreferenceId ?? null
+        }
+      );
+      rpcData = rpcRes.data;
+      rpcError = rpcRes.error;
+      rpcExecuted = true;
+    } catch (err: any) {
+      rpcError = err;
+      rpcExecuted = true;
+    }
+  }
+
+  const isRpcMissing = (err: any): boolean => {
+    if (!err) return false;
+    const code = String(err.code || '').trim();
+    const msg = String(err.message || '').toLowerCase();
+    const details = String(err.details || '').toLowerCase();
+    return (
+      code === 'PGRST202' ||
+      code === '42883' ||
+      msg.includes('schema cache') ||
+      msg.includes('does not exist') ||
+      details.includes('schema cache') ||
+      details.includes('does not exist')
+    );
+  };
+
+  if (rpcError) {
+    console.error('[CreatePref] Error RPC persist_order_preference_with_lease:', {
+      code: rpcError.code,
+      message: rpcError.message,
+      details: rpcError.details,
+      hint: rpcError.hint,
+      orderId: cleanOrderId,
+      userId,
+      prefId: cleanPrefId
+    });
+  }
+
+  // Fallback si la RPC persist_order_preference_with_lease no existe en la base de datos
+  if (
+    (!rpcExecuted || isRpcMissing(rpcError)) &&
+    supabaseAdmin &&
+    typeof supabaseAdmin.from === 'function'
+  ) {
+    console.warn('[CreatePref] RPC persist_order_preference_with_lease no disponible en schema cache. Aplicando fallback de persistencia atómica en orders.', {
+      orderId: cleanOrderId,
+      prefId: cleanPrefId
+    });
+
+    try {
+      let updateBuilder = supabaseAdmin
+        .from('orders')
+        .update({
+          preference_id: cleanPrefId,
+          init_point: cleanPaymentUrl,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', cleanOrderId)
+        .eq('user_id', userId)
+        .eq('status', 'pending');
+
+      if (options?.expectedStalePreferenceId) {
+        updateBuilder = updateBuilder.eq('preference_id', options.expectedStalePreferenceId);
+      }
+
+      const { data: updatedOrders, error: updateErr } = await updateBuilder
+        .select('id, preference_id, init_point, status')
+        .maybeSingle();
+
+      if (updateErr) {
+        console.error('[CreatePref] Error detallado SQL en orders al persistir preferencia (fallback):', {
+          code: updateErr.code,
+          message: updateErr.message,
+          details: updateErr.details,
+          hint: updateErr.hint,
+          orderId: cleanOrderId,
+          prefId: cleanPrefId
+        });
+        await safeInvalidateCreatedPreference('fallback_update_error');
+        throw new Error(
+          `Error interno al persistir la Preference [${updateErr.code || 'DB_ERROR'}]: ${updateErr.message}`
+        );
+      }
+
+      if (updatedOrders && updatedOrders.preference_id && updatedOrders.init_point) {
+        return {
+          id: updatedOrders.preference_id,
+          initPoint: updatedOrders.init_point,
+          orderId: cleanOrderId
+        };
+      }
+
+      // No se actualizó ninguna fila. Inspeccionar el estado de la orden para diagnosticar
+      const { data: currentOrder, error: checkErr } = await supabaseAdmin
+        .from('orders')
+        .select('id, user_id, status, preference_id, init_point')
+        .eq('id', cleanOrderId)
+        .maybeSingle();
+
+      if (checkErr) {
+        console.error('[CreatePref] Error detallado SQL al consultar estado de orden tras fallo de update (fallback):', {
+          code: checkErr.code,
+          message: checkErr.message,
+          details: checkErr.details,
+          hint: checkErr.hint,
+          orderId: cleanOrderId
+        });
+        await safeInvalidateCreatedPreference('fallback_check_error');
+        throw new Error(
+          `Error interno al persistir la Preference [${checkErr.code || 'DB_ERROR'}]: ${checkErr.message}`
+        );
+      }
+
+      if (!currentOrder) {
+        await safeInvalidateCreatedPreference('fallback_order_not_found');
+        throw new Error('Error interno al persistir la Preference: la orden no existe en la base de datos.');
+      }
+
+      if (currentOrder.user_id !== userId) {
+        await safeInvalidateCreatedPreference('fallback_unauthorized');
+        throw new Error('Error interno al persistir la Preference: la orden pertenece a otro usuario.');
+      }
+
+      if (currentOrder.status !== 'pending') {
+        await safeInvalidateCreatedPreference('fallback_order_not_pending');
+        throw new ConcurrentOrderStateChangedError(
+          cleanOrderId,
+          `La orden ya no se encuentra en estado pendiente (estado actual: ${currentOrder.status}).`
+        );
+      }
+
+      // Si la orden ya poseía una preferencia persistida válida
+      if (currentOrder.preference_id && currentOrder.init_point) {
+        if (currentOrder.preference_id !== cleanPrefId) {
+          await safeInvalidateCreatedPreference('superseded_by_concurrent_pending_winner');
+        }
+        return {
+          id: currentOrder.preference_id,
+          initPoint: currentOrder.init_point,
+          orderId: cleanOrderId
+        };
+      }
+
+      await safeInvalidateCreatedPreference('fallback_unmatched_criteria');
+      throw new Error('Error interno al persistir la Preference: no se pudo actualizar la orden.');
+    } catch (fallbackCatchErr: any) {
+      if (
+        fallbackCatchErr instanceof ConcurrentOrderStateChangedError ||
+        fallbackCatchErr instanceof CheckoutLeaseInvalidError ||
+        fallbackCatchErr instanceof WinnerPreferenceVerificationFailedError
+      ) {
+        throw fallbackCatchErr;
+      }
+      if (fallbackCatchErr?.message?.includes('Error interno al persistir la Preference')) {
+        throw fallbackCatchErr;
+      }
+      console.error('[CreatePref] Excepción inesperada durante fallback de persistencia en orders:', fallbackCatchErr);
+      throw new Error(
+        `Error interno al persistir la Preference: ${fallbackCatchErr?.message || 'Fallo desconocido'}`
+      );
+    }
+  }
+
+  if (rpcError) {
+    await safeInvalidateCreatedPreference('rpc_persist_error');
+    throw new Error(
+      `Error interno al persistir la Preference [${rpcError.code || 'RPC_ERROR'}]: ${rpcError.message || 'Error RPC'}`
+    );
+  }
+
+  if (!rpcData || typeof rpcData !== 'object') {
     await safeInvalidateCreatedPreference('rpc_persist_error');
     throw new Error('Error interno al persistir la Preference.');
   }
