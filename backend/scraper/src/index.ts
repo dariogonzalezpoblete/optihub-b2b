@@ -70,7 +70,7 @@ async function main() {
   const supabaseService = new SupabaseService();
   const imageOptimizer = new ImageOptimizer({ maxDimension: 1000, quality: 82 });
   const interceptor = new NetworkInterceptor({ minStock: options.minStock });
-  const catalogRunner = new CatalogRunner(interceptor, imageOptimizer, supabaseService);
+  const catalogRunner = new CatalogRunner(interceptor, imageOptimizer, supabaseService, sessionManager);
 
   const allExtractedProducts: OptiHubProduct[] = [];
 

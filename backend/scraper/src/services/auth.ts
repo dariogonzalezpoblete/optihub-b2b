@@ -24,6 +24,21 @@ export class SessionManager {
   }
 
   /**
+   * Returns a formatted Cookie header string from the saved storage state
+   */
+  public getCookieHeader(): string {
+    if (!this.hasSavedState()) return '';
+    try {
+      const content = fs.readFileSync(this.authStatePath, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed.cookies)) {
+        return parsed.cookies.map((c: { name: string; value: string }) => `${c.name}=${c.value}`).join('; ');
+      }
+    } catch {}
+    return '';
+  }
+
+  /**
    * Checks if an auth_state.json exists and contains saved cookies
    */
   public hasSavedState(): boolean {

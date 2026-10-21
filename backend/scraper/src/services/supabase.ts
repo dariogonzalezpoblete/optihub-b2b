@@ -140,6 +140,23 @@ export class SupabaseService {
   }
 
   /**
+   * Updates specific fields for an existing product (e.g. secondary image + stock)
+   */
+  public async updateProductPartial(id_ext: string, fields: Record<string, unknown>): Promise<boolean> {
+    if (!this.client) return false;
+    try {
+      const { error } = await this.client
+        .from(CONFIG.SUPABASE.TABLE_MARCOS)
+        .update(fields)
+        .eq('id_ext', id_ext);
+
+      return !error;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Batch upsert transformed products to Supabase marcos table
    */
   public async upsertBatch(products: OptiHubProduct[], chunkSize: number = 50): Promise<number> {

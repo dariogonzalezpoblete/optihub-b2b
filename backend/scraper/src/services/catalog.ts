@@ -2,6 +2,7 @@ import { BrowserContext, Page } from 'playwright';
 import { NetworkInterceptor } from './interceptor';
 import { ImageOptimizer } from './imageOptimizer';
 import { SupabaseService } from './supabase';
+import { SessionManager } from './auth';
 import { calculateB2BPricing } from './pricing';
 import { OptiHubProduct, ScraperOptions } from '../types';
 import { CONFIG } from '../config';
@@ -11,21 +12,25 @@ export class CatalogRunner {
   private interceptor: NetworkInterceptor;
   private imageOptimizer: ImageOptimizer;
   private supabaseService?: SupabaseService;
+  private sessionManager?: SessionManager;
 
   constructor(
     interceptor: NetworkInterceptor,
     imageOptimizer: ImageOptimizer,
-    supabaseService?: SupabaseService
+    supabaseService?: SupabaseService,
+    sessionManager?: SessionManager
   ) {
     this.interceptor = interceptor;
     this.imageOptimizer = imageOptimizer;
     this.supabaseService = supabaseService;
+    this.sessionManager = sessionManager;
   }
 
   /**
    * Scrapes an entire brand catalog with smart synchronization:
-   * - If an item is already in Supabase -> ONLY updates stock (preserves existing images and specs).
-   * - If an item is NEW -> performs full extraction (main + secondary images, material, gender, Gated Pricing).
+   * 1. If an item exists with both images -> ONLY updates stock (preserves all data, runs in seconds).
+   * 2. If an item exists but lacks secondary image -> enriches secondary image to WebP and updates DB.
+   * 3. If an item is brand NEW -> full extraction (main + secondary image in WebP, material, gender, Gated Pricing).
    */
   public async scrapeBrand(
     page: Page,
@@ -111,57 +116,109 @@ export class CatalogRunner {
       (p) => p.stock > options.minStock
     );
 
+    const cookieHeader = this.sessionManager ? this.sessionManager.getCookieHeader() : '';
+
     // ─────────────────────────────────────────────────────────────
-    // 3. SEGREGATE: EXISTING (STOCK-ONLY) VS NEW (FULL ENRICHMENT)
+    // 3. CLASSIFICATION: STOCK-ONLY VS REPAIR SECONDARY VS NEW
     // ─────────────────────────────────────────────────────────────
-    const existingItemsToUpdate: Array<{ id_ext: string; stock: number }> = [];
-    const newItemsToEnrich: OptiHubProduct[] = [];
+    const itemsStockOnly: Array<{ id_ext: string; stock: number }> = [];
+    const itemsNeedingSecondaryImg: OptiHubProduct[] = [];
+    const itemsBrandNew: OptiHubProduct[] = [];
 
     for (const prod of allValid) {
-      if (existingCache.has(prod.id_ext)) {
-        existingItemsToUpdate.push({
-          id_ext: prod.id_ext,
-          stock: prod.stock,
-        });
+      const existing = existingCache.get(prod.id_ext);
+      if (existing) {
+        const hasSecImg = existing.imagenes_secundarias && existing.imagenes_secundarias.trim().length > 5;
+        if (hasSecImg) {
+          itemsStockOnly.push({ id_ext: prod.id_ext, stock: prod.stock });
+        } else {
+          itemsNeedingSecondaryImg.push(prod);
+        }
       } else {
-        newItemsToEnrich.push(prod);
+        itemsBrandNew.push(prod);
       }
     }
 
     Logger.info(
-      `\n📊 Clasificación de catálogo '${brand}':\n` +
-      `   • Existentes en base de datos: ${existingItemsToUpdate.length} (se actualizará solo stock)\n` +
-      `   • Nuevos productos a ingresar: ${newItemsToEnrich.length} (se extraerá galería completa + WebP + specs)`
+      `\n📊 Clasificación inteligente de inventario para '${brand}':\n` +
+      `   • Ítems completos en base de datos: ${itemsStockOnly.length} (se actualizará SOLO stock)\n` +
+      `   • Ítems existentes sin foto secundaria: ${itemsNeedingSecondaryImg.length} (se enriquecerá imagen secundaria en WebP)\n` +
+      `   • Ítems nuevos a ingresar: ${itemsBrandNew.length} (ingesta completa: ambas fotos WebP + especificaciones)`
     );
 
     // ─────────────────────────────────────────────────────────────
-    // 4. UPDATE STOCK ONLY FOR EXISTING ITEMS
+    // 4. ACTUALIZACIÓN EXCLUSIVA DE STOCK
     // ─────────────────────────────────────────────────────────────
-    if (existingItemsToUpdate.length > 0 && !options.dryRun && this.supabaseService?.isConfigured()) {
-      Logger.info(`Actualizando stock únicamente para ${existingItemsToUpdate.length} productos existentes...`);
-      await this.supabaseService.updateStockBatch(existingItemsToUpdate);
-    } else if (options.dryRun && existingItemsToUpdate.length > 0) {
-      Logger.info(`[DRY-RUN] Simulación: Se actualizaría stock de ${existingItemsToUpdate.length} productos.`);
+    if (itemsStockOnly.length > 0 && !options.dryRun && this.supabaseService?.isConfigured()) {
+      Logger.info(`Actualizando stock únicamente para ${itemsStockOnly.length} productos completos...`);
+      await this.supabaseService.updateStockBatch(itemsStockOnly);
+    } else if (options.dryRun && itemsStockOnly.length > 0) {
+      Logger.info(`[DRY-RUN] Simulación: Se actualizaría stock de ${itemsStockOnly.length} productos.`);
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 5. ENRICH & UPLOAD IMAGES FOR NEW ITEMS ONLY
+    // 5. ENRIQUECER FOTO SECUNDARIA EN ÍTEMS EXISTENTES INCOMPLETOS
+    // ─────────────────────────────────────────────────────────────
+    if (itemsNeedingSecondaryImg.length > 0) {
+      Logger.info(`\n🖼️ Enriqueciendo imágenes secundarias para ${itemsNeedingSecondaryImg.length} productos existentes...`);
+      const concurrency = 5;
+
+      for (let i = 0; i < itemsNeedingSecondaryImg.length; i += concurrency) {
+        const chunk = itemsNeedingSecondaryImg.slice(i, i + concurrency);
+        await Promise.all(
+          chunk.map(async (prod) => {
+            try {
+              const details = await this.fetchProductDetailsHttp(prod.id_nywd || prod.url_origen || '', cookieHeader);
+              if (details.secImage) {
+                const secWebp = await this.imageOptimizer.processAndUpload(
+                  details.secImage,
+                  prod.modelo,
+                  prod.codigo_color,
+                  'sec',
+                  this.supabaseService
+                );
+
+                if (!options.dryRun && this.supabaseService?.isConfigured()) {
+                  await this.supabaseService.updateProductPartial(prod.id_ext, {
+                    imagenes_secundarias: secWebp,
+                    stock: prod.stock,
+                    material: details.material || prod.material,
+                    genero: details.gender || prod.genero,
+                  });
+                }
+              } else {
+                // If no secondary image available at source, just update stock
+                if (!options.dryRun && this.supabaseService?.isConfigured()) {
+                  await this.supabaseService.updateProductPartial(prod.id_ext, { stock: prod.stock });
+                }
+              }
+            } catch (err) {
+              Logger.debug(`Error reparando secundaria para ${prod.id_ext}:`, err);
+            }
+          })
+        );
+        Logger.info(`Fotos secundarias enriquecidas: ${Math.min(i + concurrency, itemsNeedingSecondaryImg.length)}/${itemsNeedingSecondaryImg.length}`);
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 6. INGESTA COMPLETA DE PRODUCTOS NUEVOS
     // ─────────────────────────────────────────────────────────────
     const enrichedNewProducts: OptiHubProduct[] = [];
 
-    if (newItemsToEnrich.length > 0) {
-      Logger.info(`\n🚀 Extrayendo galería completa e información técnica para ${newItemsToEnrich.length} productos NUEVOS...`);
-
+    if (itemsBrandNew.length > 0) {
+      Logger.info(`\n🚀 Ingestando ${itemsBrandNew.length} productos NUEVOS con galería completa...`);
       const concurrency = 4;
-      for (let i = 0; i < newItemsToEnrich.length; i += concurrency) {
-        const chunk = newItemsToEnrich.slice(i, i + concurrency);
+
+      for (let i = 0; i < itemsBrandNew.length; i += concurrency) {
+        const chunk = itemsBrandNew.slice(i, i + concurrency);
         const tasks = chunk.map(async (prod) => {
-          return await this.enrichProductWithFullGallery(context, prod);
+          return await this.enrichNewProduct(prod, cookieHeader);
         });
 
         const chunkEnriched = await Promise.all(tasks);
         enrichedNewProducts.push(...chunkEnriched);
-        Logger.info(`Progreso productos nuevos: ${enrichedNewProducts.length}/${newItemsToEnrich.length} procesados.`);
+        Logger.info(`Progreso productos nuevos: ${enrichedNewProducts.length}/${itemsBrandNew.length}`);
       }
 
       // Upsert full records for new products
@@ -174,13 +231,18 @@ export class CatalogRunner {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 6. RECONCILE OUT OF STOCK (STOCK = 0)
+    // 7. CONCILIACIÓN DE DISCONTINUADOS (STOCK = 0)
     // ─────────────────────────────────────────────────────────────
     if (!options.dryRun && this.supabaseService?.isConfigured()) {
       await this.supabaseService.syncOutOfStock(brand, scannedIds);
     }
 
-    const finalSummaryList = [...enrichedNewProducts, ...allValid.filter(p => existingCache.has(p.id_ext))];
+    const finalSummaryList = [
+      ...enrichedNewProducts,
+      ...itemsNeedingSecondaryImg,
+      ...allValid.filter((p) => itemsStockOnly.some((s) => s.id_ext === p.id_ext)),
+    ];
+
     Logger.success(
       `Marca '${brand}' finalizada con éxito: ${allValid.length} variantes sincronizadas.`
     );
@@ -189,75 +251,90 @@ export class CatalogRunner {
   }
 
   /**
-   * Enriches a new product with secondary images and detailed optical attributes
+   * Fast HTTP extraction of product gallery and optical attributes directly from provider HTML
    */
-  private async enrichProductWithFullGallery(
-    context: BrowserContext,
-    prod: OptiHubProduct
-  ): Promise<OptiHubProduct> {
-    const detailUrl = prod.url_origen || `${CONFIG.PROVIDER.BASE_URL}/new-product-${prod.id_nywd}`;
-    let page: Page | null = null;
+  private async fetchProductDetailsHttp(
+    urlOrId: string,
+    cookieHeader: string
+  ): Promise<{
+    mainImage: string;
+    secImage: string;
+    material: string;
+    gender: string;
+    shape: string;
+    origin: string;
+    size: string;
+  }> {
+    const url = urlOrId.startsWith('http')
+      ? urlOrId
+      : `${CONFIG.PROVIDER.BASE_URL}/new-product-${urlOrId}`;
 
-    let galleryImages: string[] = [];
-    let material = prod.material || '';
-    let gender = prod.genero || '';
-    let shape = prod.forma || '';
-    let origin = prod.origen || '';
-
-    try {
-      page = await context.newPage();
-      await page.goto(detailUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-      await page.waitForTimeout(600);
-
-      const pageData = await page.evaluate(() => {
-        const text = document.body.innerText || '';
-
-        // Extract gallery images
-        const rawImgs = Array.from(document.querySelectorAll('img'))
-          .map((i) => i.src || i.getAttribute('data-src') || i.getAttribute('data-zoom-image') || '')
-          .filter((s) => s && s.includes('pictures/') && !s.includes('thumb') && !s.includes('mid-') && !s.includes('swatch'));
-
-        const cleanList: string[] = [];
-        for (const u of rawImgs) {
-          const m = u.match(/pictures\/(.+)$/);
-          if (m) {
-            const clean = 'https://www.nywd.com/pictures/' + m[1].replace(/^\/+/, '').split('?')[0];
-            if (!cleanList.includes(clean)) {
-              cleanList.push(clean);
-            }
-          }
-        }
-
-        const parseField = (pattern: RegExp) => {
-          const m = text.match(pattern);
-          return m ? m[1].trim() : '';
-        };
-
-        return {
-          material: parseField(/Frame\s*Material\s*:?\s*([^\n\r]+)/i),
-          gender: parseField(/Gender\s*:?\s*([^\n\r]+)/i),
-          shape: parseField(/Shape\s*:?\s*([^\n\r]+)/i),
-          origin: parseField(/Made\s*in\s*:?\s*([^\n\r]+)/i),
-          images: cleanList,
-        };
-      });
-
-      galleryImages = pageData.images;
-      if (pageData.material) material = pageData.material;
-      if (pageData.gender) gender = pageData.gender;
-      if (pageData.shape) shape = pageData.shape;
-      if (pageData.origin) origin = pageData.origin;
-    } catch (err) {
-      Logger.debug(`Detail fetch note for ${prod.id_ext}:`, err);
-    } finally {
-      if (page) await page.close().catch(() => {});
+    const headers: Record<string, string> = {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      Referer: 'https://www.nywd.com/wholesale',
+    };
+    if (cookieHeader) {
+      headers['Cookie'] = cookieHeader;
     }
 
-    // Determine raw main and secondary image URLs
-    const rawMain = galleryImages[0] || prod.imagen_principal || '';
-    const rawSec = galleryImages[1] || '';
+    try {
+      const res = await fetch(url, { headers });
+      if (!res.ok) return { mainImage: '', secImage: '', material: '', gender: '', shape: '', origin: '', size: '' };
 
-    // Process and optimize images with Sharp to WebP
+      const html = await res.text();
+
+      const parseLabel = (label: string): string => {
+        const regex = new RegExp(
+          `<label>[\\s\\n\\r]*${label}[\\s\\n\\r]*<\\/label>[\\s\\S]*?<div[^>]*>([^<]+)<\\/div>`,
+          'i'
+        );
+        const m = html.match(regex);
+        return m ? m[1].replace(/<[^>]+>/g, '').trim() : '';
+      };
+
+      const material = parseLabel('Frame Material');
+      const gender = parseLabel('Gender');
+      const shape = parseLabel('Shape');
+      const origin = parseLabel('Made in');
+      const size = parseLabel('Size');
+
+      // Extract all picture URLs from html
+      const matches = Array.from(html.matchAll(/pictures\/([^\s"'<>&]+)/gi));
+      const rawUrls = matches.map(
+        (m) => 'https://www.nywd.com/pictures/' + m[1].replace(/^\/+/, '').split('?')[0]
+      );
+      const cleanImages = Array.from(new Set(rawUrls)).filter(
+        (u) => !u.includes('thumb') && !u.includes('mid-') && !u.includes('swatch')
+      );
+
+      const mainImage = cleanImages[0] || '';
+      const secImage = cleanImages[1] || '';
+
+      return {
+        mainImage,
+        secImage,
+        material,
+        gender,
+        shape,
+        origin,
+        size,
+      };
+    } catch {
+      return { mainImage: '', secImage: '', material: '', gender: '', shape: '', origin: '', size: '' };
+    }
+  }
+
+  /**
+   * Enriches a brand new product with secondary images and detailed optical attributes
+   */
+  private async enrichNewProduct(prod: OptiHubProduct, cookieHeader: string): Promise<OptiHubProduct> {
+    const details = await this.fetchProductDetailsHttp(prod.id_nywd || prod.url_origen || '', cookieHeader);
+
+    const rawMain = details.mainImage || prod.imagen_principal || '';
+    const rawSec = details.secImage || '';
+
     let optimizedMain = '';
     let optimizedSec = '';
 
@@ -283,12 +360,13 @@ export class CatalogRunner {
 
     return {
       ...prod,
-      imagen_principal: optimizedMain,
+      imagen_principal: optimizedMain || prod.imagen_principal,
       imagenes_secundarias: optimizedSec,
-      material: material || prod.material,
-      genero: gender || prod.genero,
-      forma: shape || prod.forma,
-      origen: origin || prod.origen,
+      material: details.material || prod.material,
+      genero: details.gender || prod.genero,
+      forma: details.shape || prod.forma,
+      origen: details.origin || prod.origen,
+      tamano: details.size || prod.tamano,
     };
   }
 
