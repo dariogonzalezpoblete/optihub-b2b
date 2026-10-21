@@ -338,6 +338,7 @@ export async function createMpPreference({
           pending: `${siteUrl}/checkout/resultado?status=pending&ref=${orderId}`,
         },
         auto_return: 'approved',
+        notification_url: `${siteUrl}/api/webhooks/mercadopago`,
         expires: true,
         expiration_date_to: expirationDateTo,
       }
