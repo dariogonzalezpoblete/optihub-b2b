@@ -416,7 +416,12 @@ export async function createMpPreference({
     }
   }
 
-  const paymentUrl = prefResponse?.sandbox_init_point || prefResponse?.init_point;
+  const isTestToken = (process.env.MP_ACCESS_TOKEN || '').startsWith('TEST-');
+  const isSandboxRequested = process.env.MP_SANDBOX_MODE === 'true';
+  const paymentUrl = (isTestToken || isSandboxRequested)
+    ? (prefResponse?.sandbox_init_point || prefResponse?.init_point)
+    : (prefResponse?.init_point || prefResponse?.sandbox_init_point);
+
   if (!prefResponse?.id || !paymentUrl) {
     throw new Error('Mercado Pago devolvió una Preference incompleta.');
   }
@@ -978,7 +983,12 @@ export async function checkCandidatePreferenceValidity(
     }
 
     // Verificar existencia de un init_point utilizable
-    const usableInitPoint = prefData.sandbox_init_point || prefData.init_point;
+    const isTestToken = (process.env.MP_ACCESS_TOKEN || '').startsWith('TEST-');
+    const isSandboxRequested = process.env.MP_SANDBOX_MODE === 'true';
+    const usableInitPoint = (isTestToken || isSandboxRequested)
+      ? (prefData.sandbox_init_point || prefData.init_point)
+      : (prefData.init_point || prefData.sandbox_init_point);
+
     if (typeof usableInitPoint !== 'string' || usableInitPoint.trim() === '') {
       return {
         valid: false,
