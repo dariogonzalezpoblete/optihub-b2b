@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "tsx src/index.ts",
     "scrape": "tsx src/index.ts",
-    "test": "tsx test/pricing.test.ts && tsx test/interceptor.test.ts"
+    "test": "tsx test/pricing.test.ts && tsx test/interceptor.test.ts && tsx test/imageOptimizer.test.ts"
   },
   "keywords": [
     "optihub",
@@ -21,8 +21,10 @@
   "license": "UNLICENSED",
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
+    "@types/sharp": "^0.31.1",
     "dotenv": "^16.4.7",
-    "playwright": "^1.50.1"
+    "playwright": "^1.50.1",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@types/node": "^22.13.9",

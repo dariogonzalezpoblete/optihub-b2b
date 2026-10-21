@@ -22,6 +22,45 @@ export class SupabaseService {
   }
 
   /**
+   * Uploads an optimized image buffer to Supabase Storage and returns its public URL
+   */
+  public async uploadImage(filename: string, buffer: Buffer, contentType: string = 'image/webp'): Promise<string | null> {
+    if (!this.client) return null;
+
+    try {
+      return await withRetry(
+        async () => {
+          if (!this.client) return null;
+          const { error } = await this.client.storage
+            .from(CONFIG.SUPABASE.BUCKET_NAME)
+            .upload(filename, buffer, {
+              contentType,
+              upsert: true,
+            });
+
+          if (error) {
+            throw new Error(`Storage upload error (${filename}): ${error.message}`);
+          }
+
+          const { data } = this.client.storage
+            .from(CONFIG.SUPABASE.BUCKET_NAME)
+            .getPublicUrl(filename);
+
+          return data.publicUrl;
+        },
+        {
+          retries: 3,
+          delayMs: 1000,
+          operationName: `Upload image ${filename}`,
+        }
+      );
+    } catch (err) {
+      Logger.warn(`Image upload failed for ${filename}:`, err);
+      return null;
+    }
+  }
+
+  /**
    * Fetches existing brand records from Supabase to preserve images and reconcile inventory
    */
   public async getExistingBrandRecords(brand: string): Promise<Map<string, { stock: number; imagen_principal?: string }>> {
