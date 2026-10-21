@@ -128,13 +128,17 @@ export class CatalogRunner {
     for (const prod of allValid) {
       const existing = existingCache.get(prod.id_ext);
       if (existing) {
-        const hasSecImg = existing.imagenes_secundarias && existing.imagenes_secundarias.trim().length > 5;
-        if (hasSecImg) {
+        if (options.stockOnly) {
           itemsStockOnly.push({ id_ext: prod.id_ext, stock: prod.stock });
         } else {
-          itemsNeedingSecondaryImg.push(prod);
+          const hasSecImg = existing.imagenes_secundarias && existing.imagenes_secundarias.trim().length > 5;
+          if (hasSecImg) {
+            itemsStockOnly.push({ id_ext: prod.id_ext, stock: prod.stock });
+          } else {
+            itemsNeedingSecondaryImg.push(prod);
+          }
         }
-      } else {
+      } else if (!options.stockOnly) {
         itemsBrandNew.push(prod);
       }
     }
@@ -496,6 +500,19 @@ export class CatalogRunner {
 
       const products: OptiHubProduct[] = [];
       for (const raw of rawCards) {
+        let productBrand = brandName;
+        const mUpper = (raw.model || '').toUpperCase();
+        if (mUpper.startsWith('NIKE')) productBrand = 'Nike';
+        else if (mUpper.startsWith('ADIDAS')) productBrand = 'Adidas';
+        else if (mUpper.startsWith('GUESS')) productBrand = 'Guess';
+        else if (mUpper.startsWith('TOM FORD')) productBrand = 'Tom Ford';
+        else if (mUpper.startsWith('LACOSTE')) productBrand = 'Lacoste';
+        else if (mUpper.startsWith('CALVIN KLEIN')) productBrand = 'Calvin Klein';
+        else if (mUpper.startsWith('BOLLE')) productBrand = 'Bolle';
+        else if (mUpper.startsWith('HARLEY')) productBrand = 'Harley Davidson';
+        else if (mUpper.startsWith('HUGO')) productBrand = 'Hugo';
+        else if (mUpper.startsWith('ZEISS')) productBrand = 'Zeiss';
+
         const cleanSku = (raw.model || 'OPT').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
         const cleanColor = (raw.colorCode || '001').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
         const idExt = `${cleanSku}-${cleanColor}`.toUpperCase();
@@ -505,7 +522,7 @@ export class CatalogRunner {
         products.push({
           id_ext: idExt,
           id_nywd: raw.productId || raw.url.match(/product-(\d+)/)?.[1] || '',
-          marca: brandName,
+          marca: productBrand,
           modelo: raw.model,
           color: raw.color,
           codigo_color: cleanColor,
@@ -541,8 +558,16 @@ export class CatalogRunner {
     const brandClean = brand.toLowerCase().trim();
     const currentUrl = page.url().toLowerCase();
 
-    // 1. If already on a valid listing page for the brand
-    if (currentUrl.includes('listing-brand') || (currentUrl.includes('search') && currentUrl.includes(brandClean))) {
+    // 1. Check if current page is explicitly the requested brand's listing
+    const isAlreadyOnBrand = await page.evaluate((targetBrand) => {
+      const pageTitle = (document.title || '').toLowerCase();
+      const h1Text = (document.querySelector('h1, .page-title, .brand-title')?.textContent || '').toLowerCase();
+      const activeBrand = (document.querySelector('#shop-brands a.active, .breadcrumb')?.textContent || '').toLowerCase();
+      const tb = targetBrand.toLowerCase().trim();
+      return (pageTitle.includes(tb) || h1Text.includes(tb) || activeBrand.includes(tb)) && window.location.href.includes('listing-brand');
+    }, brand);
+
+    if (isAlreadyOnBrand) {
       Logger.info(`Ya estás en la página de '${brand}': ${page.url()}`);
       return true;
     }

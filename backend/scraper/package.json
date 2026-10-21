@@ -7,6 +7,8 @@
     "build": "tsc",
     "start": "tsx src/index.ts",
     "scrape": "tsx src/index.ts",
+    "sync:stock": "tsx src/index.ts --stock-only --all-brands",
+    "sync:stock:headless": "tsx src/index.ts --stock-only --all-brands --headless",
     "test": "tsx test/pricing.test.ts && tsx test/interceptor.test.ts && tsx test/imageOptimizer.test.ts"
   },
   "keywords": [

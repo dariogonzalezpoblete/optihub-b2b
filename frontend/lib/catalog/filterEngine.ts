@@ -173,20 +173,25 @@ export function getFacets(list: EnrichedMarco[], state: FilterState): Facets {
       if (key && matchesFacets(m, state, f)) counts.set(key, (counts.get(key) || 0) + 1);
     }
 
-    let options: FacetOption[] = [...labels.entries()].map(([key, label]) => ({
-      key,
-      label,
-      count: counts.get(key) || 0,
-    }));
+    let options: FacetOption[] = [...labels.entries()]
+      .map(([key, label]) => ({
+        key,
+        label,
+        count: counts.get(key) || 0,
+      }))
+      .filter((opt) => opt.count > 0 || state[f].includes(opt.key));
 
     if (f === 'calibre') {
       // Orden fijo de menor a mayor + texto secundario
-      options = CALIBRE_RANGES.filter((r) => labels.has(r.key)).map((r) => ({
-        key: r.key,
-        label: r.label,
-        hint: r.hint,
-        count: counts.get(r.key) || 0,
-      }));
+      options = CALIBRE_RANGES
+        .filter((r) => labels.has(r.key))
+        .map((r) => ({
+          key: r.key,
+          label: r.label,
+          hint: r.hint,
+          count: counts.get(r.key) || 0,
+        }))
+        .filter((opt) => opt.count > 0 || state[f].includes(opt.key));
     } else if (f === 'genero') {
       const order = ['men', 'women', 'unisex'];
       options.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));

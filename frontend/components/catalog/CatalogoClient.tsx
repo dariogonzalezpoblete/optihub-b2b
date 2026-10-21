@@ -12,7 +12,7 @@ import {
   applyFilters,
   countActiveFilters,
   enrichMarcos,
-  STATIC_FACETS,
+  getFacets,
   stripEnriched,
 } from "@/lib/catalog/filterEngine";
 import { useCatalogFilters } from "@/hooks/useCatalogFilters";
@@ -76,7 +76,7 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
 
   // Datos derivados (memoizados: se recalculan solo cuando cambian datos o filtros)
   const enriched = useMemo(() => enrichMarcos(marcos), [marcos]);
-  const facets = STATIC_FACETS;
+  const facets = useMemo(() => getFacets(enriched, filters), [enriched, filters]);
   const results = useMemo(
     () => applyFilters(enriched, filters, mounted && isLoggedIn),
     [enriched, filters, mounted, isLoggedIn]

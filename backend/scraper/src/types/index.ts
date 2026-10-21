@@ -73,6 +73,8 @@ export interface ScraperOptions {
   minStock: number;
   dryRun: boolean;
   authStatePath: string;
+  stockOnly?: boolean;
+  allBrands?: boolean;
 }
 
 export interface InterceptedPayload {

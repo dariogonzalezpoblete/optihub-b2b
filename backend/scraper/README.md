@@ -59,14 +59,19 @@ npm test
 ### Ejecución del Scraper
 
 ```bash
-# Iniciar scraper (Te solicitará interactivamente qué marcas extraer, ej: Guess, Nike, Lacoste)
+# Iniciar scraper (Te solicitará interactivamente qué marcas extraer, ej: Guess, Nike, Lacoste, o TODAS)
 npm start
 
 # Iniciar directamente para una o más marcas desde la línea de comandos
 npx tsx src/index.ts --brand "Guess, Nike, Lacoste, Tom Ford"
 
-# Iniciar para marcas específicas con límite de páginas y stock mínimo
-npx tsx src/index.ts --brand "Guess,Nike,Lacoste" --pages 20 --min-stock 5
+# ⚡ ACTUALIZACIÓN RÁPIDA DIARIA DE INVENTARIO (Solo stock para todo tu catálogo)
+npm run sync:stock
+# o en segundo plano (headless):
+npm run sync:stock:headless
+
+# Sincronizar solo inventario de marcas específicas sin restricciones de stock mínimo
+npx tsx src/index.ts --brand "Guess,Nike" --stock-only
 
 # Modo Simulación / Dry-Run (sin escribir en Supabase)
 npx tsx src/index.ts --brand "Guess,Nike" --dry-run
@@ -76,10 +81,12 @@ npx tsx src/index.ts --brand "Guess,Nike" --dry-run
 
 | Flag | Alias | Descripción | Por defecto |
 |---|---|---|---|
-| `--brand` | `-b` | Nombres de marca separados por coma | `Guess` |
+| `--brand` | `-b` | Nombres de marca separados por coma (o `TODAS` / `ALL`) | `Guess` |
+| `--all-brands`| `--all`| Descubre automáticamente todas las marcas en tu BD y las procesa | `false` |
+| `--stock-only`| `--inventory-only`| Actualización ultra-rápida de stock (sin re-descarga de fotos ni páginas detalle) | `false` |
 | `--headless` | | Ejecución en segundo plano (si la sesión está activa) | `false` |
 | `--pages` | `-p` | Máximo de páginas a procesar por marca | `60` |
-| `--min-stock`| `-s` | Stock mínimo para ingesta (<= se omite) | `5` |
+| `--min-stock`| `-s` | Stock mínimo para ingesta (<= se omite; en stock-only es 0) | `5` |
 | `--dry-run` | | Ejecuta sin escribir en la base de datos | `false` |
 | `--state` | | Ruta al archivo de almacenamiento de sesión | `auth_state.json` |
 

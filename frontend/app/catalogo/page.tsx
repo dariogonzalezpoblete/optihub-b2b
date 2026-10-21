@@ -37,8 +37,13 @@ export default async function CatalogoPage({
 
   const marcas = parseList(params.marca);
   if (marcas.length > 0) {
-    // Si hay marca exacta usamos ilike para case insensitive o .in si están normalizadas
-    query = query.in('marca', marcas.map(m => m.trim()));
+    const rawList = marcas.map((m) => m.trim());
+    const lowerList = rawList.map((m) => m.toLowerCase());
+    const matchedAuthorized = AUTHORIZED_BRANDS.filter((b) =>
+      lowerList.includes(b.toLowerCase())
+    );
+    const combined = Array.from(new Set([...rawList, ...matchedAuthorized]));
+    query = query.in('marca', combined);
   } else {
     // Solo marcas autorizadas
     query = query.in('marca', AUTHORIZED_BRANDS);

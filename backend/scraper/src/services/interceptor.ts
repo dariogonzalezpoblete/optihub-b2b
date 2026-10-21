@@ -221,8 +221,21 @@ export class NetworkInterceptor {
         return isNaN(n) ? 0 : n;
       };
 
-      const rawBrand = getStr(raw.brand || raw.marca || raw.manufacturer || this.targetBrand || 'Unknown');
+      let rawBrand = getStr(raw.brand || raw.marca || raw.manufacturer || this.targetBrand || 'Unknown');
       const rawModel = getStr(raw.model || raw.modelo || raw.sku || raw.itemNumber || raw.name || '');
+
+      // Intelligent Brand Sanitization: Ensure model name prefix overrides any mislabeled brand context
+      const mUpper = rawModel.toUpperCase();
+      if (mUpper.startsWith('NIKE')) rawBrand = 'Nike';
+      else if (mUpper.startsWith('ADIDAS')) rawBrand = 'Adidas';
+      else if (mUpper.startsWith('GUESS')) rawBrand = 'Guess';
+      else if (mUpper.startsWith('TOM FORD')) rawBrand = 'Tom Ford';
+      else if (mUpper.startsWith('LACOSTE')) rawBrand = 'Lacoste';
+      else if (mUpper.startsWith('CALVIN KLEIN')) rawBrand = 'Calvin Klein';
+      else if (mUpper.startsWith('BOLLE')) rawBrand = 'Bolle';
+      else if (mUpper.startsWith('HARLEY')) rawBrand = 'Harley Davidson';
+      else if (mUpper.startsWith('HUGO')) rawBrand = 'Hugo';
+      else if (mUpper.startsWith('ZEISS')) rawBrand = 'Zeiss';
       const rawColor = getStr(raw.color || raw.color_name || raw.colorName || 'Único');
       const rawColorCode = getStr(raw.color_code || raw.colorCode || raw.code || '001').toUpperCase();
       const rawIdNywd = getStr(raw.id || raw.id_nywd || raw.productId || raw.item_id || '');

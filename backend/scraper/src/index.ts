@@ -49,6 +49,12 @@ function parseArgs(): ParsedArgs {
       if (!isNaN(val)) options.minStock = val;
     } else if (arg === '--dry-run') {
       options.dryRun = true;
+    } else if (arg === '--stock-only' || arg === '--inventory-only') {
+      options.stockOnly = true;
+      options.minStock = 0; // In inventory sync, do not filter out low-stock variants
+    } else if (arg === '--all-brands' || arg === '--all') {
+      options.allBrands = true;
+      hasExplicitBrand = true;
     } else if (arg === '--state') {
       const val = args[++i];
       if (val) options.authStatePath = path.resolve(process.cwd(), val);
@@ -61,7 +67,7 @@ function parseArgs(): ParsedArgs {
 /**
  * Prompts user interactively in the terminal to specify one or multiple brands
  */
-async function promptBrandsInteractive(): Promise<string[]> {
+async function promptBrandsInteractive(): Promise<{ brands: string[]; allBrands: boolean }> {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -69,18 +75,20 @@ async function promptBrandsInteractive(): Promise<string[]> {
 
   return new Promise((resolve) => {
     rl.question(
-      '\n🏷️  Marcas a extraer (separadas por coma, ej: Guess, Nike, Lacoste, Tom Ford) [Guess]: ',
+      '\n🏷️  Marcas a extraer (separadas por coma, ej: Guess, Nike, o escribe TODAS para todo tu catálogo) [Guess]: ',
       (answer) => {
         rl.close();
         const trimmed = answer.trim();
         if (!trimmed) {
-          resolve(['Guess']);
+          resolve({ brands: ['Guess'], allBrands: false });
+        } else if (trimmed.toUpperCase() === 'TODAS' || trimmed.toUpperCase() === 'ALL') {
+          resolve({ brands: [], allBrands: true });
         } else {
           const list = trimmed
             .split(',')
             .map((b) => b.trim())
             .filter(Boolean);
-          resolve(list.length > 0 ? list : ['Guess']);
+          resolve({ brands: list.length > 0 ? list : ['Guess'], allBrands: false });
         }
       }
     );
@@ -92,31 +100,53 @@ async function main() {
   const { options, hasExplicitBrand } = parseArgs();
 
   console.log('\n╔════════════════════════════════════════════════════════════════╗');
-  console.log('║       OptiHub Provider Catalog Scraper (v2.1 Enterprise)       ║');
+  console.log('║       OptiHub Provider Catalog Scraper (v2.2 Enterprise)       ║');
   console.log('║   • Interactive reCAPTCHA Login & Session State Persistence    ║');
   console.log('║   • Multi-Brand Batch Extraction & Interactive Selection       ║');
+  console.log('║   • Rapid Inventory-Only Sync Mode (--stock-only)              ║');
   console.log('║   • Sharp WebP Image Optimization & Lanczos-3 Resampling       ║');
   console.log('║   • Landed Cost (CIF + Ad Valorem 6% + VAT 19%) Gated Pricing  ║');
   console.log('║   • Dual-Image (Main + Secondary) & Smart Stock Only Sync      ║');
   console.log('╚════════════════════════════════════════════════════════════════╝\n');
 
+  const supabaseService = new SupabaseService();
+
   // If no --brand was provided on the command line, prompt interactively
   if (!hasExplicitBrand && process.stdin.isTTY) {
-    options.brands = await promptBrandsInteractive();
+    const promptRes = await promptBrandsInteractive();
+    if (promptRes.allBrands) {
+      options.allBrands = true;
+    } else {
+      options.brands = promptRes.brands;
+    }
   }
 
+  // If allBrands requested, dynamically discover all brands loaded in Supabase
+  if (options.allBrands || options.brands.some((b) => b.toUpperCase() === 'ALL' || b.toUpperCase() === 'TODAS')) {
+    Logger.info('Descubriendo todas las marcas registradas en tu catálogo de Supabase...');
+    const dbBrands = await supabaseService.getAllCatalogBrands();
+    if (dbBrands.length > 0) {
+      options.brands = dbBrands;
+      Logger.success(`Marcas descubiertas en catálogo (${dbBrands.length}): ${dbBrands.join(', ')}`);
+    } else {
+      Logger.warn('No se encontraron marcas en Supabase. Usando marca por defecto: Guess');
+      options.brands = ['Guess'];
+    }
+  }
+
+  Logger.info(`Modo de ejecución: ${options.stockOnly ? '⚡ ACTUALIZACIÓN RÁPIDA DE INVENTARIO (STOCK-ONLY)' : '🚀 INGESTA COMPLETA DE CATÁLOGO'}`);
   Logger.info(`Marcas seleccionadas para procesar (${options.brands.length}): ${options.brands.join(', ')}`);
   Logger.info('Starting scraper with options:', {
     brands: options.brands,
     headless: options.headless,
     maxPages: options.maxPages,
     minStock: options.minStock,
+    stockOnly: !!options.stockOnly,
     dryRun: options.dryRun,
     authStateFile: options.authStatePath,
   });
 
   const sessionManager = new SessionManager(options.authStatePath);
-  const supabaseService = new SupabaseService();
   const imageOptimizer = new ImageOptimizer({ maxDimension: 1000, quality: 82 });
   const interceptor = new NetworkInterceptor({ minStock: options.minStock });
   const catalogRunner = new CatalogRunner(interceptor, imageOptimizer, supabaseService, sessionManager);

@@ -106,6 +106,30 @@ export class SupabaseService {
   }
 
   /**
+   * Fetches all unique brands currently loaded in the marcos database
+   */
+  public async getAllCatalogBrands(): Promise<string[]> {
+    if (!this.client) return [];
+    try {
+      const { data, error } = await this.client
+        .from(CONFIG.SUPABASE.TABLE_MARCOS)
+        .select('marca');
+
+      if (error || !data) return [];
+      const set = new Set<string>();
+      data.forEach((row) => {
+        if (row.marca && row.marca.trim()) {
+          set.add(row.marca.trim());
+        }
+      });
+      return Array.from(set).sort();
+    } catch (e) {
+      Logger.warn('Error fetching all catalog brands from Supabase:', e);
+      return [];
+    }
+  }
+
+  /**
    * Updates ONLY the stock column for existing products in Supabase.
    * Completely preserves existing images, attributes, and custom metadata.
    */
