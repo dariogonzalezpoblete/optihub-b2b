@@ -70,18 +70,35 @@ export function resolveAndValidateBaseUrl(providedUrl?: string): { valid: boolea
  * Sanitiza los errores arrojados por el SDK o la API de Mercado Pago.
  * Devuelve un mensaje claro al cliente sin exponer secretos ni tokens.
  */
-export function sanitizeMercadoPagoError(mpError: any): { status: number; error: string } {
+export function sanitizeMercadoPagoError(mpError: any): { status: number; error: string; details?: string } {
   let clientMessage = 'No se pudo generar la pasarela de pago en Mercado Pago.';
-  if (mpError?.message?.includes('auto_return invalid')) {
+  const rawMessage = typeof mpError?.message === 'string' ? mpError.message : '';
+  const errorProp = typeof mpError?.error === 'string' ? mpError.error : '';
+  const causesArr = Array.isArray(mpError?.causes) ? mpError.causes : Array.isArray(mpError?.cause) ? mpError.cause : [];
+
+  if (rawMessage.includes('auto_return invalid')) {
     clientMessage = 'Error de configuración: Las URLs de retorno no son válidas para auto_return.';
-  } else if (mpError?.message?.includes('TIMEOUT_MP_PREFERENCE_CREATE')) {
+  } else if (rawMessage.includes('TIMEOUT_MP_PREFERENCE_CREATE')) {
     clientMessage = 'Tiempo de espera agotado al comunicarse con Mercado Pago. Por favor intenta nuevamente.';
   } else if (mpError?.status === 400 || mpError?.name === 'MPBadRequestError') {
     clientMessage = 'Datos de orden no válidos para la pasarela de pagos.';
   } else if (mpError?.status === 401) {
     clientMessage = 'Error de autorización con la pasarela de pagos.';
+  } else if (mpError?.status === 403 || mpError?.name === 'MPForbiddenError') {
+    clientMessage = 'Acceso denegado en la pasarela de pagos. Verifique las credenciales.';
   }
-  return { status: 502, error: clientMessage };
+
+  const causesText = causesArr
+    .map((c: any) => (typeof c === 'object' ? `${c.code || ''}: ${c.description || JSON.stringify(c)}` : String(c)))
+    .filter(Boolean)
+    .join('; ');
+
+  const rawDetails = [rawMessage, errorProp, causesText].filter(Boolean).join(' | ');
+  const cleanDetails = rawDetails
+    ? rawDetails.replace(/(APP_USR|TEST)-[a-zA-Z0-9_-]+/g, '[REDACTED_TOKEN]')
+    : undefined;
+
+  return { status: 502, error: clientMessage, details: cleanDetails };
 }
 
 /**
@@ -292,20 +309,23 @@ export async function createMpPreference({
     injectedPreferenceClient || new Preference(new MercadoPagoConfig({ accessToken: mpAccessToken }));
 
   const mpItems = orderItems.map((oi: any) => ({
-    id: oi.sku || oi.product_id,
-    title: oi.product_name,
-    quantity: oi.quantity,
-    unit_price: Number(oi.unit_price_net),
+    id: String(oi.sku || oi.product_id || 'item'),
+    title: String(oi.product_name || `Marco ${oi.sku || oi.product_id || 'B2B'}`).trim() || 'Marco Óptico B2B',
+    quantity: Math.max(1, Math.round(Number(oi.quantity || 1))),
+    unit_price: Math.round(Number(oi.unit_price_net || 0)),
     currency_id: 'CLP'
   }));
 
-  mpItems.push({
-    id: 'IVA',
-    title: 'IVA (19%)',
-    quantity: 1,
-    unit_price: Number(taxAmount),
-    currency_id: 'CLP'
-  });
+  const roundedTax = Math.round(Number(taxAmount || 0));
+  if (roundedTax > 0) {
+    mpItems.push({
+      id: 'IVA',
+      title: 'IVA (19%)',
+      quantity: 1,
+      unit_price: roundedTax,
+      currency_id: 'CLP'
+    });
+  }
 
   // Ventana de expiración aprobada: 4 horas desde la creación
   const expirationDateTo = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
@@ -323,25 +343,31 @@ export async function createMpPreference({
   let timedOut = false;
   let timeoutId: NodeJS.Timeout | undefined;
 
+  const isHttps = siteUrl.startsWith('https://');
+  const preferenceBody: any = {
+    items: mpItems,
+    external_reference: orderId,
+    payer: {
+      name: (customerName || '').trim() || 'Cliente B2B',
+      email: (customerEmail || '').trim() || 'cliente@optihub.cl',
+    },
+    back_urls: {
+      success: `${siteUrl}/checkout/resultado?status=approved&ref=${orderId}`,
+      failure: `${siteUrl}/checkout/resultado?status=failure&ref=${orderId}`,
+      pending: `${siteUrl}/checkout/resultado?status=pending&ref=${orderId}`,
+    },
+    expires: true,
+    expiration_date_to: expirationDateTo,
+  };
+
+  if (isHttps) {
+    preferenceBody.auto_return = 'approved';
+    preferenceBody.notification_url = `${siteUrl}/api/webhooks/mercadopago`;
+  }
+
   const createPromise = Promise.resolve().then(() =>
     preference.create({
-      body: {
-        items: mpItems,
-        external_reference: orderId,
-        payer: {
-          name: customerName,
-          email: customerEmail,
-        },
-        back_urls: {
-          success: `${siteUrl}/checkout/resultado?status=approved&ref=${orderId}`,
-          failure: `${siteUrl}/checkout/resultado?status=failure&ref=${orderId}`,
-          pending: `${siteUrl}/checkout/resultado?status=pending&ref=${orderId}`,
-        },
-        auto_return: 'approved',
-        notification_url: `${siteUrl}/api/webhooks/mercadopago`,
-        expires: true,
-        expiration_date_to: expirationDateTo,
-      }
+      body: preferenceBody
     })
   );
 
@@ -1973,9 +1999,21 @@ export async function POST(req: NextRequest) {
             { status: mpError.httpStatus }
           );
         }
-        console.error('[CreatePref] Error recuperando preferencia MP para orden existente:', mpError?.message || mpError);
+        console.error('[CreatePref] Error recuperando preferencia MP para orden existente:', {
+          message: mpError?.message,
+          name: mpError?.name,
+          status: mpError?.status,
+          error: mpError?.error,
+          causes: mpError?.causes,
+          cause: mpError?.cause,
+          apiResponse: mpError?.api_response?.body,
+          stack: mpError?.stack,
+        });
         const sanitized = sanitizeMercadoPagoError(mpError);
-        return NextResponse.json({ error: sanitized.error }, { status: sanitized.status });
+        return NextResponse.json({
+          error: sanitized.error,
+          details: sanitized.details,
+        }, { status: sanitized.status });
       }
     }
 
@@ -2430,9 +2468,21 @@ export async function POST(req: NextRequest) {
           { status: mpError.httpStatus }
         );
       }
-      console.error('[CreatePref] Error de Mercado Pago:', mpError?.message || mpError);
+      console.error('[CreatePref] Error detallado de Mercado Pago:', {
+        message: mpError?.message,
+        name: mpError?.name,
+        status: mpError?.status,
+        error: mpError?.error,
+        causes: mpError?.causes,
+        cause: mpError?.cause,
+        apiResponse: mpError?.api_response?.body,
+        stack: mpError?.stack,
+      });
       const sanitized = sanitizeMercadoPagoError(mpError);
-      return NextResponse.json({ error: sanitized.error }, { status: sanitized.status });
+      return NextResponse.json({
+        error: sanitized.error,
+        details: sanitized.details,
+      }, { status: sanitized.status });
     }
 
   } catch (error: any) {

@@ -267,7 +267,7 @@ export default function CheckoutPage() {
         }),
       });
 
-      let data: { error?: string; initPoint?: string; orderId?: string } | null = null;
+      let data: { error?: string; details?: string; initPoint?: string; orderId?: string } | null = null;
       try {
         data = await response.json();
       } catch {
@@ -276,10 +276,22 @@ export default function CheckoutPage() {
 
       if (!response.ok) {
         const rawServerError = typeof data?.error === 'string' ? data.error.trim() : '';
-        const friendlyError =
-          !rawServerError || rawServerError === 'Internal Server Error'
-            ? 'No se pudo procesar la solicitud de pago en el servidor. Por favor intenta nuevamente en unos momentos.'
-            : rawServerError;
+        const rawDetails = typeof data?.details === 'string' ? data.details.trim() : '';
+        let friendlyError = rawServerError;
+
+        if (!friendlyError || friendlyError === 'Internal Server Error') {
+          friendlyError = 'No se pudo procesar la solicitud de pago en el servidor. Por favor intenta nuevamente en unos momentos.';
+        } else if (rawDetails && !friendlyError.includes(rawDetails)) {
+          friendlyError = `${friendlyError}: ${rawDetails}`;
+        }
+
+        console.error('[Checkout] Error devuelto por la pasarela de pagos:', {
+          status: response.status,
+          error: rawServerError,
+          details: rawDetails,
+          data
+        });
+
         throw new Error(friendlyError);
       }
 

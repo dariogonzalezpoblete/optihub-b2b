@@ -61,9 +61,10 @@ export interface CreatePreferenceResult {
  * Initializes the official Mercado Pago Preference Client
  */
 function getPreferenceClient(): Preference {
-  const accessToken = process.env.MP_ACCESS_TOKEN;
+  const rawToken = process.env.MP_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN || '';
+  const accessToken = rawToken.trim();
   if (!accessToken) {
-    throw new Error('CONFIG_ERROR: MP_ACCESS_TOKEN no está configurado en las variables de entorno.');
+    throw new Error('CONFIG_ERROR: MP_ACCESS_TOKEN no está configurado o está vacío en las variables de entorno.');
   }
 
   const mpConfig = new MercadoPagoConfig({
@@ -75,10 +76,14 @@ function getPreferenceClient(): Preference {
 }
 
 /**
- * Resolves the absolute application site URL
+ * Resolves the absolute application site URL.
+ * Mercado Pago requires a public HTTPS URL for auto_return and webhooks.
  */
 function getSiteUrl(): string {
-  const siteUrl = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  let siteUrl = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || '';
+  if (!siteUrl || siteUrl.includes('localhost') || siteUrl.includes('127.0.0.1')) {
+    siteUrl = 'https://optihub-b2b.vercel.app';
+  }
   return siteUrl.replace(/\/+$/, '');
 }
 
@@ -297,10 +302,29 @@ export async function createOrderPaymentPreference(
       try {
         preferenceResponse = await preferenceClient.create({ body: preferencePayload });
         break;
-      } catch (mpErr: unknown) {
-        console.error(`[MercadoPago Service] Error al crear preferencia (intento ${attempts}/${maxAttempts}):`, mpErr);
+      } catch (mpErr: any) {
+        console.error(`[MercadoPago Service] Error detallado al crear preferencia (intento ${attempts}/${maxAttempts}):`, {
+          name: mpErr?.name,
+          message: mpErr?.message,
+          status: mpErr?.status,
+          error: mpErr?.error,
+          causes: mpErr?.causes,
+          cause: mpErr?.cause,
+          apiResponse: mpErr?.api_response?.body,
+        });
+
         if (attempts >= maxAttempts) {
-          throw new Error('No se pudo establecer comunicación con Mercado Pago. Intente nuevamente.');
+          const detailMsg =
+            mpErr?.message ||
+            mpErr?.error ||
+            (Array.isArray(mpErr?.causes) && mpErr.causes.length > 0
+              ? JSON.stringify(mpErr.causes)
+              : 'Error al comunicarse con la pasarela de pagos de Mercado Pago.');
+
+          const enhancedError = new Error(`Mercado Pago: ${detailMsg}`);
+          (enhancedError as any).status = mpErr?.status || 502;
+          (enhancedError as any).originalError = mpErr;
+          throw enhancedError;
         }
         await new Promise((res) => setTimeout(res, 300));
       }

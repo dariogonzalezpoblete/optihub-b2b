@@ -55,16 +55,46 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error: unknown) {
+    const errObj = error as Record<string, any>;
     const message = error instanceof Error ? error.message : 'Error interno al crear preferencia de pago';
-    console.error('[API Payments Preference] Error:', error);
+    const originalError = errObj?.originalError;
+
+    console.error('[API Payments Preference] Error detallado:', {
+      message,
+      name: errObj?.name,
+      status: errObj?.status,
+      originalError: originalError ? {
+        name: originalError?.name,
+        message: originalError?.message,
+        status: originalError?.status,
+        error: originalError?.error,
+        causes: originalError?.causes,
+        cause: originalError?.cause,
+        apiResponse: originalError?.api_response?.body,
+      } : undefined,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
 
     const isBadRequest =
       message.includes('DISCREPANCIA_MONTOS') ||
       message.includes('no existe') ||
       message.includes('requerido') ||
-      message.includes('no es elegible');
+      message.includes('no es elegible') ||
+      message.includes('unit_price') ||
+      message.includes('invalid_items');
 
-    const status = isBadRequest ? 400 : 500;
-    return NextResponse.json({ error: message }, { status });
+    const status = errObj?.status && Number(errObj.status) >= 400 && Number(errObj.status) < 600
+      ? Number(errObj.status)
+      : isBadRequest
+      ? 400
+      : 502;
+
+    const details =
+      originalError?.causes ||
+      originalError?.error ||
+      originalError?.message ||
+      undefined;
+
+    return NextResponse.json({ error: message, details }, { status });
   }
 }
