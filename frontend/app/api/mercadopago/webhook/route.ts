@@ -2,7 +2,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { MercadoPagoConfig, Payment, WebhookSignatureValidator } from 'mercadopago';
-import { evaluateWebhookPaymentTransition, isValidUuid } from '@/lib/checkoutWebhookAndResult';
+import {
+  evaluateWebhookPaymentTransition,
+  isValidUuid,
+  resolveCancelledOrderIncidentUpdateOutcome,
+} from '@/lib/checkoutWebhookAndResult';
 
 export async function POST(req: NextRequest) {
   try {
@@ -138,28 +142,74 @@ export async function POST(req: NextRequest) {
 
     // 6️⃣ Defence-in-depth: Late approved payment on a cancelled order (protects even before Migration 011 is applied)
     if (decision.action === 'record_cancelled_order_paid_incident') {
-      if (!decision.alreadyProcessed && decision.updateFields) {
-        const { error: updateErr } = await supabaseAdmin
-          .from('orders')
-          .update(decision.updateFields)
-          .eq('id', order.id)
-          .eq('status', 'cancelled')
-          .or(`payment_id.is.null,payment_id.eq.${decision.updateFields.payment_id}`);
-
-        if (updateErr) {
-          console.error('[Webhook] Error recording cancelled-order payment incident:', updateErr);
-          return NextResponse.json({ error: 'Internal Server Error processing incident' }, { status: 502 });
-        }
+      if (decision.alreadyProcessed || !decision.updateFields) {
+        console.info(
+          `[Webhook] Reintento de notificación para orden ${order.id} con incidencia de stock/conciliación pendiente de resolución.`,
+          decision.rpcEquivalentResult
+        );
+        return NextResponse.json(
+          {
+            message: 'ACK. Order has a pending incident under review',
+            result: decision.rpcEquivalentResult,
+          },
+          { status: 200 }
+        );
       }
 
-      console.warn(
-        `[Webhook] [ALERTA OPERACIONAL CRÍTICA] Pago ${paymentData.id} aprobado recibido para la orden cancelada/reemplazada ${order.id}. Stock NO descontado. Orden guardada en 'requires_attention' para conciliación o reembolso.`,
-        { orderId: order.id, paymentId: paymentData.id, result: decision.rpcEquivalentResult }
-      );
-      return NextResponse.json({
-        message: 'ACK. Payment recorded for cancelled order; stock skipped, requires manual attention/refund',
-        result: decision.rpcEquivalentResult
-      }, { status: 200 });
+      const { data: updatedOrder, error: updateErr } = await supabaseAdmin
+        .from('orders')
+        .update(decision.updateFields)
+        .eq('id', order.id)
+        .eq('status', 'cancelled')
+        .or(`payment_id.is.null,payment_id.eq.${decision.updateFields.payment_id}`)
+        .select('id, status, payment_status, payment_id, stock_decremented, stock_error')
+        .maybeSingle();
+
+      let rereadOrder = null;
+      let rereadError = null;
+      if (!updateErr && !updatedOrder) {
+        const reread = await supabaseAdmin
+          .from('orders')
+          .select('id, status, payment_status, payment_id, stock_decremented, stock_error')
+          .eq('id', order.id)
+          .maybeSingle();
+        rereadOrder = reread.data;
+        rereadError = reread.error;
+      }
+
+      const resolution = resolveCancelledOrderIncidentUpdateOutcome({
+        orderId: order.id,
+        paymentId: decision.updateFields.payment_id,
+        updatedOrder,
+        updateError: updateErr,
+        rereadOrder,
+        rereadError,
+        rpcEquivalentResult: decision.rpcEquivalentResult,
+      });
+
+      if (resolution.httpStatus !== 200) {
+        console.error('[Webhook] Error or unresolved race recording cancelled-order payment incident:', {
+          orderId: order.id,
+          paymentId: paymentData.id,
+          updateErr,
+          rereadError,
+        });
+        return NextResponse.json(resolution.responseBody, { status: resolution.httpStatus });
+      }
+
+      if (resolution.emitCriticalAlert) {
+        console.warn(
+          `[Webhook] [ALERTA OPERACIONAL CRÍTICA] Pago ${paymentData.id} aprobado recibido para la orden cancelada/reemplazada ${order.id}. Stock NO descontado. Orden guardada en 'requires_attention' para conciliación o reembolso.`,
+          { orderId: order.id, paymentId: paymentData.id, result: resolution.responseBody.result }
+        );
+      } else {
+        console.info(
+          `[Webhook] Concurrent resolution for cancelled-order incident on order ${order.id} (payment ${paymentData.id}):`,
+          resolution.responseBody
+        );
+      }
+
+      return NextResponse.json(resolution.responseBody, { status: 200 });
     }
 
     // 7️⃣ Non-approved valid transitions (pending/in_process, rejected/cancelled, refunded/charged_back)
@@ -211,6 +261,11 @@ export async function POST(req: NextRequest) {
     }
 
     // 9️⃣ Interpret RPC response
+    if (rpcResult?.code === 'invalid_parameters') {
+      console.error('[Webhook] Invalid parameters rejected by RPC:', rpcResult);
+      return NextResponse.json({ error: 'Bad Request: Invalid payment parameters', result: rpcResult }, { status: 400 });
+    }
+
     if (rpcResult?.code === 'cancelled_order_paid_requires_attention') {
       console.warn(
         `[Webhook] [ALERTA OPERACIONAL CRÍTICA] Pago ${paymentData.id} aprobado recibido para la orden cancelada/reemplazada ${order.id}. Stock NO descontado. Orden guardada en 'requires_attention' para conciliación o reembolso.`,

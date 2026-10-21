@@ -2,8 +2,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { isValidRUT } from '@/lib/utils/rut';
-import { classifyCheckoutLeaseError, evaluatePendingOrdersForCheckout } from '@/lib/checkoutWebhookAndResult';
+import {
+  classifyCheckoutLeaseError,
+  classifyCheckoutRpcFailureForRecovery,
+  clearInvalidatedPreferencesCache,
+  evaluatePendingOrdersForCheckout,
+  isOrderWithinReuseWindow,
+  isPreferenceMarkedInvalidated,
+  markPreferenceAsInvalidated,
+  type PriorOrderReplacementSnapshot
+} from '@/lib/checkoutWebhookAndResult';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+
+export {
+  classifyCheckoutRpcFailureForRecovery,
+  clearInvalidatedPreferencesCache,
+  isPreferenceMarkedInvalidated,
+  markPreferenceAsInvalidated
+};
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -58,6 +74,8 @@ export function sanitizeMercadoPagoError(mpError: any): { status: number; error:
   let clientMessage = 'No se pudo generar la pasarela de pago en Mercado Pago.';
   if (mpError?.message?.includes('auto_return invalid')) {
     clientMessage = 'Error de configuración: Las URLs de retorno no son válidas para auto_return.';
+  } else if (mpError?.message?.includes('TIMEOUT_MP_PREFERENCE_CREATE')) {
+    clientMessage = 'Tiempo de espera agotado al comunicarse con Mercado Pago. Por favor intenta nuevamente.';
   } else if (mpError?.status === 400 || mpError?.name === 'MPBadRequestError') {
     clientMessage = 'Datos de orden no válidos para la pasarela de pagos.';
   } else if (mpError?.status === 401) {
@@ -181,7 +199,68 @@ export function matchesCandidateOrder(
 }
 
 /**
- * Crea la preferencia en Mercado Pago con configuración de expiración a 4 horas.
+ * Error controlado cuando la orden cambió de estado (ej. fue cancelada tras expiración de lease)
+ * antes de poder persistir o recuperar la preferencia de Mercado Pago.
+ */
+export class ConcurrentOrderStateChangedError extends Error {
+  public readonly code = 'CONCURRENT_ORDER_STATE_CHANGED';
+  public readonly httpStatus = 409;
+  public readonly orderId: string;
+
+  constructor(
+    orderId: string,
+    message = 'No se pudo completar el checkout porque la orden dejó de estar pendiente o fue reemplazada concurrentemente. Por favor intenta nuevamente.'
+  ) {
+    super(message);
+    this.name = 'ConcurrentOrderStateChangedError';
+    this.orderId = orderId;
+  }
+}
+
+/**
+ * Error controlado cuando la RPC atómica `persist_order_preference_with_lease` rechaza la persistencia
+ * porque el lease no existe, expiró o fue adquirido por otra petición concurrente.
+ */
+export class CheckoutLeaseInvalidError extends Error {
+  public readonly code: string;
+  public readonly httpStatus = 409;
+  public readonly orderId: string;
+
+  constructor(
+    orderId: string,
+    code = 'LEASE_EXPIRED',
+    message = 'Tu reserva de pago expiró o fue transferida antes de registrar la pasarela de pago. Por favor intenta nuevamente.'
+  ) {
+    super(message);
+    this.name = 'CheckoutLeaseInvalidError';
+    this.code = code;
+    this.orderId = orderId;
+  }
+}
+
+/**
+ * Error controlado cuando `persist_order_preference_with_lease` devuelve `persisted: false`
+ * (otra preferencia ya existe en la orden) pero no puede confirmarse su validez en Mercado Pago.
+ */
+export class WinnerPreferenceVerificationFailedError extends Error {
+  public readonly code = 'FAILED_TO_VERIFY_PRIOR_PAYMENTS';
+  public readonly httpStatus = 502;
+  public readonly orderId: string;
+
+  constructor(
+    orderId: string,
+    message = 'No se pudo verificar la vigencia de la pasarela de pago de tu orden en Mercado Pago. Por seguridad, intenta nuevamente en unos instantes.'
+  ) {
+    super(message);
+    this.name = 'WinnerPreferenceVerificationFailedError';
+    this.orderId = orderId;
+  }
+}
+
+/**
+ * Crea la preferencia en Mercado Pago con configuración de expiración a 4 horas y timeout explícito.
+ * Si la llamada remota se resuelve tardíamente después del timeout local, intenta invalidar
+ * automáticamente la preferencia huérfana en Mercado Pago.
  */
 export async function createMpPreference({
   orderId,
@@ -189,7 +268,10 @@ export async function createMpPreference({
   customerEmail,
   orderItems,
   taxAmount,
-  siteUrl
+  siteUrl,
+  timeoutMs = 10000,
+  injectedPreferenceClient,
+  invalidatePreference
 }: {
   orderId: string;
   customerName: string;
@@ -197,13 +279,17 @@ export async function createMpPreference({
   orderItems: any[];
   taxAmount: number;
   siteUrl: string;
+  timeoutMs?: number;
+  injectedPreferenceClient?: any;
+  invalidatePreference?: (preferenceId: string) => Promise<{ success: boolean; error?: string }>;
 }): Promise<{ id: string; paymentUrl: string }> {
-  if (!process.env.MP_ACCESS_TOKEN) {
+  const mpAccessToken = process.env.MP_ACCESS_TOKEN || '';
+  if (!mpAccessToken && !injectedPreferenceClient) {
     throw new Error('Falta configuración de Mercado Pago en el servidor.');
   }
 
-  const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
-  const preference = new Preference(client);
+  const preference =
+    injectedPreferenceClient || new Preference(new MercadoPagoConfig({ accessToken: mpAccessToken }));
 
   const mpItems = orderItems.map((oi: any) => ({
     id: oi.sku || oi.product_id,
@@ -224,27 +310,87 @@ export async function createMpPreference({
   // Ventana de expiración aprobada: 4 horas desde la creación
   const expirationDateTo = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
 
-  const prefResponse = await preference.create({
-    body: {
-      items: mpItems,
-      external_reference: orderId,
-      payer: {
-        name: customerName,
-        email: customerEmail,
-      },
-      back_urls: {
-        success: `${siteUrl}/checkout/resultado?status=approved&ref=${orderId}`,
-        failure: `${siteUrl}/checkout/resultado?status=failure&ref=${orderId}`,
-        pending: `${siteUrl}/checkout/resultado?status=pending&ref=${orderId}`,
-      },
-      auto_return: 'approved',
-      expires: true,
-      expiration_date_to: expirationDateTo,
+  const invalidateLatePreference =
+    invalidatePreference ||
+    ((preferenceId: string) =>
+      invalidateCandidateOrderPreference(
+        preferenceId,
+        mpAccessToken,
+        7000,
+        injectedPreferenceClient
+      ));
+
+  let timedOut = false;
+  let timeoutId: NodeJS.Timeout | undefined;
+
+  const createPromise = Promise.resolve().then(() =>
+    preference.create({
+      body: {
+        items: mpItems,
+        external_reference: orderId,
+        payer: {
+          name: customerName,
+          email: customerEmail,
+        },
+        back_urls: {
+          success: `${siteUrl}/checkout/resultado?status=approved&ref=${orderId}`,
+          failure: `${siteUrl}/checkout/resultado?status=failure&ref=${orderId}`,
+          pending: `${siteUrl}/checkout/resultado?status=pending&ref=${orderId}`,
+        },
+        auto_return: 'approved',
+        expires: true,
+        expiration_date_to: expirationDateTo,
+      }
+    })
+  );
+
+  // Un timeout local con Promise.race no cancela la solicitud HTTP en curso hacia Mercado Pago.
+  // Si Mercado Pago termina creando la preferencia después del timeout, se invalida en segundo plano.
+  void createPromise.then(
+    async (lateResponse: any) => {
+      if (!timedOut) return;
+      const latePrefId = lateResponse?.id ? String(lateResponse.id).trim() : '';
+      if (!latePrefId) return;
+      try {
+        const invRes = await invalidateLatePreference(latePrefId);
+        if (!invRes || !invRes.success) {
+          console.error('[CreatePref] Error controlado al invalidar preferencia tardía tras timeout:', {
+            orderId,
+            preferenceId: latePrefId,
+            error: invRes?.error || 'Error desconocido al invalidar preferencia tardía'
+          });
+        }
+      } catch (invErr: any) {
+        console.error('[CreatePref] Excepción controlada al invalidar preferencia tardía tras timeout:', {
+          orderId,
+          preferenceId: latePrefId,
+          error: invErr?.message || String(invErr)
+        });
+      }
+    },
+    () => {
+      // Silenciar rechazos posteriores al timeout local para evitar unhandledRejection
     }
+  );
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      reject(new Error('TIMEOUT_MP_PREFERENCE_CREATE'));
+    }, timeoutMs);
   });
 
-  const paymentUrl = prefResponse.sandbox_init_point || prefResponse.init_point;
-  if (!prefResponse.id || !paymentUrl) {
+  let prefResponse: any;
+  try {
+    prefResponse = await Promise.race([createPromise, timeoutPromise]);
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  const paymentUrl = prefResponse?.sandbox_init_point || prefResponse?.init_point;
+  if (!prefResponse?.id || !paymentUrl) {
     throw new Error('Mercado Pago devolvió una Preference incompleta.');
   }
 
@@ -252,51 +398,212 @@ export async function createMpPreference({
 }
 
 /**
- * Persiste la preferencia de forma atómica en Supabase con protección contra condiciones de carrera.
+ * Persiste la preferencia de forma atómica en PostgreSQL mediante la RPC `persist_order_preference_with_lease`.
+ *
+ * Garantías (MEDIO-02):
+ * 1. Exige `userId` y `leaseId` válidos; nunca ejecuta un UPDATE directo sin verificar y bloquear el lease en BD.
+ * 2. La verificación de titularidad/vigencia del lease (`SELECT ... FOR UPDATE` en `user_checkout_leases`) y la
+ *    actualización de `public.orders` ocurren en una única transacción atómica en PostgreSQL.
+ * 3. Para `expectedStalePreferenceId`, reemplaza la preferencia obsoleta mediante compare-and-swap en una sola
+ *    operación atómica dentro de la RPC, sin dos UPDATE separados.
+ * 4. Si la RPC rechaza el lease o el estado de la orden, invalida únicamente la preferencia recién creada por
+ *    esta petición (`prefId`), nunca la preferencia de la orden ganadora.
+ * 5. Si la RPC indica `persisted: false`, invalida `prefId` (si es distinto de la ganadora) y verifica la validez
+ *    de la preferencia ganadora en Mercado Pago antes de devolverla; si no puede verificarse, falla en cerrado (502).
  */
 export async function persistPreferenceAtomic(
   supabaseAdmin: any,
   orderId: string,
   prefId: string,
-  paymentUrl: string
+  paymentUrl: string,
+  options?: {
+    userId?: string | null;
+    leaseId?: string | null;
+    mpAccessToken?: string;
+    injectedPreferenceClient?: any;
+    invalidatePreference?: (preferenceId: string) => Promise<{ success: boolean; error?: string }>;
+    checkPreferenceValidity?: (
+      preferenceId: string,
+      expectedOrderId?: string
+    ) => Promise<{ valid: boolean; status?: 'active' | 'expired' | 'error'; error?: string }>;
+    expectedStalePreferenceId?: string | null;
+  }
 ): Promise<{ id: string; initPoint: string; orderId: string }> {
-  const { data: updateData, error: updateError } = await supabaseAdmin
-    .from('orders')
-    .update({
-      preference_id: prefId,
-      init_point: paymentUrl
-    })
-    .eq('id', orderId)
-    .is('preference_id', null) // Garantía contra race conditions en PostgreSQL
-    .select('preference_id, init_point')
-    .maybeSingle();
+  const mpAccessToken = options?.mpAccessToken ?? process.env.MP_ACCESS_TOKEN ?? '';
+  const invalidateFn =
+    options?.invalidatePreference ??
+    (mpAccessToken || options?.injectedPreferenceClient
+      ? (preferenceId: string) =>
+          invalidateCandidateOrderPreference(
+            preferenceId,
+            mpAccessToken,
+            7000,
+            options?.injectedPreferenceClient
+          )
+      : undefined);
 
-  if (updateError) {
+  // Invalida EXCLUSIVAMENTE la preferencia recién creada por esta petición (`prefId`),
+  // siempre que no haya sido persistida ni corresponda al identificador de otra orden ganadora.
+  const safeInvalidateCreatedPreference = async (reason: string): Promise<void> => {
+    if (!invalidateFn || !prefId) return;
+    try {
+      const invRes = await invalidateFn(prefId);
+      if (invRes?.success) {
+        markPreferenceAsInvalidated(prefId);
+      } else {
+        console.error('[CreatePref] Error controlado al invalidar preferencia MP tardía/huérfana:', {
+          orderId,
+          preferenceId: prefId,
+          reason,
+          error: invRes?.error || 'Fallo al invalidar preferencia en Mercado Pago'
+        });
+      }
+    } catch (invErr: any) {
+      console.error('[CreatePref] Excepción controlada al invalidar preferencia MP tardía/huérfana:', {
+        orderId,
+        preferenceId: prefId,
+        reason,
+        error: invErr?.message || String(invErr)
+      });
+    }
+  };
+
+  const userId = typeof options?.userId === 'string' ? options.userId.trim() : '';
+  const leaseId = typeof options?.leaseId === 'string' ? options.leaseId.trim() : '';
+
+  if (!userId || !leaseId) {
+    await safeInvalidateCreatedPreference('missing_user_or_lease_id');
+    throw new CheckoutLeaseInvalidError(
+      orderId,
+      'LEASE_REQUIRED',
+      'Se requiere una reserva de checkout válida (leaseId) para persistir la pasarela de pago.'
+    );
+  }
+
+  if (!supabaseAdmin || typeof supabaseAdmin.rpc !== 'function') {
+    await safeInvalidateCreatedPreference('missing_rpc_client');
+    throw new Error('Error interno al persistir la Preference: cliente RPC no disponible.');
+  }
+
+  const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc(
+    'persist_order_preference_with_lease',
+    {
+      p_user_id: userId,
+      p_order_id: orderId,
+      p_lease_id: leaseId,
+      p_preference_id: prefId,
+      p_init_point: paymentUrl,
+      p_expected_stale_preference_id: options?.expectedStalePreferenceId ?? null
+    }
+  );
+
+  if (rpcError || !rpcData || typeof rpcData !== 'object') {
+    await safeInvalidateCreatedPreference('rpc_persist_error');
     throw new Error('Error interno al persistir la Preference.');
   }
 
-  if (!updateData) {
-    // Otra petición paralela ganó la carrera y escribió su preferencia antes
-    const { data: winnerOrder } = await supabaseAdmin
-      .from('orders')
-      .select('preference_id, init_point')
-      .eq('id', orderId)
-      .single();
+  if (rpcData.success !== true) {
+    const errCode = String(rpcData.code || '').trim();
+    const existingWinnerPrefId =
+      typeof rpcData.preference_id === 'string' ? rpcData.preference_id.trim() : '';
 
-    if (winnerOrder && winnerOrder.preference_id && winnerOrder.init_point) {
-      return {
-        id: winnerOrder.preference_id,
-        initPoint: winnerOrder.init_point,
-        orderId
-      };
-    } else {
-      throw new Error('Inconsistencia durante validación concurrente.');
+    // Solo invalidar prefId si es la preferencia creada por esta petición y no coincide con una existente en BD
+    if (!existingWinnerPrefId || existingWinnerPrefId !== prefId) {
+      await safeInvalidateCreatedPreference(`rpc_rejected_${errCode || 'unknown'}`);
     }
+
+    if (
+      [
+        'LEASE_NOT_FOUND',
+        'LEASE_LOST_TO_CONCURRENT_REQUEST',
+        'LEASE_EXPIRED',
+        'LEASE_REQUIRED'
+      ].includes(errCode)
+    ) {
+      throw new CheckoutLeaseInvalidError(orderId, errCode, rpcData.message || undefined);
+    }
+
+    if (errCode === 'CONCURRENT_ORDER_STATE_CHANGED') {
+      throw new ConcurrentOrderStateChangedError(orderId, rpcData.message || undefined);
+    }
+
+    if (errCode === 'INCONSISTENT_EXISTING_PREFERENCE') {
+      throw new WinnerPreferenceVerificationFailedError(
+        orderId,
+        rpcData.message || 'La orden conserva una preferencia incompleta en el servidor.'
+      );
+    }
+
+    throw new Error(rpcData.message || 'Error interno al persistir la Preference.');
+  }
+
+  // Caso 1: La RPC persistió atómicamente nuestra preferencia bajo el lease activo
+  if (rpcData.persisted === true) {
+    const persistedPrefId =
+      typeof rpcData.preference_id === 'string' ? rpcData.preference_id.trim() : '';
+    const persistedInitPoint =
+      typeof rpcData.init_point === 'string' ? rpcData.init_point.trim() : '';
+
+    if (!persistedPrefId || !persistedInitPoint) {
+      await safeInvalidateCreatedPreference('incomplete_rpc_persisted_preference');
+      throw new Error('Error interno al persistir la Preference.');
+    }
+
+    return {
+      id: persistedPrefId,
+      initPoint: persistedInitPoint,
+      orderId
+    };
+  }
+
+  // Caso 2: `persisted === false` -> Ya existía una preferencia ganadora en la orden.
+  // Invalidar únicamente nuestra preferencia redundante (`prefId`) si es distinta de la ganadora,
+  // y verificar en Mercado Pago que la preferencia ganadora sea válida antes de entregarla.
+  const winnerPrefId =
+    typeof rpcData.preference_id === 'string' ? rpcData.preference_id.trim() : '';
+  const winnerInitPoint =
+    typeof rpcData.init_point === 'string' ? rpcData.init_point.trim() : '';
+
+  if (winnerPrefId !== prefId) {
+    await safeInvalidateCreatedPreference('superseded_by_concurrent_pending_winner');
+  }
+
+  if (!winnerPrefId || !winnerInitPoint) {
+    throw new WinnerPreferenceVerificationFailedError(
+      orderId,
+      'La preferencia ganadora en base de datos está incompleta.'
+    );
+  }
+
+  const checkValidityFn =
+    options?.checkPreferenceValidity ??
+    ((candidatePrefId: string, expectedOrdId?: string) =>
+      checkCandidatePreferenceValidity(
+        candidatePrefId,
+        mpAccessToken,
+        7000,
+        options?.injectedPreferenceClient,
+        Date.now(),
+        expectedOrdId ?? orderId
+      ));
+
+  const winnerValidity = await checkValidityFn(winnerPrefId, orderId);
+  if (
+    !winnerValidity ||
+    !winnerValidity.valid ||
+    winnerValidity.status !== 'active' ||
+    isPreferenceMarkedInvalidated(winnerPrefId)
+  ) {
+    throw new WinnerPreferenceVerificationFailedError(
+      orderId,
+      winnerValidity?.error ||
+        'No se pudo verificar la validez de la preferencia ganadora en Mercado Pago.'
+    );
   }
 
   return {
-    id: updateData.preference_id,
-    initPoint: updateData.init_point,
+    id: winnerPrefId,
+    initPoint: winnerInitPoint,
     orderId
   };
 }
@@ -397,11 +704,191 @@ export async function invalidateCandidateOrderPreference(
       clearTimeout(timeoutId);
     });
 
+    markPreferenceAsInvalidated(preferenceId);
     return { success: true };
   } catch (err: any) {
     return {
       success: false,
       error: err?.message || 'Error al invalidar la preferencia en Mercado Pago'
+    };
+  }
+}
+
+/**
+ * Verifica en Mercado Pago si una preferencia existente asociada a una orden pendiente continúa vigente
+ * y es estructuralmente íntegra:
+ * 1. Consulta siempre Mercado Pago (`prefClient.get`) sin omitir la comprobación remota por el Set en memoria.
+ * 2. Verifica que `prefData.id` coincida con `preferenceId`.
+ * 3. Verifica que exista un `init_point` o `sandbox_init_point` utilizable (no vacío).
+ * 4. Verifica que `external_reference` coincida con `expectedOrderId` (cuando se proporciona) o no sea vacío.
+ * 5. Si `expires === true` y `expiration_date_to` está ausente o no es una fecha válida, falla en cerrado (`status: 'error'`).
+ * 6. Comprueba que `expiration_date_to` y `date_of_expiration` (si existen) sean fechas válidas y futuras (> `nowMs`).
+ */
+export async function checkCandidatePreferenceValidity(
+  preferenceId: string,
+  mpAccessToken: string,
+  timeoutMs = 7000,
+  injectedPreferenceClient?: any,
+  nowMs = Date.now(),
+  expectedOrderId?: string | null
+): Promise<{
+  valid: boolean;
+  status: 'active' | 'expired' | 'error';
+  error?: string;
+}> {
+  const cleanPrefId = typeof preferenceId === 'string' ? preferenceId.trim() : '';
+  if (!cleanPrefId) {
+    return { valid: false, status: 'expired', error: 'ID de preferencia vacío o inválido' };
+  }
+
+  try {
+    if (!mpAccessToken && !injectedPreferenceClient) {
+      throw new Error('Falta token de acceso de Mercado Pago.');
+    }
+
+    const prefClient =
+      injectedPreferenceClient || new Preference(new MercadoPagoConfig({ accessToken: mpAccessToken }));
+
+    let timeoutId: NodeJS.Timeout;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('TIMEOUT_MP_PREFERENCE_GET')), timeoutMs);
+    });
+
+    const prefData: any = await Promise.race([
+      prefClient.get({ preferenceId: cleanPrefId }),
+      timeoutPromise
+    ]).finally(() => {
+      clearTimeout(timeoutId);
+    });
+
+    if (
+      !prefData ||
+      typeof prefData !== 'object' ||
+      !prefData.id ||
+      String(prefData.id).trim() !== cleanPrefId
+    ) {
+      return {
+        valid: false,
+        status: 'error',
+        error: 'Respuesta inválida o ID incongruente al consultar preferencia en Mercado Pago'
+      };
+    }
+
+    // Verificar existencia de un init_point utilizable
+    const usableInitPoint = prefData.sandbox_init_point || prefData.init_point;
+    if (typeof usableInitPoint !== 'string' || usableInitPoint.trim() === '') {
+      return {
+        valid: false,
+        status: 'error',
+        error: 'La preferencia en Mercado Pago no contiene un init_point utilizable'
+      };
+    }
+
+    // Verificar congruencia de external_reference con la orden
+    const cleanExpectedOrderId =
+      typeof expectedOrderId === 'string' ? expectedOrderId.trim() : '';
+    if (cleanExpectedOrderId) {
+      const extRef =
+        typeof prefData.external_reference === 'string'
+          ? prefData.external_reference.trim()
+          : '';
+      if (!extRef || extRef !== cleanExpectedOrderId) {
+        return {
+          valid: false,
+          status: 'error',
+          error: 'El external_reference de la preferencia no corresponde a la orden'
+        };
+      }
+    } else if ('external_reference' in prefData) {
+      const extRef =
+        typeof prefData.external_reference === 'string'
+          ? prefData.external_reference.trim()
+          : '';
+      if (!extRef) {
+        return {
+          valid: false,
+          status: 'error',
+          error: 'La preferencia en Mercado Pago tiene un external_reference vacío o inválido'
+        };
+      }
+    }
+
+    // Si expires === true, expiration_date_to es obligatorio y debe ser una fecha válida
+    if (prefData.expires === true) {
+      if (
+        typeof prefData.expiration_date_to !== 'string' ||
+        prefData.expiration_date_to.trim() === ''
+      ) {
+        return {
+          valid: false,
+          status: 'error',
+          error: 'La preferencia tiene expires=true pero carece de expiration_date_to'
+        };
+      }
+
+      const expToMs = Date.parse(prefData.expiration_date_to);
+      if (!Number.isFinite(expToMs)) {
+        return {
+          valid: false,
+          status: 'error',
+          error: 'La preferencia tiene un expiration_date_to inválido o no interpretable'
+        };
+      }
+
+      if (expToMs <= nowMs) {
+        markPreferenceAsInvalidated(cleanPrefId);
+        return { valid: false, status: 'expired' };
+      }
+
+      if (prefData.expiration_date_from !== undefined && prefData.expiration_date_from !== null) {
+        const expFromMs = Date.parse(String(prefData.expiration_date_from));
+        if (!Number.isFinite(expFromMs)) {
+          return {
+            valid: false,
+            status: 'error',
+            error: 'La preferencia tiene un expiration_date_from inválido o no interpretable'
+          };
+        }
+        if (expFromMs > nowMs + 60_000) {
+          return { valid: false, status: 'expired' };
+        }
+      }
+    } else if (prefData.expiration_date_to !== undefined && prefData.expiration_date_to !== null) {
+      const expToMs = Date.parse(String(prefData.expiration_date_to));
+      if (!Number.isFinite(expToMs)) {
+        return {
+          valid: false,
+          status: 'error',
+          error: 'La preferencia tiene un expiration_date_to inválido o no interpretable'
+        };
+      }
+      if (expToMs <= nowMs) {
+        markPreferenceAsInvalidated(cleanPrefId);
+        return { valid: false, status: 'expired' };
+      }
+    }
+
+    if (prefData.date_of_expiration !== undefined && prefData.date_of_expiration !== null) {
+      const dateOfExpMs = Date.parse(String(prefData.date_of_expiration));
+      if (!Number.isFinite(dateOfExpMs)) {
+        return {
+          valid: false,
+          status: 'error',
+          error: 'La preferencia tiene un date_of_expiration inválido o no interpretable'
+        };
+      }
+      if (dateOfExpMs <= nowMs) {
+        markPreferenceAsInvalidated(cleanPrefId);
+        return { valid: false, status: 'expired' };
+      }
+    }
+
+    return { valid: true, status: 'active' };
+  } catch (err: any) {
+    return {
+      valid: false,
+      status: 'error',
+      error: err?.message || 'Error al verificar vigencia de preferencia en Mercado Pago'
     };
   }
 }
@@ -534,6 +1021,715 @@ export async function releaseUserCheckoutLease(
   }
 }
 
+/**
+ * Verifica en Supabase TODAS las órdenes pendientes que van a ser reemplazadas (incluyendo las que tenían
+ * `preference_id = null` en la lectura inicial), invalida en Mercado Pago las preferencias activas esperadas
+ * y desacopla inmediatamente (`preference_id = null, init_point = null`) cada preferencia invalidada en Supabase.
+ *
+ * Garantías de seguridad (MEDIO-02):
+ * 1. Se invoca únicamente DESPUÉS de que `sync_cart` y `verifyUserCheckoutLease` hayan tenido éxito.
+ * 2. Inspecciona en base de datos TODAS las órdenes que se pretenden cancelar (`ordersToReplace` / `preferencesToInvalidate`):
+ *    - Si una orden leída inicialmente con `preference_id = null` recibió una preferencia antes de la cancelación,
+ *      detecta el cambio (`currentOrder.preference_id !== null`) y aborta con HTTP 409 sin invalidar la preferencia
+ *      ganadora ni cancelar la orden.
+ *    - Si una orden cambió de estado (`status !== 'pending'`) o de `preference_id`, aborta con HTTP 409.
+ * 3. Registra cada preferencia invalidada en `markPreferenceAsInvalidated` tan pronto como Mercado Pago confirma
+ *    su expiración y limpia `preference_id = null, init_point = null` en Supabase (con un reintento inmediato).
+ *    Si ambos UPDATE fallan, devuelve HTTP 500 `PRIOR_PREFERENCE_DETACH_FAILED` con `failedDetachPreferenceIds`,
+ *    y el siguiente checkout detecta la preferencia invalidada mediante el registro en memoria y `checkCandidatePreferenceValidity`.
+ */
+export async function invalidateAndDetachPriorOrderPreferences({
+  supabaseAdmin,
+  userId,
+  preferencesToInvalidate,
+  ordersToReplace,
+  invalidatePreference
+}: {
+  supabaseAdmin: any;
+  userId: string;
+  preferencesToInvalidate?: { orderId: string; preferenceId: string | null }[];
+  ordersToReplace?: PriorOrderReplacementSnapshot[];
+  invalidatePreference: (preferenceId: string) => Promise<{ success: boolean; error?: string }>;
+}): Promise<
+  | {
+      ok: true;
+      detachedOrders: { orderId: string; invalidatedPreferenceId: string }[];
+      failedDetachPreferenceIds: string[];
+    }
+  | {
+      ok: false;
+      httpStatus: 409 | 500 | 502;
+      code:
+        | 'CONCURRENT_ORDER_STATE_CHANGED'
+        | 'PREFERENCE_INVALIDATION_FAILED'
+        | 'PRIOR_PREFERENCE_DETACH_FAILED';
+      error: string;
+      orderId: string;
+      detachedOrders: { orderId: string; invalidatedPreferenceId: string }[];
+      failedDetachPreferenceIds: string[];
+    }
+> {
+  const detachedOrders: { orderId: string; invalidatedPreferenceId: string }[] = [];
+  const failedDetachPreferenceIds: string[] = [];
+
+  const targets: PriorOrderReplacementSnapshot[] =
+    ordersToReplace && ordersToReplace.length > 0
+      ? ordersToReplace
+      : (preferencesToInvalidate || []).map((item) => ({
+          orderId: item.orderId,
+          expectedPreferenceId: item.preferenceId ?? null
+        }));
+
+  for (const item of targets) {
+    if (!item?.orderId) continue;
+
+    // 1. Verificar en BD que la orden previa siga 'pending' y mantenga exactamente el preference_id observado (incluso si era null)
+    const currentOrderQuery = supabaseAdmin
+      .from('orders')
+      .select('id, status, preference_id')
+      .eq('id', item.orderId)
+      .eq('user_id', userId);
+
+    const { data: currentOrder, error: currentOrderErr } =
+      typeof currentOrderQuery.maybeSingle === 'function'
+        ? await currentOrderQuery.maybeSingle()
+        : await currentOrderQuery.single();
+
+    if (currentOrderErr) {
+      console.error('[CreatePref] Error verificando estado de orden previa antes de invalidar preferencia:', {
+        orderId: item.orderId,
+        error: currentOrderErr
+      });
+      return {
+        ok: false,
+        httpStatus: 500,
+        code: 'PRIOR_PREFERENCE_DETACH_FAILED',
+        error: 'No se pudo verificar el estado actual de tu orden previa en el servidor. Por favor intenta nuevamente.',
+        orderId: item.orderId,
+        detachedOrders,
+        failedDetachPreferenceIds
+      };
+    }
+
+    if (!currentOrder || currentOrder.status !== 'pending') {
+      return {
+        ok: false,
+        httpStatus: 409,
+        code: 'CONCURRENT_ORDER_STATE_CHANGED',
+        error: 'No se pudo procesar el reemplazo porque la orden previa cambió de estado concurrentemente o ya fue procesada.',
+        orderId: item.orderId,
+        detachedOrders,
+        failedDetachPreferenceIds
+      };
+    }
+
+    const currentPrefId = currentOrder.preference_id ?? null;
+    const expectedPrefId = item.expectedPreferenceId ?? null;
+
+    if (expectedPrefId === null) {
+      if (currentPrefId !== null) {
+        // La orden fue leída inicialmente con preference_id = null, pero otra petición le asignó una preferencia antes de la cancelación.
+        // No invalidar la preferencia ganadora ni cancelar la orden.
+        return {
+          ok: false,
+          httpStatus: 409,
+          code: 'CONCURRENT_ORDER_STATE_CHANGED',
+          error: 'La orden previa recibió una pasarela de pago concurrentemente por otra solicitud.',
+          orderId: item.orderId,
+          detachedOrders,
+          failedDetachPreferenceIds
+        };
+      }
+      // Sigue en status = 'pending' con preference_id = null: no hay preferencia que invalidar
+      continue;
+    }
+
+    if (currentPrefId !== expectedPrefId) {
+      // Otra solicitud concurrente asignó una preferencia ganadora distinta o ya desvinculó la anterior; no invalidar ni continuar
+      return {
+        ok: false,
+        httpStatus: 409,
+        code: 'CONCURRENT_ORDER_STATE_CHANGED',
+        error: 'La pasarela de pago de la orden previa fue actualizada concurrentemente por otra solicitud.',
+        orderId: item.orderId,
+        detachedOrders,
+        failedDetachPreferenceIds
+      };
+    }
+
+    // 2. Invalidar la preferencia previa en Mercado Pago
+    const invalidation = await invalidatePreference(expectedPrefId);
+    if (!invalidation || !invalidation.success) {
+      return {
+        ok: false,
+        httpStatus: 502,
+        code: 'PREFERENCE_INVALIDATION_FAILED',
+        error: 'No se pudo desactivar la pasarela de pago de tu orden previa. Por seguridad, por favor intenta nuevamente en unos instantes.',
+        orderId: item.orderId,
+        detachedOrders,
+        failedDetachPreferenceIds
+      };
+    }
+
+    // Registrar inmediatamente como invalidada para impedir que un checkout posterior la reutilice si falla el UPDATE en BD
+    markPreferenceAsInvalidated(expectedPrefId);
+
+    // 3. Desacoplar inmediatamente la preferencia invalidada en Supabase
+    const runDetachUpdate = async () => {
+      const detachQuery = supabaseAdmin
+        .from('orders')
+        .update({
+          preference_id: null,
+          init_point: null
+        })
+        .eq('id', item.orderId)
+        .eq('user_id', userId)
+        .eq('status', 'pending')
+        .eq('preference_id', expectedPrefId)
+        .select('id, status, preference_id, init_point');
+
+      return typeof detachQuery.maybeSingle === 'function'
+        ? await detachQuery.maybeSingle()
+        : await detachQuery.single();
+    };
+
+    let detachRes = await runDetachUpdate();
+    if (detachRes.error) {
+      // Un reintento inmediato ante fallo transitorio de red/BD dado que la preferencia ya fue expirada en MP
+      detachRes = await runDetachUpdate();
+    }
+
+    if (detachRes.error) {
+      failedDetachPreferenceIds.push(expectedPrefId);
+      console.error('[CreatePref] Error crítico al limpiar preference_id invalidado en orden previa:', {
+        orderId: item.orderId,
+        preferenceId: expectedPrefId,
+        error: detachRes.error
+      });
+      return {
+        ok: false,
+        httpStatus: 500,
+        code: 'PRIOR_PREFERENCE_DETACH_FAILED',
+        error: 'No se pudo actualizar el estado de la pasarela previa en el servidor. Por favor intenta nuevamente.',
+        orderId: item.orderId,
+        detachedOrders,
+        failedDetachPreferenceIds
+      };
+    }
+
+    if (!detachRes.data || (detachRes.data.status && detachRes.data.status !== 'pending')) {
+      return {
+        ok: false,
+        httpStatus: 409,
+        code: 'CONCURRENT_ORDER_STATE_CHANGED',
+        error: 'No se pudo procesar el reemplazo porque la orden previa cambió de estado concurrentemente.',
+        orderId: item.orderId,
+        detachedOrders,
+        failedDetachPreferenceIds
+      };
+    }
+
+    detachedOrders.push({
+      orderId: item.orderId,
+      invalidatedPreferenceId: expectedPrefId
+    });
+  }
+
+  return {
+    ok: true,
+    detachedOrders,
+    failedDetachPreferenceIds
+  };
+}
+
+/**
+ * Recuperación explícita, controlada y protegida por lease cuando una etapa posterior a la desvinculación
+ * de la preferencia previa (con rollback confirmado en PostgreSQL) falla y no llega a reemplazarse la orden.
+ *
+ * Garantías de concurrencia (Hallazgo ALTO-M02-01 y ALTO-M02-02):
+ * - Exige un `leaseId` válido y verifica la vigencia y titularidad del lease (`verifyLease`):
+ *   1. Antes de consultar la orden e ítems en Supabase.
+ *   2. Inmediatamente antes de llamar a `createPreference` en Mercado Pago.
+ *   3. Inmediatamente después de `createPreference` y ANTES de llamar a `persistPreference` (si el lease se perdió
+ *      o expiró mientras se creaba la preferencia en MP, invalida de inmediato la preferencia recién creada y NO la persiste).
+ * - La escritura en sí se ejecuta mediante `persistPreference` (`persist_order_preference_with_lease`), que bloquea
+ *   atómicamente el lease (`SELECT ... FOR UPDATE`) y actualiza la orden en la misma transacción SQL.
+ * - NO existe reversión post-hoc (`leaseAfterPersist`) que pueda invalidar o borrar una preferencia ya comiteada y
+ *   potencialmente entregada a otra petición concurrente.
+ */
+export async function restorePendingOrdersAfterFailedReplacement({
+  supabaseAdmin,
+  userId,
+  leaseId,
+  detachedOrders,
+  candidateOrdersById,
+  siteUrl,
+  fallbackCustomerEmail,
+  fetchOrderItems,
+  verifyLease = verifyUserCheckoutLease,
+  createPreference = createMpPreference,
+  persistPreference = persistPreferenceAtomic,
+  invalidatePreference,
+  nowMs = Date.now(),
+  reuseWindowMs = 2 * 60 * 60 * 1000
+}: {
+  supabaseAdmin: any;
+  userId: string;
+  leaseId?: string | null;
+  detachedOrders: { orderId: string; invalidatedPreferenceId: string }[];
+  candidateOrdersById: Map<string, any>;
+  siteUrl: string;
+  fallbackCustomerEmail: string;
+  fetchOrderItems: (orderId: string) => Promise<any[]>;
+  verifyLease?: (
+    supabaseAdmin: any,
+    userId: string,
+    leaseId: string
+  ) => Promise<{ valid: boolean; code?: string; message?: string }>;
+  createPreference?: typeof createMpPreference;
+  persistPreference?: typeof persistPreferenceAtomic;
+  invalidatePreference?: (preferenceId: string) => Promise<{ success: boolean; error?: string }>;
+  nowMs?: number;
+  reuseWindowMs?: number;
+}): Promise<{
+  restoredOrderIds: string[];
+  detachedOnlyOrderIds: string[];
+  abortedByLeaseLoss: boolean;
+}> {
+  const restoredOrderIds: string[] = [];
+  const detachedOnlyOrderIds: string[] = [];
+  let abortedByLeaseLoss = false;
+
+  const invalidateOrphanRestoredPreference = async (prefId: string, reason: string) => {
+    if (!prefId) return;
+    const invFn =
+      invalidatePreference ||
+      ((id: string) => invalidateCandidateOrderPreference(id, process.env.MP_ACCESS_TOKEN || ''));
+    try {
+      const invRes = await invFn(prefId);
+      if (invRes?.success) {
+        markPreferenceAsInvalidated(prefId);
+      } else {
+        console.error('[CreatePref] Error al invalidar preferencia restaurada tras pérdida de lease:', {
+          prefId,
+          reason,
+          error: invRes?.error
+        });
+      }
+    } catch (err: any) {
+      console.error('[CreatePref] Excepción al invalidar preferencia restaurada tras pérdida de lease:', {
+        prefId,
+        reason,
+        error: err?.message || String(err)
+      });
+    }
+  };
+
+  const list = detachedOrders || [];
+  for (let i = 0; i < list.length; i++) {
+    const detached = list[i];
+    const candidateOrder = candidateOrdersById.get(detached.orderId);
+    if (!candidateOrder) {
+      detachedOnlyOrderIds.push(detached.orderId);
+      continue;
+    }
+
+    const isStatusPending = String(candidateOrder.status || '').toLowerCase() === 'pending';
+    const isPaymentPending = String(candidateOrder.payment_status || '').toLowerCase() === 'pending';
+    const isRecent = isOrderWithinReuseWindow(candidateOrder.created_at, nowMs, reuseWindowMs);
+
+    // Órdenes antiguas (> 2h) o con payment_status != 'pending' no deben recibir nueva preferencia;
+    // su estado consistente es permanecer con preference_id = null, init_point = null.
+    if (!isStatusPending || !isPaymentPending || !isRecent) {
+      detachedOnlyOrderIds.push(detached.orderId);
+      continue;
+    }
+
+    // 1. Verificar vigencia y titularidad del lease antes de iniciar cualquier lectura/operación de recuperación
+    if (!leaseId) {
+      abortedByLeaseLoss = true;
+      for (let j = i; j < list.length; j++) {
+        detachedOnlyOrderIds.push(list[j].orderId);
+      }
+      break;
+    }
+
+    const leaseBeforeRead = await verifyLease(supabaseAdmin, userId, leaseId);
+    if (!leaseBeforeRead || !leaseBeforeRead.valid) {
+      console.warn('[CreatePref] Abortando recuperación compensatoria: lease inválido antes de consultar orden:', {
+        orderId: detached.orderId,
+        leaseCode: leaseBeforeRead?.code
+      });
+      abortedByLeaseLoss = true;
+      for (let j = i; j < list.length; j++) {
+        detachedOnlyOrderIds.push(list[j].orderId);
+      }
+      break;
+    }
+
+    try {
+      // 2. Verificar que la orden siga 'pending' y con preference_id = null
+      const checkQuery = supabaseAdmin
+        .from('orders')
+        .select('id, status, preference_id')
+        .eq('id', detached.orderId)
+        .eq('user_id', userId)
+        .eq('status', 'pending');
+
+      const { data: liveOrder, error: liveErr } =
+        typeof checkQuery.maybeSingle === 'function'
+          ? await checkQuery.maybeSingle()
+          : await checkQuery.single();
+
+      if (liveErr || !liveOrder || liveOrder.status !== 'pending' || liveOrder.preference_id !== null) {
+        detachedOnlyOrderIds.push(detached.orderId);
+        continue;
+      }
+
+      const orderItems = await fetchOrderItems(detached.orderId);
+      if (!orderItems || orderItems.length === 0) {
+        console.warn('[CreatePref] No se encontraron ítems para restaurar preferencia de orden previa:', {
+          orderId: detached.orderId
+        });
+        detachedOnlyOrderIds.push(detached.orderId);
+        continue;
+      }
+
+      // 3. Comprobar vigencia y titularidad del lease INMEDIATAMENTE antes de crear la preferencia en Mercado Pago
+      const leaseBeforeCreate = await verifyLease(supabaseAdmin, userId, leaseId);
+      if (!leaseBeforeCreate || !leaseBeforeCreate.valid) {
+        console.warn('[CreatePref] Abortando recuperación compensatoria: lease perdido antes de createPreference:', {
+          orderId: detached.orderId,
+          leaseCode: leaseBeforeCreate?.code
+        });
+        abortedByLeaseLoss = true;
+        for (let j = i; j < list.length; j++) {
+          detachedOnlyOrderIds.push(list[j].orderId);
+        }
+        break;
+      }
+
+      const restoredPref = await createPreference({
+        orderId: detached.orderId,
+        customerName: candidateOrder.customer_name || 'Cliente B2B',
+        customerEmail: candidateOrder.customer_email || fallbackCustomerEmail || '',
+        orderItems,
+        taxAmount: Number(candidateOrder.tax_amount),
+        siteUrl
+      });
+
+      // 4. Comprobar vigencia y titularidad del lease INMEDIATAMENTE antes de invocar la RPC atómica de persistencia
+      const leaseBeforePersist = await verifyLease(supabaseAdmin, userId, leaseId);
+      if (!leaseBeforePersist || !leaseBeforePersist.valid) {
+        console.warn('[CreatePref] Lease expiró o se perdió durante createPreference en recuperación; invalidando preferencia y abortando persistencia:', {
+          orderId: detached.orderId,
+          preferenceId: restoredPref.id,
+          leaseCode: leaseBeforePersist?.code
+        });
+        await invalidateOrphanRestoredPreference(restoredPref.id, 'lease_lost_before_persist');
+        abortedByLeaseLoss = true;
+        for (let j = i; j < list.length; j++) {
+          detachedOnlyOrderIds.push(list[j].orderId);
+        }
+        break;
+      }
+
+      // 5. Persistir atómicamente con bloqueo de lease en PostgreSQL (persist_order_preference_with_lease).
+      //    Si el lease vence exactamente antes de adquirir el FOR UPDATE en BD, la RPC rechaza sin tocar la orden
+      //    y persistPreference invalida únicamente restoredPref.id y lanza CheckoutLeaseInvalidError.
+      await persistPreference(
+        supabaseAdmin,
+        detached.orderId,
+        restoredPref.id,
+        restoredPref.paymentUrl,
+        {
+          userId,
+          leaseId,
+          invalidatePreference
+        }
+      );
+
+      restoredOrderIds.push(detached.orderId);
+    } catch (restoreErr: any) {
+      if (
+        restoreErr instanceof CheckoutLeaseInvalidError ||
+        [
+          'LEASE_NOT_FOUND',
+          'LEASE_LOST_TO_CONCURRENT_REQUEST',
+          'LEASE_EXPIRED',
+          'LEASE_REQUIRED'
+        ].includes(String(restoreErr?.code || ''))
+      ) {
+        abortedByLeaseLoss = true;
+        for (let j = i; j < list.length; j++) {
+          detachedOnlyOrderIds.push(list[j].orderId);
+        }
+        break;
+      }
+      console.error('[CreatePref] No se pudo regenerar preferencia inmediata tras fallo de reemplazo; la orden queda con preference_id=null para recuperación segura:', {
+        orderId: detached.orderId,
+        error: restoreErr?.message || String(restoreErr)
+      });
+      detachedOnlyOrderIds.push(detached.orderId);
+    }
+  }
+
+  return {
+    restoredOrderIds,
+    detachedOnlyOrderIds,
+    abortedByLeaseLoss
+  };
+}
+
+/**
+ * Cancela las órdenes pendientes adicionales (`ordersToCancel.slice(1)`) exigiendo `status = 'pending'`
+ * y `preference_id IS NULL`. Verifica estrictamente que el resultado sea un arreglo válido con todos
+ * los IDs esperados; si falla o quedan filas sin actualizar, ejecuta la compensación apropiada
+ * (`restoreDetachedOrdersIfNeeded`) antes de responder sin reactivar órdenes canceladas ni invalidar
+ * preferencias ajenas.
+ */
+export async function cancelExtraPendingOrdersBeforeCheckout({
+  supabaseAdmin,
+  userId,
+  extraOrdersToCancel,
+  extraOrderIdsToCancel,
+  fallbackCancelOrderId,
+  restoreDetachedOrdersIfNeeded
+}: {
+  supabaseAdmin: any;
+  userId: string;
+  extraOrdersToCancel?: string[];
+  extraOrderIdsToCancel?: string[];
+  fallbackCancelOrderId?: string | null;
+  restoreDetachedOrdersIfNeeded: () => Promise<void>;
+}): Promise<
+  | { ok: true; cancelledIds: string[] }
+  | { ok: false; httpStatus: 409 | 500; body: Record<string, any> }
+> {
+  const targetExtraIds = extraOrdersToCancel ?? extraOrderIdsToCancel ?? [];
+  if (!targetExtraIds || targetExtraIds.length === 0) {
+    return { ok: true, cancelledIds: [] };
+  }
+
+  const { data: extraCancelledRows, error: extraCancelErr } = await supabaseAdmin
+    .from('orders')
+    .update({ status: 'cancelled' })
+    .in('id', targetExtraIds)
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .is('preference_id', null)
+    .select('id');
+
+  if (extraCancelErr) {
+    console.error('[CreatePref] Error cancelando órdenes pendientes adicionales:', extraCancelErr);
+    await restoreDetachedOrdersIfNeeded();
+    return {
+      ok: false,
+      httpStatus: 500,
+      body: {
+        error: 'No se pudieron cancelar todas las órdenes pendientes previas antes de crear el nuevo pedido.',
+        code: 'PRIOR_ORDER_CANCELLATION_FAILED'
+      }
+    };
+  }
+
+  const cancelledIds = Array.isArray(extraCancelledRows)
+    ? extraCancelledRows
+        .map((row: any) => (row && typeof row.id === 'string' ? row.id.trim() : ''))
+        .filter(Boolean)
+    : [];
+
+  const allExpectedCancelled =
+    Array.isArray(extraCancelledRows) &&
+    cancelledIds.length === targetExtraIds.length &&
+    targetExtraIds.every((expectedId) => cancelledIds.includes(expectedId));
+
+  if (!allExpectedCancelled) {
+    await restoreDetachedOrdersIfNeeded();
+    return {
+      ok: false,
+      httpStatus: 409,
+      body: {
+        error:
+          'No se pudo procesar el reemplazo porque una de las órdenes previas cambió de estado o recibió una pasarela concurrentemente.',
+        code: 'CONCURRENT_ORDER_STATE_CHANGED',
+        orderId: fallbackCancelOrderId || targetExtraIds[0]
+      }
+    };
+  }
+
+  return { ok: true, cancelledIds };
+}
+
+/**
+ * Valida la coherencia del resultado de `process_b2b_checkout` tras haber desvinculado una orden previa:
+ * - Si el carrito ya estaba convertido (`v_cart_status != 'active'`), `process_b2b_checkout` retorna anticipadamente
+ *   la orden asociada a ese carrito sin cancelar `cancelOrderId` ni crear el nuevo pedido. En ese caso, si había
+ *   un reemplazo en curso (`cancelOrderId !== null`), restaura de forma segura la orden previa desvinculada
+ *   (bajo lease válido) y rechaza con HTTP 409 `CART_ALREADY_CONVERTED` para no emitir una preferencia sobre
+ *   ítems obsoletos ni dejar la orden previa sin preferencia.
+ * - Si falla la lectura posterior de la orden devuelta o su estado ya no es `pending`, verifica si `cancelOrderId`
+ *   permaneció `pending` (sin cancelar) para restaurarla bajo lease válido antes de devolver el error correspondiente.
+ * - Cuando `cancelOrderId !== null` y la RPC devuelve otra orden (`rawOrderId !== cancelOrderId`), verifica
+ *   explícitamente en la base de datos el estado final de `cancelOrderId`. Si `cancelOrderId` no quedó en estado
+ *   `cancelled` (por ejemplo, sigue `pending`), restaura su preferencia bajo lease válido y aborta con HTTP 409
+ *   sin continuar como si el reemplazo se hubiera completado.
+ */
+export async function validateCreatedOrderAfterCheckoutRpc({
+  supabaseAdmin,
+  userId,
+  checkoutResult,
+  cancelOrderId,
+  restoreDetachedOrdersIfNeeded
+}: {
+  supabaseAdmin: any;
+  userId: string;
+  checkoutResult: any;
+  cancelOrderId: string | null;
+  restoreDetachedOrdersIfNeeded: () => Promise<void>;
+}): Promise<
+  | {
+      ok: true;
+      orderId: string;
+      orderData: {
+        status: string;
+        preference_id?: string | null;
+        init_point?: string | null;
+        customer_name?: string | null;
+        customer_email?: string | null;
+        tax_amount: number | string;
+      };
+    }
+  | {
+      ok: false;
+      httpStatus: 409 | 500;
+      body: Record<string, any>;
+    }
+> {
+  const rawOrderId = checkoutResult?.order_id;
+  const resultMsg = String(checkoutResult?.message || '');
+  const isAlreadyConvertedMessage = /carrito ya convertido/i.test(resultMsg);
+
+  // 1. Si se pretendía reemplazar una orden pendiente previa (cancelOrderId !== null), pero la RPC devolvió
+  //    una orden existente por idempotencia de carrito ya convertido (o devolvió el mismo cancelOrderId sin cancelarlo),
+  //    la Fase 2 de process_b2b_checkout NO se ejecutó: cancelOrderId sigue 'pending' con preference_id = null.
+  if (cancelOrderId && (isAlreadyConvertedMessage || rawOrderId === cancelOrderId)) {
+    await restoreDetachedOrdersIfNeeded();
+    return {
+      ok: false,
+      httpStatus: 409,
+      body: {
+        error:
+          'El carrito indicado ya fue procesado anteriormente y no puede utilizarse para reemplazar tu orden pendiente actual. Por favor actualiza tu carrito e intenta nuevamente.',
+        code: 'CART_ALREADY_CONVERTED',
+        orderId: cancelOrderId
+      }
+    };
+  }
+
+  const orderQuery = supabaseAdmin
+    .from('orders')
+    .select('status, preference_id, init_point, customer_name, customer_email, tax_amount')
+    .eq('id', rawOrderId);
+
+  const { data: orderData, error: orderFetchError } =
+    typeof orderQuery.maybeSingle === 'function'
+      ? await orderQuery.maybeSingle()
+      : await orderQuery.single();
+
+  const restoreIfPriorOrderStillPending = async () => {
+    if (!cancelOrderId) return;
+    try {
+      const priorQuery = supabaseAdmin
+        .from('orders')
+        .select('id, status, preference_id')
+        .eq('id', cancelOrderId)
+        .eq('user_id', userId)
+        .eq('status', 'pending');
+      const { data: priorRow } =
+        typeof priorQuery.maybeSingle === 'function'
+          ? await priorQuery.maybeSingle()
+          : await priorQuery.single();
+      if (priorRow && priorRow.status === 'pending' && priorRow.preference_id === null) {
+        await restoreDetachedOrdersIfNeeded();
+      }
+    } catch {
+      // Ignorar error de consulta secundaria para preservar el error principal
+    }
+  };
+
+  if (orderFetchError || !orderData) {
+    await restoreIfPriorOrderStillPending();
+    return {
+      ok: false,
+      httpStatus: 500,
+      body: { error: 'Error al verificar la orden creada.' }
+    };
+  }
+
+  if (orderData.status !== 'pending') {
+    console.warn('[CreatePref] La orden devuelta por RPC ya no se encuentra en estado pending:', {
+      orderId: rawOrderId,
+      status: orderData.status
+    });
+    await restoreIfPriorOrderStillPending();
+    return {
+      ok: false,
+      httpStatus: 409,
+      body: {
+        error:
+          'No se pudo completar el checkout porque la orden dejó de estar pendiente concurrentemente. Por favor intenta nuevamente.',
+        code: 'CONCURRENT_ORDER_STATE_CHANGED',
+        orderId: rawOrderId
+      }
+    };
+  }
+
+  // 2. Comprobación explícita en BD del estado final de `cancelOrderId` cuando se devuelve otra orden (MEDIO-M02-02)
+  if (cancelOrderId && rawOrderId !== cancelOrderId) {
+    const priorCheckQuery = supabaseAdmin
+      .from('orders')
+      .select('id, status, preference_id')
+      .eq('id', cancelOrderId)
+      .eq('user_id', userId);
+
+    const { data: priorOrderState, error: priorOrderErr } =
+      typeof priorCheckQuery.maybeSingle === 'function'
+        ? await priorCheckQuery.maybeSingle()
+        : await priorCheckQuery.single();
+
+    if (priorOrderErr || !priorOrderState) {
+      return {
+        ok: false,
+        httpStatus: 500,
+        body: { error: 'Error al verificar el estado final de la orden previa reemplazada.' }
+      };
+    }
+
+    if (priorOrderState.status !== 'cancelled') {
+      if (priorOrderState.status === 'pending' && priorOrderState.preference_id === null) {
+        await restoreDetachedOrdersIfNeeded();
+      }
+      return {
+        ok: false,
+        httpStatus: 409,
+        body: {
+          error:
+            'No se pudo procesar el reemplazo porque la orden previa no quedó cancelada o cambió de estado concurrentemente.',
+          code: 'CONCURRENT_ORDER_STATE_CHANGED',
+          orderId: cancelOrderId
+        }
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    orderId: rawOrderId,
+    orderData
+  };
+}
+
 export async function POST(req: NextRequest) {
   let verifiedUserId: string | null = null;
   let leaseId: string | null = null;
@@ -577,12 +1773,7 @@ export async function POST(req: NextRequest) {
     // 2.1 ADQUIRIR RESERVA DE CHECKOUT (DISTRIBUTED LEASE BACKED BY POSTGRESQL)
     leaseId = crypto.randomUUID();
     const leaseResult = await acquireUserCheckoutLease(supabaseAdmin, verifiedUserId, cartId, leaseId, 45);
-    if (leaseResult.success) {
-      leaseAcquired = true;
-    } else if (leaseResult.code === 'CHECKOUT_CONCURRENCY_NOT_CONFIGURED') {
-      console.warn('[CreatePref] RPC acquire_checkout_lease aún no configurada en BD; operando con firma compatible (migración 010).');
-      leaseAcquired = false;
-    } else {
+    if (!leaseResult.success) {
       console.warn('[CreatePref] No se pudo adquirir el lease de checkout:', leaseResult);
       return NextResponse.json({
         error: leaseResult.message,
@@ -590,6 +1781,7 @@ export async function POST(req: NextRequest) {
         retryAfter: leaseResult.retryAfter
       }, { status: leaseResult.httpStatus || 503 });
     }
+    leaseAcquired = true;
 
     // 3. VALIDAR RUT Y DATOS B2B
     if (!billing || !billing.rut || !isValidRUT(billing.rut)) {
@@ -622,7 +1814,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: cartCalc.error }, { status: 400 });
     }
 
-    // 6. ETAPA 1, 2A, 2A.5 & 2D.2: GESTIÓN DE TODAS LAS ÓRDENES EN ESTADO 'pending' DEL USUARIO
+    // 6. ETAPA 1, 2A, 2A.5, 2D.2 & MEDIO-02: GESTIÓN DE TODAS LAS ÓRDENES EN ESTADO 'pending' DEL USUARIO
+    const requestNowMs = Date.now();
     let cancelOrderId: string | null = null;
     let ordersToCancel: string[] = [];
 
@@ -641,21 +1834,40 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
+    const fetchOrderItemsForOrder = async (candidateOrderId: string) => {
+      const { data: items, error: itemsErr } = await supabaseAdmin
+        .from('order_items')
+        .select('*')
+        .eq('order_id', candidateOrderId);
+      if (itemsErr) {
+        console.error('[CreatePref] Error consultando order_items de orden candidata:', {
+          orderId: candidateOrderId,
+          error: itemsErr
+        });
+      }
+      return items || [];
+    };
+
     const pendingDecision = await evaluatePendingOrdersForCheckout({
       pendingOrders: allPendingOrders || [],
-      fetchOrderItems: async (candidateOrderId: string) => {
-        const { data: items } = await supabaseAdmin
-          .from('order_items')
-          .select('*')
-          .eq('order_id', candidateOrderId);
-        return items || [];
-      },
+      fetchOrderItems: fetchOrderItemsForOrder,
       matchesOrder: (candidateOrder, candidateItems) =>
         matchesCandidateOrder(candidateOrder, candidateItems, itemsPayload, cartCalc),
       checkPaymentStatus: (candidateOrderId: string) =>
         checkCandidateOrderPaymentStatus(candidateOrderId, process.env.MP_ACCESS_TOKEN!),
       invalidatePreference: (preferenceId: string) =>
         invalidateCandidateOrderPreference(preferenceId, process.env.MP_ACCESS_TOKEN!),
+      checkPreferenceValidity: (preferenceId: string, expectedOrdId?: string) =>
+        checkCandidatePreferenceValidity(
+          preferenceId,
+          process.env.MP_ACCESS_TOKEN!,
+          7000,
+          undefined,
+          requestNowMs,
+          expectedOrdId
+        ),
+      nowMs: requestNowMs,
+      deferPreferenceInvalidation: true
     });
 
     if (pendingDecision.outcome === 'reuse_existing_preference') {
@@ -667,8 +1879,19 @@ export async function POST(req: NextRequest) {
     }
 
     if (pendingDecision.outcome === 'recover_missing_preference') {
+      const candidateOrder = pendingDecision.order;
+      const leaseBeforeRecover = await verifyUserCheckoutLease(supabaseAdmin, verifiedUserId, leaseId);
+      if (!leaseBeforeRecover.valid) {
+        return NextResponse.json(
+          {
+            error: 'Tu reserva de pago expiró o fue transferida antes de recuperar la pasarela. Por favor intenta nuevamente.',
+            code: leaseBeforeRecover.code
+          },
+          { status: 409 }
+        );
+      }
+
       try {
-        const candidateOrder = pendingDecision.order;
         const pref = await createMpPreference({
           orderId: candidateOrder.id,
           customerName: candidateOrder.customer_name || billing.contacto_nombre || 'Cliente B2B',
@@ -678,15 +1901,77 @@ export async function POST(req: NextRequest) {
           siteUrl
         });
 
+        const leaseBeforePersistRecover = await verifyUserCheckoutLease(supabaseAdmin, verifiedUserId, leaseId);
+        if (!leaseBeforePersistRecover.valid) {
+          await invalidateCandidateOrderPreference(pref.id, process.env.MP_ACCESS_TOKEN!);
+          return NextResponse.json(
+            {
+              error: 'Tu reserva de pago expiró mientras se generaba la pasarela. Por favor intenta nuevamente.',
+              code: leaseBeforePersistRecover.code
+            },
+            { status: 409 }
+          );
+        }
+
         const result = await persistPreferenceAtomic(
           supabaseAdmin,
           candidateOrder.id,
           pref.id,
-          pref.paymentUrl
+          pref.paymentUrl,
+          {
+            userId: verifiedUserId,
+            leaseId,
+            expectedStalePreferenceId: pendingDecision.stalePreferenceId ?? null
+          }
         );
 
         return NextResponse.json(result);
       } catch (mpError: any) {
+        if (
+          mpError instanceof ConcurrentOrderStateChangedError ||
+          mpError?.code === 'CONCURRENT_ORDER_STATE_CHANGED'
+        ) {
+          console.warn('[CreatePref] Orden recuperada dejó de estar pendiente antes de persistir preferencia:', {
+            orderId: candidateOrder.id,
+            message: mpError.message
+          });
+          return NextResponse.json(
+            {
+              error: mpError.message,
+              code: 'CONCURRENT_ORDER_STATE_CHANGED',
+              orderId: candidateOrder.id
+            },
+            { status: 409 }
+          );
+        }
+        if (
+          mpError instanceof CheckoutLeaseInvalidError ||
+          [
+            'LEASE_NOT_FOUND',
+            'LEASE_LOST_TO_CONCURRENT_REQUEST',
+            'LEASE_EXPIRED',
+            'LEASE_REQUIRED'
+          ].includes(String(mpError?.code || ''))
+        ) {
+          return NextResponse.json(
+            {
+              error: mpError.message,
+              code: mpError.code,
+              orderId: candidateOrder.id
+            },
+            { status: 409 }
+          );
+        }
+        if (mpError instanceof WinnerPreferenceVerificationFailedError) {
+          return NextResponse.json(
+            {
+              error: mpError.message,
+              code: mpError.code,
+              orderId: candidateOrder.id
+            },
+            { status: mpError.httpStatus }
+          );
+        }
         console.error('[CreatePref] Error recuperando preferencia MP para orden existente:', mpError?.message || mpError);
         const sanitized = sanitizeMercadoPagoError(mpError);
         return NextResponse.json({ error: sanitized.error }, { status: sanitized.status });
@@ -704,9 +1989,19 @@ export async function POST(req: NextRequest) {
 
     ordersToCancel = pendingDecision.ordersToCancel;
     cancelOrderId = ordersToCancel.length > 0 ? ordersToCancel[0] : null;
+    const preferencesToInvalidate = pendingDecision.preferencesToInvalidate || [];
+    const priorOrdersSnapshot =
+      pendingDecision.priorOrdersSnapshot ||
+      (allPendingOrders || []).map((o: any) => ({
+        orderId: o.id,
+        expectedPreferenceId: o.preference_id ?? null
+      }));
+    const candidateOrdersById = new Map<string, any>(
+      (allPendingOrders || []).map((o: any) => [o.id, o])
+    );
 
     // 7. FLUJO NORMAL: No hay orden previa reutilizable o el carrito fue modificado
-    // Forzar sincronización del carrito en Supabase
+    // Forzar sincronización del carrito en Supabase ANTES de invalidar preferencias previas
     const { error: syncError } = await supabaseAuthClient.rpc('sync_cart', {
       p_cart_id: cartId,
       p_items: itemsPayload,
@@ -732,76 +2027,101 @@ export async function POST(req: NextRequest) {
       shipping_commune: billing.comuna || profile?.commune || null,
     };
 
-    let checkoutResult: any = null;
-    let checkoutError: any = null;
-
-    if (leaseAcquired) {
-      // Verificar vigencia del lease antes de convertir el carrito y crear la orden
-      const leaseValidityBeforeOrder = await verifyUserCheckoutLease(supabaseAdmin, verifiedUserId, leaseId);
-      if (!leaseValidityBeforeOrder.valid) {
-        console.warn('[CreatePref] Abortando creación de orden por lease inválido/expirado:', leaseValidityBeforeOrder);
-        return NextResponse.json({
-          error: 'Tu reserva de pago expiró o fue transferida antes de registrar la orden. Por favor intenta nuevamente.',
-          code: leaseValidityBeforeOrder.code
-        }, { status: 409 });
-      }
-
-      // Si existían múltiples órdenes pendientes históricas ya verificadas sin pagos activos,
-      // cancelar las adicionales antes de pasar la orden principal a p_cancel_order_id en la RPC de 5 argumentos
-      if (ordersToCancel.length > 1) {
-        const extraOrdersToCancel = ordersToCancel.slice(1);
-        const { error: extraCancelErr } = await supabaseAdmin
-          .from('orders')
-          .update({ status: 'cancelled' })
-          .in('id', extraOrdersToCancel)
-          .eq('user_id', verifiedUserId)
-          .eq('status', 'pending');
-
-        if (extraCancelErr) {
-          console.error('[CreatePref] Error cancelando órdenes pendientes adicionales:', extraCancelErr);
-          return NextResponse.json({
-            error: 'No se pudieron cancelar todas las órdenes pendientes previas antes de crear el nuevo pedido.',
-            code: 'PRIOR_ORDER_CANCELLATION_FAILED'
-          }, { status: 500 });
-        }
-      }
-
-      // Ejecutar RPC atómico con Fencing Token (p_lease_id) y Cancelación Atómica (p_cancel_order_id)
-      const rpcRes = await supabaseAdmin.rpc('process_b2b_checkout', {
-        p_user_id: verifiedUserId,
-        p_cart_id: cartId,
-        p_billing: billingData,
-        p_lease_id: leaseId,
-        p_cancel_order_id: cancelOrderId
-      });
-      checkoutResult = rpcRes.data;
-      checkoutError = rpcRes.error;
-    } else {
-      // Modo compatible con migración 010 (3 argumentos) mientras migración 012 no haya sido ejecutada en BD
-      if (ordersToCancel.length > 0) {
-        const { error: cancelErr } = await supabaseAdmin
-          .from('orders')
-          .update({ status: 'cancelled' })
-          .in('id', ordersToCancel)
-          .eq('user_id', verifiedUserId)
-          .eq('status', 'pending');
-
-        if (cancelErr) {
-          console.error('[CreatePref] Error cancelando órdenes pendientes en modo compatible 010:', cancelErr);
-          return NextResponse.json({
-            error: 'No se pudo cancelar la orden pendiente previa antes de crear el nuevo pedido.',
-            code: 'PRIOR_ORDER_CANCELLATION_FAILED'
-          }, { status: 500 });
-        }
-      }
-      const rpcRes = await supabaseAdmin.rpc('process_b2b_checkout', {
-        p_user_id: verifiedUserId,
-        p_cart_id: cartId,
-        p_billing: billingData
-      });
-      checkoutResult = rpcRes.data;
-      checkoutError = rpcRes.error;
+    // Verificar vigencia del lease ANTES de invalidar preferencias previas o crear la orden
+    const leaseValidityBeforeOrder = await verifyUserCheckoutLease(supabaseAdmin, verifiedUserId, leaseId);
+    if (!leaseValidityBeforeOrder.valid) {
+      console.warn('[CreatePref] Abortando creación de orden por lease inválido/expirado:', leaseValidityBeforeOrder);
+      return NextResponse.json({
+        error: 'Tu reserva de pago expiró o fue transferida antes de registrar la orden. Por favor intenta nuevamente.',
+        code: leaseValidityBeforeOrder.code
+      }, { status: 409 });
     }
+
+    // Verificar en Supabase TODAS las órdenes pendientes que se van a cancelar (incluyendo las que se leyeron
+    // inicialmente con preference_id = null), invalidar en Mercado Pago las preferencias activas esperadas y
+    // desacoplarlas (preference_id = null, init_point = null) únicamente tras confirmar sync_cart y verifyUserCheckoutLease.
+    let detachedOrders: { orderId: string; invalidatedPreferenceId: string }[] = [];
+    if (ordersToCancel.length > 0 || preferencesToInvalidate.length > 0) {
+      const invalidationOutcome = await invalidateAndDetachPriorOrderPreferences({
+        supabaseAdmin,
+        userId: verifiedUserId,
+        preferencesToInvalidate,
+        ordersToReplace: priorOrdersSnapshot,
+        invalidatePreference: (preferenceId: string) =>
+          invalidateCandidateOrderPreference(preferenceId, process.env.MP_ACCESS_TOKEN!)
+      });
+
+      detachedOrders = invalidationOutcome.detachedOrders;
+
+      if (!invalidationOutcome.ok) {
+        if (
+          detachedOrders.length > 0 &&
+          invalidationOutcome.code !== 'CONCURRENT_ORDER_STATE_CHANGED'
+        ) {
+          await restorePendingOrdersAfterFailedReplacement({
+            supabaseAdmin,
+            userId: verifiedUserId,
+            leaseId,
+            detachedOrders,
+            candidateOrdersById,
+            siteUrl,
+            fallbackCustomerEmail: billing.contacto_email || user.email || '',
+            fetchOrderItems: fetchOrderItemsForOrder,
+            nowMs: requestNowMs
+          });
+        }
+        return NextResponse.json(
+          {
+            error: invalidationOutcome.error,
+            code: invalidationOutcome.code,
+            orderId: invalidationOutcome.orderId
+          },
+          { status: invalidationOutcome.httpStatus }
+        );
+      }
+    }
+
+    const restoreDetachedOrdersIfNeeded = async () => {
+      if (detachedOrders.length > 0 && verifiedUserId && leaseId) {
+        await restorePendingOrdersAfterFailedReplacement({
+          supabaseAdmin,
+          userId: verifiedUserId,
+          leaseId,
+          detachedOrders,
+          candidateOrdersById,
+          siteUrl,
+          fallbackCustomerEmail: billing.contacto_email || user.email || '',
+          fetchOrderItems: fetchOrderItemsForOrder,
+          nowMs: requestNowMs
+        });
+      }
+    };
+
+    // Si existían múltiples órdenes pendientes históricas ya verificadas sin pagos activos y con preference_id = null,
+    // cancelar las adicionales exigiendo status = 'pending' y preference_id IS NULL antes de pasar la principal a la RPC
+    if (ordersToCancel.length > 1) {
+      const extraCancelOutcome = await cancelExtraPendingOrdersBeforeCheckout({
+        supabaseAdmin,
+        userId: verifiedUserId,
+        extraOrdersToCancel: ordersToCancel.slice(1),
+        restoreDetachedOrdersIfNeeded
+      });
+
+      if (!extraCancelOutcome.ok) {
+        return NextResponse.json(extraCancelOutcome.body, {
+          status: extraCancelOutcome.httpStatus
+        });
+      }
+    }
+
+    // Ejecutar RPC atómico con Fencing Token (p_lease_id) y Cancelación Atómica (p_cancel_order_id)
+    const { data: checkoutResult, error: checkoutError } = await supabaseAdmin.rpc('process_b2b_checkout', {
+      p_user_id: verifiedUserId,
+      p_cart_id: cartId,
+      p_billing: billingData,
+      p_lease_id: leaseId,
+      p_cancel_order_id: cancelOrderId
+    });
 
     if (checkoutError) {
       console.error('[CreatePref] RPC Checkout Error:', {
@@ -810,6 +2130,21 @@ export async function POST(req: NextRequest) {
         details: checkoutError.details,
         hint: checkoutError.hint
       });
+
+      const recoveryDecision = classifyCheckoutRpcFailureForRecovery({
+        checkoutError,
+        checkoutResult: null
+      });
+
+      if (recoveryDecision.shouldRecover) {
+        await restoreDetachedOrdersIfNeeded();
+      } else {
+        console.warn('[CreatePref] Omitiendo recuperación compensatoria tras error de RPC:', {
+          category: recoveryDecision.category,
+          reason: recoveryDecision.reason,
+          cancelOrderId
+        });
+      }
 
       // 1. Conflicto de unicidad de orden pendiente por usuario (idx_uniq_user_pending_order)
       const isPendingOrderUniqueConflict =
@@ -859,6 +2194,14 @@ export async function POST(req: NextRequest) {
         }, { status: 400 });
       }
 
+      // 5. Error de expiración del lease detectado por excepción al final de process_b2b_checkout
+      if (checkoutError.code === 'P0001' && checkoutError.message?.includes('LEASE_EXPIRED')) {
+        return NextResponse.json({
+          error: checkoutError.message,
+          code: 'LEASE_EXPIRED_AT_COMMIT'
+        }, { status: 409 });
+      }
+
       // 5. Errores de catálogo o carrito inválido (HTTP 400)
       if (
         checkoutError.message?.includes('no encontrado en catálogo') ||
@@ -877,9 +2220,9 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
-    // 7.1 Validación Fail-Closed: checkoutResult debe ser un objeto válido y definido
+    // 7.1 Validación Fail-Closed: checkoutResult debe ser un objeto válido y definido (resultado ambiguo: NO restaurar a ciegas)
     if (!checkoutResult || typeof checkoutResult !== 'object') {
-      console.error('[CreatePref] Respuesta inválida o vacía de RPC process_b2b_checkout:', {
+      console.error('[CreatePref] Respuesta inválida o vacía de RPC process_b2b_checkout (resultado ambiguo):', {
         type: typeof checkoutResult,
         hasResult: !!checkoutResult
       });
@@ -889,12 +2232,21 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
-    // 7.2 Si success !== true, verificar si es un rechazo controlado o respuesta anómala
+    // 7.2 Si success !== true, verificar si es un rechazo por pérdida de lease o conflicto de concurrencia.
+    //     NUNCA ejecutar recuperación compensatoria cuando la RPC rechazó por LEASE_LOST_TO_CONCURRENT_REQUEST,
+    //     LEASE_EXPIRED, LEASE_NOT_FOUND o CONCURRENT_ORDER_STATE_CHANGED.
     if (checkoutResult.success !== true) {
       console.warn('[CreatePref] Fallo controlado o rechazo en RPC checkout:', {
         code: checkoutResult.code,
         message: checkoutResult.message
       });
+      const recoveryDecision = classifyCheckoutRpcFailureForRecovery({
+        checkoutError: null,
+        checkoutResult
+      });
+      if (recoveryDecision.shouldRecover) {
+        await restoreDetachedOrdersIfNeeded();
+      }
       const responseBody: Record<string, any> = {
         error: checkoutResult.message || 'Conflicto al procesar la orden en el servidor.',
         code: checkoutResult.code || 'CHECKOUT_CONFLICT'
@@ -919,59 +2271,168 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
-    const orderId = rawOrderId;
+    // 7.4 Validar consistencia de la orden devuelta (incluyendo carrito ya convertido y fallos posteriores a la desvinculación)
+    const validatedOrder = await validateCreatedOrderAfterCheckoutRpc({
+      supabaseAdmin,
+      userId: verifiedUserId,
+      checkoutResult,
+      cancelOrderId,
+      restoreDetachedOrdersIfNeeded
+    });
 
-      // Consultar preference existente (por si un retry rápido usó el mismo cartId)
-      const { data: orderData, error: orderFetchError } = await supabaseAdmin
-        .from('orders')
-        .select('preference_id, init_point, customer_name, customer_email, tax_amount')
-        .eq('id', orderId)
-        .single();
+    if (!validatedOrder.ok) {
+      return NextResponse.json(validatedOrder.body, { status: validatedOrder.httpStatus });
+    }
 
-      if (orderFetchError || !orderData) {
-        return NextResponse.json({ error: 'Error al verificar la orden creada.' }, { status: 500 });
-      }
+    const orderId = validatedOrder.orderId;
+    const orderData = validatedOrder.orderData;
+    let stalePreferenceOnOrder: string | null = null;
 
-      if (orderData.preference_id && orderData.init_point) {
-        return NextResponse.json({ 
-          id: orderData.preference_id,
-          initPoint: orderData.init_point, 
-          orderId 
-        });
-      }
+    if (orderData.preference_id && orderData.init_point) {
+      // No confiar únicamente en el Set en memoria: verificar siempre la preferencia en Mercado Pago
+      const existingPrefValidity = await checkCandidatePreferenceValidity(
+        orderData.preference_id,
+        process.env.MP_ACCESS_TOKEN!,
+        7000,
+        undefined,
+        requestNowMs,
+        orderId
+      );
 
-      const { data: orderItems, error: itemsFetchError } = await supabaseAdmin
-        .from('order_items')
-        .select('*')
-        .eq('order_id', orderId);
-
-      if (itemsFetchError || !orderItems) {
-        return NextResponse.json({ error: 'Error al recuperar los ítems de la orden.' }, { status: 500 });
-      }
-
-      try {
-        const pref = await createMpPreference({
-          orderId,
-          customerName: orderData.customer_name || 'Cliente B2B',
-          customerEmail: orderData.customer_email || user.email || '',
-          orderItems,
-          taxAmount: Number(orderData.tax_amount),
-          siteUrl
-        });
-
-        const result = await persistPreferenceAtomic(
-          supabaseAdmin,
-          orderId,
-          pref.id,
-          pref.paymentUrl
+      if (!existingPrefValidity || existingPrefValidity.status === 'error') {
+        return NextResponse.json(
+          {
+            error:
+              'No se pudo verificar la vigencia de la pasarela de pago de tu orden en Mercado Pago. Por seguridad, intenta nuevamente en unos instantes.',
+            code: 'FAILED_TO_VERIFY_PRIOR_PAYMENTS',
+            orderId
+          },
+          { status: 502 }
         );
-
-        return NextResponse.json(result);
-      } catch (mpError: any) {
-        console.error('[CreatePref] Error de Mercado Pago:', mpError?.message || mpError);
-        const sanitized = sanitizeMercadoPagoError(mpError);
-        return NextResponse.json({ error: sanitized.error }, { status: sanitized.status });
       }
+
+      if (
+        existingPrefValidity.valid &&
+        existingPrefValidity.status === 'active' &&
+        !isPreferenceMarkedInvalidated(orderData.preference_id)
+      ) {
+        return NextResponse.json({
+          id: orderData.preference_id,
+          initPoint: orderData.init_point,
+          orderId
+        });
+      }
+
+      stalePreferenceOnOrder = orderData.preference_id;
+    }
+
+    const { data: orderItems, error: itemsFetchError } = await supabaseAdmin
+      .from('order_items')
+      .select('*')
+      .eq('order_id', orderId);
+
+    if (itemsFetchError || !orderItems) {
+      return NextResponse.json({ error: 'Error al recuperar los ítems de la orden.' }, { status: 500 });
+    }
+
+    const leaseBeforeCreateNewPref = await verifyUserCheckoutLease(supabaseAdmin, verifiedUserId, leaseId);
+    if (!leaseBeforeCreateNewPref.valid) {
+      return NextResponse.json(
+        {
+          error: 'Tu reserva de pago expiró o fue transferida antes de generar la pasarela. Por favor intenta nuevamente.',
+          code: leaseBeforeCreateNewPref.code,
+          orderId
+        },
+        { status: 409 }
+      );
+    }
+
+    try {
+      const pref = await createMpPreference({
+        orderId,
+        customerName: orderData.customer_name || 'Cliente B2B',
+        customerEmail: orderData.customer_email || user.email || '',
+        orderItems,
+        taxAmount: Number(orderData.tax_amount),
+        siteUrl
+      });
+
+      const leaseBeforePersistNewPref = await verifyUserCheckoutLease(supabaseAdmin, verifiedUserId, leaseId);
+      if (!leaseBeforePersistNewPref.valid) {
+        await invalidateCandidateOrderPreference(pref.id, process.env.MP_ACCESS_TOKEN!);
+        return NextResponse.json(
+          {
+            error: 'Tu reserva de pago expiró mientras se generaba la pasarela. Por favor intenta nuevamente.',
+            code: leaseBeforePersistNewPref.code,
+            orderId
+          },
+          { status: 409 }
+        );
+      }
+
+      const result = await persistPreferenceAtomic(
+        supabaseAdmin,
+        orderId,
+        pref.id,
+        pref.paymentUrl,
+        {
+          userId: verifiedUserId,
+          leaseId,
+          expectedStalePreferenceId: stalePreferenceOnOrder
+        }
+      );
+
+      return NextResponse.json(result);
+    } catch (mpError: any) {
+      if (
+        mpError instanceof ConcurrentOrderStateChangedError ||
+        mpError?.code === 'CONCURRENT_ORDER_STATE_CHANGED'
+      ) {
+        console.warn('[CreatePref] La orden cambió de estado durante la creación de preferencia MP:', {
+          orderId,
+          message: mpError.message
+        });
+        return NextResponse.json(
+          {
+            error: mpError.message,
+            code: 'CONCURRENT_ORDER_STATE_CHANGED',
+            orderId
+          },
+          { status: 409 }
+        );
+      }
+      if (
+        mpError instanceof CheckoutLeaseInvalidError ||
+        [
+          'LEASE_NOT_FOUND',
+          'LEASE_LOST_TO_CONCURRENT_REQUEST',
+          'LEASE_EXPIRED',
+          'LEASE_REQUIRED'
+        ].includes(String(mpError?.code || ''))
+      ) {
+        return NextResponse.json(
+          {
+            error: mpError.message,
+            code: mpError.code,
+            orderId
+          },
+          { status: 409 }
+        );
+      }
+      if (mpError instanceof WinnerPreferenceVerificationFailedError) {
+        return NextResponse.json(
+          {
+            error: mpError.message,
+            code: mpError.code,
+            orderId
+          },
+          { status: mpError.httpStatus }
+        );
+      }
+      console.error('[CreatePref] Error de Mercado Pago:', mpError?.message || mpError);
+      const sanitized = sanitizeMercadoPagoError(mpError);
+      return NextResponse.json({ error: sanitized.error }, { status: sanitized.status });
+    }
 
   } catch (error: any) {
     console.error('API Checkout Error:', error);
