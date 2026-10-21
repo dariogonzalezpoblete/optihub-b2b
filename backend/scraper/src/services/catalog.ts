@@ -687,54 +687,97 @@ export class CatalogRunner {
   }
 
   /**
-   * Advances pagination using goToPage(page) or next button
+   * Advances pagination robustly using direct button click or Next arrow,
+   * verifying DOM state change so all catalog pages are traversed until the end.
    */
   private async advancePage(page: Page, currentPageNum: number): Promise<boolean> {
     const nextPageNum = currentPageNum + 1;
+    const targetNum = String(nextPageNum);
 
     try {
-      const hasGoToPage = await page.evaluate(() => {
-        return typeof (window as any).goToPage === 'function';
-      });
+      // 1. Snapshot first few product IDs before navigating
+      const currentIds = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('.product-item'))
+          .map((c) => c.getAttribute('data-product-id'))
+          .filter(Boolean)
+          .slice(0, 5)
+      );
 
-      if (hasGoToPage) {
-        Logger.info(`Invocando paginación nativa goToPage(${nextPageNum})...`);
+      // 2. Scroll to bottom of catalog to ensure pagination controls are rendered
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await page.waitForTimeout(400);
 
+      // 3. Locate direct numeric page link (e.g. goToPage(2), '2', Page$2)
+      const directBtn = page.locator(
+        `a[onclick*="goToPage(${targetNum})"], a:text-matches('^${targetNum}$'), a[href*="Page$${targetNum}"]`
+      ).first();
+
+      let clicked = false;
+      if (await directBtn.count() > 0 && await directBtn.isVisible().catch(() => false)) {
+        Logger.info(`Navegando a página ${targetNum} mediante enlace numérico directo...`);
+        await directBtn.scrollIntoViewIfNeeded().catch(() => {});
         await Promise.all([
-          page.waitForLoadState('domcontentloaded', { timeout: 12000 }).catch(() => {}),
-          page.evaluate((target) => {
-            (window as any).goToPage(target);
-          }, nextPageNum),
+          page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {}),
+          directBtn.click().catch(() => directBtn.dispatchEvent('click')),
         ]);
+        clicked = true;
+      } else {
+        // 4. Fallback: locate "Next" button / right arrow
+        const nextArrow = page.locator(
+          'a:has-text("Next"), a[rel="next"], [rel="next"] a, a:has-text("»"), a:has-text("›")'
+        ).first();
 
-        await page.waitForTimeout(2000);
-
-        const newCardsCount = await page.evaluate(() => {
-          return document.querySelectorAll('.product-item').length;
-        });
-
-        if (newCardsCount > 0) {
-          Logger.success(`Página ${nextPageNum} cargada exitosamente.`);
-          return true;
+        if (await nextArrow.count() > 0 && await nextArrow.isVisible().catch(() => false)) {
+          Logger.info(`Navegando a página ${targetNum} mediante flecha 'Siguiente'...`);
+          await nextArrow.scrollIntoViewIfNeeded().catch(() => {});
+          await Promise.all([
+            page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {}),
+            nextArrow.click().catch(() => nextArrow.dispatchEvent('click')),
+          ]);
+          clicked = true;
+        } else {
+          // 5. Fallback: execute goToPage asynchronously via detached setTimeout so context destruction doesn't throw
+          const hasGoToPage = await page.evaluate(() => typeof (window as any).goToPage === 'function');
+          if (hasGoToPage) {
+            Logger.info(`Ejecutando goToPage(${targetNum}) desacoplado...`);
+            await Promise.all([
+              page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {}),
+              page.evaluate((target) => {
+                setTimeout(() => (window as any).goToPage(target), 50);
+              }, nextPageNum),
+            ]);
+            clicked = true;
+          }
         }
       }
 
-      const nextSelector = `a[onclick*="goToPage(${nextPageNum})"], a:text-matches('^${nextPageNum}$'), a[rel="next"], [rel="next"] a, a:has-text("Next")`;
-      const nextBtn = page.locator(nextSelector).first();
+      if (!clicked) {
+        Logger.info(`No se encontraron más controles de paginación para la página ${targetNum}.`);
+        return false;
+      }
 
-      if (await nextBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
-        await nextBtn.scrollIntoViewIfNeeded().catch(() => {});
-        await Promise.all([
-          page.waitForLoadState('domcontentloaded', { timeout: 8000 }).catch(() => {}),
-          nextBtn.click().catch(() => nextBtn.dispatchEvent('click')),
-        ]);
-        await page.waitForTimeout(1500);
+      // Allow DOM to settle
+      await page.waitForTimeout(1500);
+
+      // 6. Verify page transition by inspecting newly loaded product IDs
+      const newIds = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('.product-item'))
+          .map((c) => c.getAttribute('data-product-id'))
+          .filter(Boolean)
+          .slice(0, 5)
+      );
+      const newCount = await page.evaluate(() => document.querySelectorAll('.product-item').length);
+
+      if (newCount > 0 && (currentIds.length === 0 || JSON.stringify(newIds) !== JSON.stringify(currentIds))) {
+        Logger.success(`Página ${targetNum} cargada correctamente (${newCount} productos en vista).`);
         return true;
       }
-    } catch (e) {
-      Logger.debug(`Paginación a pág. ${nextPageNum} falló:`, e);
-    }
 
-    return false;
+      Logger.info(`La página ${targetNum} no arrojó nuevos productos diferentes. Fin del listado.`);
+      return false;
+    } catch (e) {
+      Logger.debug(`Excepción durante cambio a página ${nextPageNum}:`, e);
+      return false;
+    }
   }
 }
