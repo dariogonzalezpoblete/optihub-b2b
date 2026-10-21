@@ -19,3 +19,4 @@ __pycache__/
 # Data outputs & logs
 *.csv
 *.log
+catalog_*.json

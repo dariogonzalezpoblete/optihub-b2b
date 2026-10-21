@@ -37,13 +37,13 @@ export class CatalogRunner {
 
     this.interceptor.reset(brand);
 
-    // Preload existing Supabase records to reuse previously uploaded images
+    // Preload existing Supabase records to reuse previously uploaded WebP images
     let existingCache = new Map<string, { stock: number; imagen_principal?: string }>();
     if (this.supabaseService && this.supabaseService.isConfigured()) {
       existingCache = await this.supabaseService.getExistingBrandRecords(brand);
     }
 
-    // 1. Navigate to brand catalog
+    // 1. Navigate to brand catalog (using BRANDS mega-menu hover or Search bar)
     const opened = await this.navigateToBrandCatalog(page, brand);
     if (!opened) {
       Logger.warn(`No se pudo acceder automáticamente al catálogo de '${brand}'.`);
@@ -59,13 +59,13 @@ export class CatalogRunner {
     while (pageNum <= maxPages) {
       Logger.info(`\n📄 Procesando página ${pageNum}/${maxPages} de '${brand.toUpperCase()}'...`);
 
-      // Trigger lazy loads for fetch/xhr event triggers
+      // Trigger lazy loads for fetch/xhr event triggers and image rendering
       await this.triggerLazyLoading(page);
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(800);
 
       // 2. Extract DOM product cards visible on current page
       const pageCards = await this.extractCardsFromListing(page, brand);
-      Logger.info(`Tarjetas de producto encontradas en DOM: ${pageCards.length}`);
+      Logger.info(`Tarjetas de producto estructuradas en página ${pageNum}: ${pageCards.length}`);
 
       // Combine intercepted API products and DOM cards
       const interceptedItems = this.interceptor.getCapturedProducts();
@@ -84,8 +84,13 @@ export class CatalogRunner {
       }
 
       Logger.info(
-        `Total variantes activas acumuladas en pág. ${pageNum}: ${allProducts.size}`
+        `Total variantes activas acumuladas en catálogo: ${allProducts.size}`
       );
+
+      if (pageCards.length === 0 && interceptedItems.length === 0) {
+        Logger.info(`No se encontraron productos en la página ${pageNum}. Fin del catálogo.`);
+        break;
+      }
 
       // 3. Advance to next page
       const hasNext = await this.advancePage(page, pageNum);
@@ -101,7 +106,7 @@ export class CatalogRunner {
       (p) => p.stock > options.minStock
     );
 
-    Logger.info(`\n🖼️ Optimizando imágenes con Sharp (WebP @ Lanczos) para ${rawList.length} productos...`);
+    Logger.info(`\n🖼️ Optimizando imágenes con Sharp (WebP @ Lanczos-3) para ${rawList.length} productos...`);
 
     // 4. Image Optimization Pipeline
     const processedProducts: OptiHubProduct[] = [];
@@ -154,7 +159,7 @@ export class CatalogRunner {
   }
 
   /**
-   * Scrapes product cards directly from the listing grid
+   * Scrapes product cards directly from the nywd.com listing grid
    */
   public async extractCardsFromListing(page: Page, brandName: string): Promise<OptiHubProduct[]> {
     try {
@@ -171,45 +176,59 @@ export class CatalogRunner {
           priceUsd: number;
           imageUrl: string;
           url: string;
+          productId: string;
         }> = [];
 
-        // Common product card selectors on nywd.com
+        // All product cards on nywd.com listing pages
         const cardElements = Array.from(
-          document.querySelectorAll<HTMLElement>(
-            '.product-item, .product-box, .listing-item, .col-item, .item-box, div[class*="product"]'
-          )
+          document.querySelectorAll<HTMLElement>('.product-item, div[data-product-id]')
         );
 
         for (const card of cardElements) {
           const text = (card.innerText || card.textContent || '').trim();
           if (!text || text.length < 5) continue;
 
-          // Price match
-          const priceMatch = text.match(/\$\s*([\d,.]+)/);
-          if (!priceMatch) continue;
-          const priceUsd = parseFloat(priceMatch[1].replace(/,/g, ''));
-          if (isNaN(priceUsd) || priceUsd <= 0) continue;
+          // In-stock & product ID from data attributes
+          const attrStock = card.getAttribute('data-instock');
+          const productId = card.getAttribute('data-product-id') || '';
 
-          // Link & NYWD ID
-          const linkEl = card.querySelector<HTMLAnchorElement>('a[href*="product-"], a[href*="listing"]');
-          const href = linkEl?.href || '';
+          // Price extraction: look for all dollar values ($21.50, $5.99)
+          const priceMatches = text.match(/\$\s*([\d,.]+)/g);
+          let priceUsd = 0;
+          if (priceMatches && priceMatches.length > 0) {
+            const parsed = priceMatches
+              .map((p) => parseFloat(p.replace(/[^0-9.]/g, '')))
+              .filter((p) => !isNaN(p) && p > 0);
+            // The active wholesale price is the last/lowest price displayed
+            priceUsd = parsed[parsed.length - 1] || parsed[0] || 0;
+          }
 
-          // SKU & Model
+          if (priceUsd <= 0) continue;
+
+          // Product Link & NYWD ID
+          const linkEl = card.querySelector<HTMLAnchorElement>('a[href*="product-"], figure[href]');
+          const href = linkEl?.getAttribute('href') || linkEl?.href || (productId ? `/new-product-${productId}` : '');
+
+          // Model extraction: check prominent title headers or regex
           let model = '';
-          const titleEl = card.querySelector('h2, h3, h4, .product-title, .product-name, .title');
+          const titleEl = card.querySelector(
+            'h2.font-serif, a[href*="product-"] h2, .product-title, .product-name, h2:not(.text-primary)'
+          );
           if (titleEl) {
             model = (titleEl.textContent || '').trim();
           }
-          if (!model) {
-            const mMatch = text.match(/Model\s*:?\s*([a-zA-Z0-9_-]+)/i);
-            if (mMatch) model = mMatch[1].trim();
+
+          if (!model || model.includes('$') || model.toLowerCase() === brand.toLowerCase()) {
+            const mMatch = text.match(/(?:Model\s*:?\s*|GU\s+|TF\s+|NK\s+)([a-zA-Z0-9_-]+)/i);
+            if (mMatch) model = mMatch[0].trim();
           }
+
           if (!model && href) {
             const urlMatch = href.match(/product-([a-zA-Z0-9]+)/i);
             if (urlMatch) model = urlMatch[1].toUpperCase();
           }
 
-          if (!model || model.includes('$')) continue;
+          if (!model) continue;
 
           // Color Code & Color Name
           let colorCode = '';
@@ -217,14 +236,19 @@ export class CatalogRunner {
           const ccMatch = text.match(/Color\s*Code\s*:?\s*([a-zA-Z0-9]+)/i);
           if (ccMatch) colorCode = ccMatch[1].trim().toUpperCase();
 
-          const cMatch = text.match(/Color\s*:?\s*([a-zA-Z0-9\s/]+)/i);
-          if (cMatch && !cMatch[1].toLowerCase().includes('code')) {
-            colorName = cMatch[1].trim();
+          const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i] === model && i + 1 < lines.length) {
+              const candidateColor = lines[i + 1];
+              if (!candidateColor.includes('$') && !candidateColor.includes('Qty') && !candidateColor.includes('Color Code')) {
+                colorName = candidateColor;
+              }
+            }
           }
 
-          // Size / Dimensions
+          // Size / Dimensions (e.g. "47X16X130" or "54-17-140")
           let size = '';
-          const sizeMatch = text.match(/(?:Size|Dimensions?)\s*:?\s*([\d\s\-x/]+)/i);
+          const sizeMatch = text.match(/(?:Size|Dimensions?)\s*:?\s*([\d\s\-xX/]+)/i);
           if (sizeMatch) size = sizeMatch[1].trim();
 
           // UPC
@@ -233,16 +257,14 @@ export class CatalogRunner {
           if (upcMatch) upc = upcMatch[1].trim();
 
           // Stock / Quantity
-          let stock = 10;
-          const stockMatch = text.match(/(?:Stock|Qty|Quantity|Available)\s*:?\s*(\d+)/i);
-          if (stockMatch) {
-            stock = parseInt(stockMatch[1], 10);
+          let stock = attrStock ? parseInt(attrStock, 10) : 0;
+          if (isNaN(stock) || stock <= 0) {
+            const stockMatch = text.match(/(?:Qty|Stock|Quantity)\s*:?\s*(\d+)/i);
+            if (stockMatch) stock = parseInt(stockMatch[1], 10);
           }
 
-          // Image
-          const imgEl = card.querySelector<HTMLImageElement>(
-            'img[src*="pictures/"], img[data-src*="pictures/"], img[data-zoom-image*="pictures/"], img'
-          );
+          // Image URL
+          const imgEl = card.querySelector<HTMLImageElement>('img[src*="pictures/"], img');
           let imageUrl =
             imgEl?.getAttribute('data-zoom-image') ||
             imgEl?.getAttribute('data-src') ||
@@ -260,10 +282,11 @@ export class CatalogRunner {
             colorCode: colorCode || '001',
             size,
             upc,
-            stock,
+            stock: stock || 1,
             priceUsd,
             imageUrl,
-            url: href,
+            url: href.startsWith('/') ? 'https://www.nywd.com' + href : href,
+            productId,
           });
         }
 
@@ -280,7 +303,7 @@ export class CatalogRunner {
 
         products.push({
           id_ext: idExt,
-          id_nywd: raw.url.match(/product-(\d+)/)?.[1] || '',
+          id_nywd: raw.productId || raw.url.match(/product-(\d+)/)?.[1] || '',
           marca: brandName,
           modelo: raw.model,
           color: raw.color,
@@ -311,72 +334,147 @@ export class CatalogRunner {
   }
 
   /**
-   * Navigates directly or via menu to the brand catalog
+   * Navigates to the brand catalog by hovering/clicking BRANDS mega-menu or searching
    */
   private async navigateToBrandCatalog(page: Page, brand: string): Promise<boolean> {
     const brandClean = brand.toLowerCase().trim();
     const currentUrl = page.url().toLowerCase();
 
-    // Already on brand page
-    if (currentUrl.includes('listing-brand') && currentUrl.includes(brandClean)) {
-      Logger.info(`Ya en la página de '${brand}': ${page.url()}`);
+    // 1. If already on a valid listing page for the brand
+    if (currentUrl.includes('listing-brand') || (currentUrl.includes('search') && currentUrl.includes(brandClean))) {
+      Logger.info(`Ya estás en la página de '${brand}': ${page.url()}`);
       return true;
     }
 
-    Logger.info(`Buscando catálogo de '${brand}' en menú de navegación...`);
+    Logger.info(`Buscando marca '${brand}' en menú BRANDS y barra de búsqueda...`);
 
+    // Ensure we are on home or wholesale
+    if (!currentUrl.includes('new-home') && !currentUrl.includes('wholesale')) {
+      await page.goto(`${CONFIG.PROVIDER.BASE_URL}/new-home`, {
+        waitUntil: 'domcontentloaded',
+        timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
+      }).catch(() => {});
+      await page.waitForTimeout(1000);
+    }
+
+    // 2. Hover over BRANDS to open the mega-menu
     try {
-      // 1. Try finding brand in menu
-      const brandMenu = page.locator("a:text-matches('^BRANDS$', 'i'), text='BRANDS'").first();
-      if (await brandMenu.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await brandMenu.hover().catch(() => {});
+      const brandsMenuActivator = page
+        .locator('a[data-target="#shop-brands"], a:has-text("Brands"), a:text-matches("^BRANDS$", "i")')
+        .first();
+
+      if (await brandsMenuActivator.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await brandsMenuActivator.hover().catch(() => {});
+        await page.waitForTimeout(600);
+      }
+
+      // Check #shop-brands container links
+      const foundHref = await page.evaluate((targetBrand) => {
+        const brandBox = document.querySelector('#shop-brands') || document.querySelector('#ctl00_ctl03_BrandList') || document;
+        const links = Array.from(brandBox.querySelectorAll<HTMLAnchorElement>('a'));
+        const tb = targetBrand.toLowerCase().trim();
+
+        // Exact match (e.g. "Guess (412)" -> "guess")
+        for (const a of links) {
+          const text = (a.innerText || a.textContent || '').trim().replace(/\s*\(\d+\)$/, '').toLowerCase();
+          if (text === tb && a.href && !a.href.endsWith('#')) {
+            return a.href;
+          }
+        }
+
+        // Starts with brand name (e.g. "Guess by Marciano")
+        for (const a of links) {
+          const text = (a.innerText || a.textContent || '').trim().toLowerCase();
+          if (text.startsWith(tb) && a.href && a.href.includes('listing-brand')) {
+            return a.href;
+          }
+        }
+
+        // Contains brand name
+        for (const a of links) {
+          const text = (a.innerText || a.textContent || '').trim().toLowerCase();
+          if (text.includes(tb) && a.href && a.href.includes('listing-brand')) {
+            return a.href;
+          }
+        }
+
+        return null;
+      }, brand);
+
+      if (foundHref) {
+        Logger.success(`Enlace de marca encontrado en menú BRANDS: ${foundHref}`);
+        await page.goto(foundHref, {
+          waitUntil: 'domcontentloaded',
+          timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
+        });
+        await page.waitForTimeout(2000);
+        return true;
+      }
+    } catch (e) {
+      Logger.debug('Menu hover attempt note:', e);
+    }
+
+    // 3. Fallback: Search bar with searchToggle & searchInput
+    try {
+      Logger.info(`Buscando '${brand}' usando la barra de búsqueda superior...`);
+
+      // Click search icon if present
+      const searchToggle = page.locator('#searchToggle, img[alt*="search" i], .search-icon').first();
+      if (await searchToggle.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await searchToggle.click().catch(() => {});
         await page.waitForTimeout(400);
+      }
 
-        const foundHref = await page.evaluate((targetBrand) => {
-          const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a'));
-          const tb = targetBrand.toLowerCase().trim();
-          for (const a of links) {
-            const text = (a.innerText || a.textContent || '').trim().replace(/\s*\(\d+\)$/, '').toLowerCase();
-            if (text === tb && a.href && !a.href.endsWith('#')) {
-              return a.href;
-            }
+      const searchInput = page.locator('#searchInput, input[name="searchTerm"], input[type="search"]').first();
+      if (await searchInput.count() > 0) {
+        // Force display if hidden by CSS
+        await page.evaluate(() => {
+          const input = document.querySelector<HTMLElement>('#searchInput');
+          if (input) {
+            input.classList.remove('hidden');
+            input.style.display = 'block';
           }
-          for (const a of links) {
-            const text = (a.innerText || a.textContent || '').trim().toLowerCase();
-            if (text.startsWith(tb) && a.href && a.href.includes('listing-brand')) {
-              return a.href;
-            }
-          }
-          return null;
-        }, brand);
+        });
 
-        if (foundHref) {
-          Logger.info(`Marca encontrada: ${foundHref}. Cargando...`);
-          await page.goto(foundHref, { waitUntil: 'domcontentloaded', timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS });
+        await searchInput.fill(brand);
+        await searchInput.press('Enter');
+
+        // Or click search submit link if present
+        const searchHeaderBtn = page.locator('#ctl00_ctl03_SearchHeader').first();
+        if (await searchHeaderBtn.count() > 0) {
+          await searchHeaderBtn.dispatchEvent('click').catch(() => {});
+        }
+
+        await page.waitForLoadState('domcontentloaded', { timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS }).catch(() => {});
+        await page.waitForTimeout(2000);
+
+        if (page.url().toLowerCase().includes('search') || page.url().toLowerCase().includes('listing')) {
+          Logger.success(`Búsqueda de '${brand}' aplicada: ${page.url()}`);
           return true;
         }
       }
+    } catch (e) {
+      Logger.warn(`Error en búsqueda por barra de texto:`, e);
+    }
 
-      // 2. Try direct search bar
-      const searchInput = page
-        .locator("input[type='search'], input[name*='search' i], input[placeholder*='search' i]")
-        .first();
-      if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await searchInput.fill(brand);
-        await page.keyboard.press('Enter');
-        await page.waitForLoadState('domcontentloaded', { timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS }).catch(() => {});
+    // 4. Interactive fallback: allow user to click brand in Chrome with live detection
+    Logger.info('Esperando selección manual de la marca en Chrome...');
+    console.log('\n' + '═'.repeat(65));
+    console.log(`👉 Por favor, ve a Chrome y haz clic en '${brand}' dentro de BRANDS.`);
+    console.log('   (El bot detectará automáticamente cuando ingreses al catálogo).');
+    console.log('═'.repeat(65) + '\n');
+
+    for (let i = 0; i < 40; i++) {
+      await page.waitForTimeout(1000);
+      const curr = page.url().toLowerCase();
+      if (curr.includes('listing-brand') || curr.includes('search') || curr.includes('product')) {
+        Logger.success(`¡Navegación al catálogo detectada en Chrome!: ${page.url()}`);
+        await page.waitForTimeout(1500);
         return true;
       }
-
-      // 3. Direct URL fallback
-      const directUrl = `${CONFIG.PROVIDER.BASE_URL}/listing-brand-${encodeURIComponent(brand.toLowerCase())}`;
-      Logger.info(`Navegando directamente a URL de marca: ${directUrl}`);
-      await page.goto(directUrl, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
-      return true;
-    } catch (e) {
-      Logger.warn(`Error al navegar a la marca ${brand}:`, e);
-      return false;
     }
+
+    return false;
   }
 
   /**
@@ -387,20 +485,51 @@ export class CatalogRunner {
       await page.evaluate(async () => {
         window.scrollBy(0, window.innerHeight);
         await new Promise((r) => setTimeout(r, 200));
+        window.scrollTo(0, document.body.scrollHeight / 2);
+        await new Promise((r) => setTimeout(r, 200));
         window.scrollTo(0, document.body.scrollHeight);
       });
     } catch {}
   }
 
   /**
-   * Advances pagination automatically
+   * Advances pagination using goToPage(page) or next button
    */
   private async advancePage(page: Page, currentPageNum: number): Promise<boolean> {
     const nextPageNum = currentPageNum + 1;
+    const urlBefore = page.url();
 
     try {
-      // 1. Selector rel="next" or 'Next' text
-      const nextSelector = `a[rel="next"], [rel="next"] a, a:has-text("Next"), button:has-text("Next"), a:has-text("»"), a:text-matches('^${nextPageNum}$')`;
+      // 1. Check if goToPage function exists on window (nywd standard ASP.NET)
+      const hasGoToPage = await page.evaluate(() => {
+        return typeof (window as any).goToPage === 'function';
+      });
+
+      if (hasGoToPage) {
+        Logger.info(`Invocando paginación nativa goToPage(${nextPageNum})...`);
+
+        await Promise.all([
+          page.waitForLoadState('domcontentloaded', { timeout: 12000 }).catch(() => {}),
+          page.evaluate((target) => {
+            (window as any).goToPage(target);
+          }, nextPageNum),
+        ]);
+
+        await page.waitForTimeout(2000);
+
+        // Verify products on new page
+        const newCardsCount = await page.evaluate(() => {
+          return document.querySelectorAll('.product-item').length;
+        });
+
+        if (newCardsCount > 0) {
+          Logger.success(`Página ${nextPageNum} cargada exitosamente.`);
+          return true;
+        }
+      }
+
+      // 2. Check for next page link or button
+      const nextSelector = `a[onclick*="goToPage(${nextPageNum})"], a:text-matches('^${nextPageNum}$'), a[rel="next"], [rel="next"] a, a:has-text("Next")`;
       const nextBtn = page.locator(nextSelector).first();
 
       if (await nextBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
@@ -409,26 +538,11 @@ export class CatalogRunner {
           page.waitForLoadState('domcontentloaded', { timeout: 8000 }).catch(() => {}),
           nextBtn.click().catch(() => nextBtn.dispatchEvent('click')),
         ]);
-        await page.waitForTimeout(1200);
-        return true;
-      }
-
-      // 2. ASP.NET postback link
-      const clicked = await page.evaluate((targetPage) => {
-        const postback = document.querySelector(`a[href*="Page$${targetPage}"]`) as HTMLElement;
-        if (postback) {
-          postback.click();
-          return true;
-        }
-        return false;
-      }, nextPageNum);
-
-      if (clicked) {
         await page.waitForTimeout(1500);
         return true;
       }
     } catch (e) {
-      Logger.debug(`Paginación fallida en pág. ${currentPageNum}:`, e);
+      Logger.debug(`Paginación a pág. ${nextPageNum} falló:`, e);
     }
 
     return false;
