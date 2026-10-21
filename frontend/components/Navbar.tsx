@@ -71,12 +71,6 @@ export default function Navbar() {
           >
             Catálogo Mayorista
           </Link>
-          <Link
-            href="/#marcas"
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 transition-all"
-          >
-            Marcas
-          </Link>
         </nav>
 
         {/* CONTROLES DERECHA: PERFIL B2B + WIDGET DE CARRITO */}
