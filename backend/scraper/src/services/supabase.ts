@@ -63,8 +63,8 @@ export class SupabaseService {
   /**
    * Fetches existing brand records from Supabase to preserve images and reconcile inventory
    */
-  public async getExistingBrandRecords(brand: string): Promise<Map<string, { stock: number; imagen_principal?: string }>> {
-    const map = new Map<string, { stock: number; imagen_principal?: string }>();
+  public async getExistingBrandRecords(brand: string): Promise<Map<string, { stock: number; imagen_principal?: string; imagenes_secundarias?: string }>> {
+    const map = new Map<string, { stock: number; imagen_principal?: string; imagenes_secundarias?: string }>();
     if (!this.client) return map;
 
     try {
@@ -74,7 +74,7 @@ export class SupabaseService {
       while (true) {
         const { data, error } = await this.client
           .from(CONFIG.SUPABASE.TABLE_MARCOS)
-          .select('id_ext, stock, imagen_principal')
+          .select('id_ext, stock, imagen_principal, imagenes_secundarias')
           .ilike('marca', `%${brand}%`)
           .range(start, start + pageSize - 1);
 
@@ -89,6 +89,7 @@ export class SupabaseService {
           map.set(row.id_ext, {
             stock: row.stock || 0,
             imagen_principal: row.imagen_principal,
+            imagenes_secundarias: row.imagenes_secundarias,
           });
         }
 
@@ -102,6 +103,40 @@ export class SupabaseService {
     }
 
     return map;
+  }
+
+  /**
+   * Updates ONLY the stock column for existing products in Supabase.
+   * Completely preserves existing images, attributes, and custom metadata.
+   */
+  public async updateStockBatch(
+    items: Array<{ id_ext: string; stock: number }>,
+    concurrency: number = 20
+  ): Promise<number> {
+    if (!this.client || items.length === 0) return 0;
+
+    let updatedCount = 0;
+    for (let i = 0; i < items.length; i += concurrency) {
+      const chunk = items.slice(i, i + concurrency);
+      await Promise.all(
+        chunk.map(async (item) => {
+          if (!this.client) return;
+          const { error } = await this.client
+            .from(CONFIG.SUPABASE.TABLE_MARCOS)
+            .update({ stock: item.stock })
+            .eq('id_ext', item.id_ext);
+
+          if (!error) {
+            updatedCount++;
+          } else {
+            Logger.warn(`Failed to update stock for ${item.id_ext}: ${error.message}`);
+          }
+        })
+      );
+    }
+
+    Logger.success(`Stock actualizado exitosamente para ${updatedCount}/${items.length} productos existentes.`);
+    return updatedCount;
   }
 
   /**

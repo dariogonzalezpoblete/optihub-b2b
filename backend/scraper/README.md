@@ -31,11 +31,11 @@ Scraper de alta velocidad, resiliente y de fidelidad empresarial para el catálo
   - Sube los assets optimizados al bucket `marcos-imagenes` de Supabase Storage.
   - Reutilización inteligente de caché: si el producto ya cuenta con una imagen WebP previamente subida en Supabase, reutiliza la URL pública evitando descargas y subidas redundantes.
 
-### 4. Gated Pricing B2B y Sincronización Transaccional en Supabase
-- Calcula el costo puesto en Chile (CIF + Arancel Ad Valorem 6% + Despacho local $2.500 CLP).
-- Aplica los tramos comerciales escalonados de OptiHub B2B para calcular el **Precio Neto CLP** (redondeado a múltiplos de 1.000 CLP) y el **IVA (19%)** para obtener el **Precio Bruto CLP**.
-- Sincroniza mediante `upsert` masivo e idempotente en lotes en la tabla `marcos` (`onConflict: 'id_ext'`).
-- Concilia el inventario descontinuado (`syncOutOfStock`), asignando `stock = 0` a productos que ya no figuran en el catálogo del proveedor.
+### 4. Sincronización Inteligente y Gated Pricing en Supabase
+- **Actualización Exclusiva de Stock**: Si el producto (`id_ext`) ya existe en Supabase, el scraper actualiza **únicamente** su columna `stock`. No re-descarga ni re-sube imágenes, ni sobrescribe atributos ya guardados, reduciendo los tiempos de ejecución de minutos a apenas segundos.
+- **Ingesta Completa de Nuevos Productos**: Para monturas nuevas (no presentes en la BD), extrae la galería completa (`imagen_principal` e `imagenes_secundarias`), atributos técnicos (`material`, `genero`, `forma`, `tamano`, `upc`), comprime con Sharp a WebP y las almacena en Supabase Storage.
+- **Gated Pricing B2B**: Aplica la estructura de importación B2B chilena (costo CIF, arancel Ad Valorem 6%, flete local $2.500 CLP, margen comercial escalonado, IVA 19% y redondeo a múltiplos de $1.000 CLP).
+- **Depuración de Agotados**: Concilia el inventario descontinuado (`syncOutOfStock`), asignando `stock = 0` a productos que ya no figuran en el catálogo del proveedor.
 
 ---
 

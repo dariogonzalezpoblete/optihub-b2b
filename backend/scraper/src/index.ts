@@ -94,17 +94,6 @@ async function main() {
         const exportFile = `catalog_${brand.toLowerCase().replace(/[^a-z0-9]/g, '_')}.json`;
         fs.writeFileSync(exportFile, JSON.stringify(brandProducts, null, 2), 'utf-8');
         Logger.info(`Saved local JSON backup of ${brandProducts.length} items to ${exportFile}`);
-
-        // Sync to Supabase marcos table
-        if (!options.dryRun && supabaseService.isConfigured()) {
-          Logger.info(`Sincronizando ${brandProducts.length} productos de '${brand}' en Supabase...`);
-          await supabaseService.upsertBatch(brandProducts);
-
-          const scannedIds = new Set(brandProducts.map((p) => p.id_ext));
-          await supabaseService.syncOutOfStock(brand, scannedIds);
-        } else if (options.dryRun) {
-          Logger.info(`[DRY-RUN] Omitiendo escritura en base de datos para '${brand}'.`);
-        }
       }
     }
 

@@ -134,6 +134,7 @@ export class ImageOptimizer {
     imageUrl: string,
     baseSku: string,
     colorCode: string,
+    suffix?: string,
     supabaseService?: SupabaseService
   ): Promise<string> {
     if (!imageUrl) return '';
@@ -146,8 +147,9 @@ export class ImageOptimizer {
     // 2. Format storage filename
     const cleanSku = (baseSku || 'OPT').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
     const cleanColor = (colorCode || '001').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+    const cleanSuffix = suffix ? `-${suffix.replace(/[^a-zA-Z0-9_-]/g, '')}` : '';
     const digest = crypto.createHash('md5').update(imageUrl).digest('hex').substring(0, 8);
-    const filename = `${cleanSku}-${cleanColor}-${digest}.webp`;
+    const filename = `${cleanSku}-${cleanColor}${cleanSuffix}-${digest}.webp`;
 
     // If Supabase Storage is configured, attempt upload
     if (supabaseService && supabaseService.isConfigured()) {

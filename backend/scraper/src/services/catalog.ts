@@ -23,7 +23,9 @@ export class CatalogRunner {
   }
 
   /**
-   * Scrapes an entire brand catalog using API network interception and rapid DOM card extraction
+   * Scrapes an entire brand catalog with smart synchronization:
+   * - If an item is already in Supabase -> ONLY updates stock (preserves existing images and specs).
+   * - If an item is NEW -> performs full extraction (main + secondary images, material, gender, Gated Pricing).
    */
   public async scrapeBrand(
     page: Page,
@@ -37,20 +39,23 @@ export class CatalogRunner {
 
     this.interceptor.reset(brand);
 
-    // Preload existing Supabase records to reuse previously uploaded WebP images
-    let existingCache = new Map<string, { stock: number; imagen_principal?: string }>();
+    // 1. Preload existing Supabase records for this brand
+    let existingCache = new Map<
+      string,
+      { stock: number; imagen_principal?: string; imagenes_secundarias?: string }
+    >();
     if (this.supabaseService && this.supabaseService.isConfigured()) {
       existingCache = await this.supabaseService.getExistingBrandRecords(brand);
     }
 
-    // 1. Navigate to brand catalog (using BRANDS mega-menu hover or Search bar)
+    // 2. Navigate to brand catalog in nywd.com
     const opened = await this.navigateToBrandCatalog(page, brand);
     if (!opened) {
       Logger.warn(`No se pudo acceder automáticamente al catálogo de '${brand}'.`);
       return [];
     }
 
-    const allProducts = new Map<string, OptiHubProduct>();
+    const scannedProducts = new Map<string, OptiHubProduct>();
     const scannedIds = new Set<string>();
 
     let pageNum = 1;
@@ -59,40 +64,40 @@ export class CatalogRunner {
     while (pageNum <= maxPages) {
       Logger.info(`\n📄 Procesando página ${pageNum}/${maxPages} de '${brand.toUpperCase()}'...`);
 
-      // Trigger lazy loads for fetch/xhr event triggers and image rendering
+      // Trigger lazy load
       await this.triggerLazyLoading(page);
       await page.waitForTimeout(800);
 
-      // 2. Extract DOM product cards visible on current page
+      // Extract listing cards from current page
       const pageCards = await this.extractCardsFromListing(page, brand);
       Logger.info(`Tarjetas de producto estructuradas en página ${pageNum}: ${pageCards.length}`);
 
-      // Combine intercepted API products and DOM cards
+      // Collect items from API interceptor and DOM cards
       const interceptedItems = this.interceptor.getCapturedProducts();
       for (const item of interceptedItems) {
-        if (!allProducts.has(item.id_ext)) {
-          allProducts.set(item.id_ext, item);
+        if (!scannedProducts.has(item.id_ext)) {
+          scannedProducts.set(item.id_ext, item);
           scannedIds.add(item.id_ext);
         }
       }
 
       for (const card of pageCards) {
-        if (!allProducts.has(card.id_ext)) {
-          allProducts.set(card.id_ext, card);
+        if (!scannedProducts.has(card.id_ext)) {
+          scannedProducts.set(card.id_ext, card);
           scannedIds.add(card.id_ext);
         }
       }
 
       Logger.info(
-        `Total variantes activas acumuladas en catálogo: ${allProducts.size}`
+        `Total variantes detectadas en catálogo hasta ahora: ${scannedProducts.size}`
       );
 
       if (pageCards.length === 0 && interceptedItems.length === 0) {
-        Logger.info(`No se encontraron productos en la página ${pageNum}. Fin del catálogo.`);
+        Logger.info(`No se encontraron más productos en la página ${pageNum}. Fin del catálogo.`);
         break;
       }
 
-      // 3. Advance to next page
+      // Advance to next page
       const hasNext = await this.advancePage(page, pageNum);
       if (!hasNext) {
         Logger.info(`Fin del catálogo de '${brand}' alcanzado en página ${pageNum}.`);
@@ -102,60 +107,189 @@ export class CatalogRunner {
       pageNum++;
     }
 
-    const rawList = Array.from(allProducts.values()).filter(
+    const allValid = Array.from(scannedProducts.values()).filter(
       (p) => p.stock > options.minStock
     );
 
-    Logger.info(`\n🖼️ Optimizando imágenes con Sharp (WebP @ Lanczos-3) para ${rawList.length} productos...`);
+    // ─────────────────────────────────────────────────────────────
+    // 3. SEGREGATE: EXISTING (STOCK-ONLY) VS NEW (FULL ENRICHMENT)
+    // ─────────────────────────────────────────────────────────────
+    const existingItemsToUpdate: Array<{ id_ext: string; stock: number }> = [];
+    const newItemsToEnrich: OptiHubProduct[] = [];
 
-    // 4. Image Optimization Pipeline
-    const processedProducts: OptiHubProduct[] = [];
-    const concurrency = 6;
+    for (const prod of allValid) {
+      if (existingCache.has(prod.id_ext)) {
+        existingItemsToUpdate.push({
+          id_ext: prod.id_ext,
+          stock: prod.stock,
+        });
+      } else {
+        newItemsToEnrich.push(prod);
+      }
+    }
 
-    for (let i = 0; i < rawList.length; i += concurrency) {
-      const chunk = rawList.slice(i, i + concurrency);
-      const tasks = chunk.map(async (prod) => {
-        let mainImg = prod.imagen_principal || '';
-        let secImg = prod.imagenes_secundarias || '';
+    Logger.info(
+      `\n📊 Clasificación de catálogo '${brand}':\n` +
+      `   • Existentes en base de datos: ${existingItemsToUpdate.length} (se actualizará solo stock)\n` +
+      `   • Nuevos productos a ingresar: ${newItemsToEnrich.length} (se extraerá galería completa + WebP + specs)`
+    );
 
-        // If product already has an optimized Supabase URL in cache, reuse it!
-        const cachedItem = existingCache.get(prod.id_ext);
-        if (cachedItem && cachedItem.imagen_principal && cachedItem.imagen_principal.includes('supabase.co')) {
-          mainImg = cachedItem.imagen_principal;
-        } else if (mainImg) {
-          mainImg = await this.imageOptimizer.processAndUpload(
-            mainImg,
-            prod.modelo,
-            prod.codigo_color,
-            this.supabaseService
-          );
+    // ─────────────────────────────────────────────────────────────
+    // 4. UPDATE STOCK ONLY FOR EXISTING ITEMS
+    // ─────────────────────────────────────────────────────────────
+    if (existingItemsToUpdate.length > 0 && !options.dryRun && this.supabaseService?.isConfigured()) {
+      Logger.info(`Actualizando stock únicamente para ${existingItemsToUpdate.length} productos existentes...`);
+      await this.supabaseService.updateStockBatch(existingItemsToUpdate);
+    } else if (options.dryRun && existingItemsToUpdate.length > 0) {
+      Logger.info(`[DRY-RUN] Simulación: Se actualizaría stock de ${existingItemsToUpdate.length} productos.`);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 5. ENRICH & UPLOAD IMAGES FOR NEW ITEMS ONLY
+    // ─────────────────────────────────────────────────────────────
+    const enrichedNewProducts: OptiHubProduct[] = [];
+
+    if (newItemsToEnrich.length > 0) {
+      Logger.info(`\n🚀 Extrayendo galería completa e información técnica para ${newItemsToEnrich.length} productos NUEVOS...`);
+
+      const concurrency = 4;
+      for (let i = 0; i < newItemsToEnrich.length; i += concurrency) {
+        const chunk = newItemsToEnrich.slice(i, i + concurrency);
+        const tasks = chunk.map(async (prod) => {
+          return await this.enrichProductWithFullGallery(context, prod);
+        });
+
+        const chunkEnriched = await Promise.all(tasks);
+        enrichedNewProducts.push(...chunkEnriched);
+        Logger.info(`Progreso productos nuevos: ${enrichedNewProducts.length}/${newItemsToEnrich.length} procesados.`);
+      }
+
+      // Upsert full records for new products
+      if (!options.dryRun && this.supabaseService?.isConfigured()) {
+        Logger.info(`Insertando ${enrichedNewProducts.length} productos nuevos en Supabase...`);
+        await this.supabaseService.upsertBatch(enrichedNewProducts);
+      } else if (options.dryRun) {
+        Logger.info(`[DRY-RUN] Simulación: Se insertarían ${enrichedNewProducts.length} productos nuevos.`);
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 6. RECONCILE OUT OF STOCK (STOCK = 0)
+    // ─────────────────────────────────────────────────────────────
+    if (!options.dryRun && this.supabaseService?.isConfigured()) {
+      await this.supabaseService.syncOutOfStock(brand, scannedIds);
+    }
+
+    const finalSummaryList = [...enrichedNewProducts, ...allValid.filter(p => existingCache.has(p.id_ext))];
+    Logger.success(
+      `Marca '${brand}' finalizada con éxito: ${allValid.length} variantes sincronizadas.`
+    );
+
+    return finalSummaryList;
+  }
+
+  /**
+   * Enriches a new product with secondary images and detailed optical attributes
+   */
+  private async enrichProductWithFullGallery(
+    context: BrowserContext,
+    prod: OptiHubProduct
+  ): Promise<OptiHubProduct> {
+    const detailUrl = prod.url_origen || `${CONFIG.PROVIDER.BASE_URL}/new-product-${prod.id_nywd}`;
+    let page: Page | null = null;
+
+    let galleryImages: string[] = [];
+    let material = prod.material || '';
+    let gender = prod.genero || '';
+    let shape = prod.forma || '';
+    let origin = prod.origen || '';
+
+    try {
+      page = await context.newPage();
+      await page.goto(detailUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      await page.waitForTimeout(600);
+
+      const pageData = await page.evaluate(() => {
+        const text = document.body.innerText || '';
+
+        // Extract gallery images
+        const rawImgs = Array.from(document.querySelectorAll('img'))
+          .map((i) => i.src || i.getAttribute('data-src') || i.getAttribute('data-zoom-image') || '')
+          .filter((s) => s && s.includes('pictures/') && !s.includes('thumb') && !s.includes('mid-') && !s.includes('swatch'));
+
+        const cleanList: string[] = [];
+        for (const u of rawImgs) {
+          const m = u.match(/pictures\/(.+)$/);
+          if (m) {
+            const clean = 'https://www.nywd.com/pictures/' + m[1].replace(/^\/+/, '').split('?')[0];
+            if (!cleanList.includes(clean)) {
+              cleanList.push(clean);
+            }
+          }
         }
 
-        if (secImg && !secImg.includes('supabase.co')) {
-          secImg = await this.imageOptimizer.processAndUpload(
-            secImg,
-            prod.modelo,
-            `${prod.codigo_color}-sec`,
-            this.supabaseService
-          );
-        }
+        const parseField = (pattern: RegExp) => {
+          const m = text.match(pattern);
+          return m ? m[1].trim() : '';
+        };
 
         return {
-          ...prod,
-          imagen_principal: mainImg,
-          imagenes_secundarias: secImg,
+          material: parseField(/Frame\s*Material\s*:?\s*([^\n\r]+)/i),
+          gender: parseField(/Gender\s*:?\s*([^\n\r]+)/i),
+          shape: parseField(/Shape\s*:?\s*([^\n\r]+)/i),
+          origin: parseField(/Made\s*in\s*:?\s*([^\n\r]+)/i),
+          images: cleanList,
         };
       });
 
-      const chunkResults = await Promise.all(tasks);
-      processedProducts.push(...chunkResults);
+      galleryImages = pageData.images;
+      if (pageData.material) material = pageData.material;
+      if (pageData.gender) gender = pageData.gender;
+      if (pageData.shape) shape = pageData.shape;
+      if (pageData.origin) origin = pageData.origin;
+    } catch (err) {
+      Logger.debug(`Detail fetch note for ${prod.id_ext}:`, err);
+    } finally {
+      if (page) await page.close().catch(() => {});
     }
 
-    Logger.success(
-      `Marca '${brand}' finalizada: ${processedProducts.length} productos estructurados y optimizados.`
-    );
+    // Determine raw main and secondary image URLs
+    const rawMain = galleryImages[0] || prod.imagen_principal || '';
+    const rawSec = galleryImages[1] || '';
 
-    return processedProducts;
+    // Process and optimize images with Sharp to WebP
+    let optimizedMain = '';
+    let optimizedSec = '';
+
+    if (rawMain) {
+      optimizedMain = await this.imageOptimizer.processAndUpload(
+        rawMain,
+        prod.modelo,
+        prod.codigo_color,
+        undefined,
+        this.supabaseService
+      );
+    }
+
+    if (rawSec) {
+      optimizedSec = await this.imageOptimizer.processAndUpload(
+        rawSec,
+        prod.modelo,
+        prod.codigo_color,
+        'sec',
+        this.supabaseService
+      );
+    }
+
+    return {
+      ...prod,
+      imagen_principal: optimizedMain,
+      imagenes_secundarias: optimizedSec,
+      material: material || prod.material,
+      genero: gender || prod.genero,
+      forma: shape || prod.forma,
+      origen: origin || prod.origen,
+    };
   }
 
   /**
@@ -179,7 +313,6 @@ export class CatalogRunner {
           productId: string;
         }> = [];
 
-        // All product cards on nywd.com listing pages
         const cardElements = Array.from(
           document.querySelectorAll<HTMLElement>('.product-item, div[data-product-id]')
         );
@@ -188,28 +321,23 @@ export class CatalogRunner {
           const text = (card.innerText || card.textContent || '').trim();
           if (!text || text.length < 5) continue;
 
-          // In-stock & product ID from data attributes
           const attrStock = card.getAttribute('data-instock');
           const productId = card.getAttribute('data-product-id') || '';
 
-          // Price extraction: look for all dollar values ($21.50, $5.99)
           const priceMatches = text.match(/\$\s*([\d,.]+)/g);
           let priceUsd = 0;
           if (priceMatches && priceMatches.length > 0) {
             const parsed = priceMatches
               .map((p) => parseFloat(p.replace(/[^0-9.]/g, '')))
               .filter((p) => !isNaN(p) && p > 0);
-            // The active wholesale price is the last/lowest price displayed
             priceUsd = parsed[parsed.length - 1] || parsed[0] || 0;
           }
 
           if (priceUsd <= 0) continue;
 
-          // Product Link & NYWD ID
           const linkEl = card.querySelector<HTMLAnchorElement>('a[href*="product-"], figure[href]');
           const href = linkEl?.getAttribute('href') || linkEl?.href || (productId ? `/new-product-${productId}` : '');
 
-          // Model extraction: check prominent title headers or regex
           let model = '';
           const titleEl = card.querySelector(
             'h2.font-serif, a[href*="product-"] h2, .product-title, .product-name, h2:not(.text-primary)'
@@ -230,7 +358,6 @@ export class CatalogRunner {
 
           if (!model) continue;
 
-          // Color Code & Color Name
           let colorCode = '';
           let colorName = 'Único';
           const ccMatch = text.match(/Color\s*Code\s*:?\s*([a-zA-Z0-9]+)/i);
@@ -246,24 +373,20 @@ export class CatalogRunner {
             }
           }
 
-          // Size / Dimensions (e.g. "47X16X130" or "54-17-140")
           let size = '';
           const sizeMatch = text.match(/(?:Size|Dimensions?)\s*:?\s*([\d\s\-xX/]+)/i);
           if (sizeMatch) size = sizeMatch[1].trim();
 
-          // UPC
           let upc = '';
           const upcMatch = text.match(/UPC\s*:?\s*(\d+)/i);
           if (upcMatch) upc = upcMatch[1].trim();
 
-          // Stock / Quantity
           let stock = attrStock ? parseInt(attrStock, 10) : 0;
           if (isNaN(stock) || stock <= 0) {
             const stockMatch = text.match(/(?:Qty|Stock|Quantity)\s*:?\s*(\d+)/i);
             if (stockMatch) stock = parseInt(stockMatch[1], 10);
           }
 
-          // Image URL
           const imgEl = card.querySelector<HTMLImageElement>('img[src*="pictures/"], img');
           let imageUrl =
             imgEl?.getAttribute('data-zoom-image') ||
@@ -348,7 +471,6 @@ export class CatalogRunner {
 
     Logger.info(`Buscando marca '${brand}' en menú BRANDS y barra de búsqueda...`);
 
-    // Ensure we are on home or wholesale
     if (!currentUrl.includes('new-home') && !currentUrl.includes('wholesale')) {
       await page.goto(`${CONFIG.PROVIDER.BASE_URL}/new-home`, {
         waitUntil: 'domcontentloaded',
@@ -374,7 +496,6 @@ export class CatalogRunner {
         const links = Array.from(brandBox.querySelectorAll<HTMLAnchorElement>('a'));
         const tb = targetBrand.toLowerCase().trim();
 
-        // Exact match (e.g. "Guess (412)" -> "guess")
         for (const a of links) {
           const text = (a.innerText || a.textContent || '').trim().replace(/\s*\(\d+\)$/, '').toLowerCase();
           if (text === tb && a.href && !a.href.endsWith('#')) {
@@ -382,7 +503,6 @@ export class CatalogRunner {
           }
         }
 
-        // Starts with brand name (e.g. "Guess by Marciano")
         for (const a of links) {
           const text = (a.innerText || a.textContent || '').trim().toLowerCase();
           if (text.startsWith(tb) && a.href && a.href.includes('listing-brand')) {
@@ -390,7 +510,6 @@ export class CatalogRunner {
           }
         }
 
-        // Contains brand name
         for (const a of links) {
           const text = (a.innerText || a.textContent || '').trim().toLowerCase();
           if (text.includes(tb) && a.href && a.href.includes('listing-brand')) {
@@ -414,11 +533,10 @@ export class CatalogRunner {
       Logger.debug('Menu hover attempt note:', e);
     }
 
-    // 3. Fallback: Search bar with searchToggle & searchInput
+    // 3. Fallback: Search bar
     try {
       Logger.info(`Buscando '${brand}' usando la barra de búsqueda superior...`);
 
-      // Click search icon if present
       const searchToggle = page.locator('#searchToggle, img[alt*="search" i], .search-icon').first();
       if (await searchToggle.isVisible({ timeout: 2000 }).catch(() => false)) {
         await searchToggle.click().catch(() => {});
@@ -427,7 +545,6 @@ export class CatalogRunner {
 
       const searchInput = page.locator('#searchInput, input[name="searchTerm"], input[type="search"]').first();
       if (await searchInput.count() > 0) {
-        // Force display if hidden by CSS
         await page.evaluate(() => {
           const input = document.querySelector<HTMLElement>('#searchInput');
           if (input) {
@@ -439,7 +556,6 @@ export class CatalogRunner {
         await searchInput.fill(brand);
         await searchInput.press('Enter');
 
-        // Or click search submit link if present
         const searchHeaderBtn = page.locator('#ctl00_ctl03_SearchHeader').first();
         if (await searchHeaderBtn.count() > 0) {
           await searchHeaderBtn.dispatchEvent('click').catch(() => {});
@@ -457,7 +573,7 @@ export class CatalogRunner {
       Logger.warn(`Error en búsqueda por barra de texto:`, e);
     }
 
-    // 4. Interactive fallback: allow user to click brand in Chrome with live detection
+    // 4. Interactive fallback
     Logger.info('Esperando selección manual de la marca en Chrome...');
     console.log('\n' + '═'.repeat(65));
     console.log(`👉 Por favor, ve a Chrome y haz clic en '${brand}' dentro de BRANDS.`);
@@ -497,10 +613,8 @@ export class CatalogRunner {
    */
   private async advancePage(page: Page, currentPageNum: number): Promise<boolean> {
     const nextPageNum = currentPageNum + 1;
-    const urlBefore = page.url();
 
     try {
-      // 1. Check if goToPage function exists on window (nywd standard ASP.NET)
       const hasGoToPage = await page.evaluate(() => {
         return typeof (window as any).goToPage === 'function';
       });
@@ -517,7 +631,6 @@ export class CatalogRunner {
 
         await page.waitForTimeout(2000);
 
-        // Verify products on new page
         const newCardsCount = await page.evaluate(() => {
           return document.querySelectorAll('.product-item').length;
         });
@@ -528,7 +641,6 @@ export class CatalogRunner {
         }
       }
 
-      // 2. Check for next page link or button
       const nextSelector = `a[onclick*="goToPage(${nextPageNum})"], a:text-matches('^${nextPageNum}$'), a[rel="next"], [rel="next"] a, a:has-text("Next")`;
       const nextBtn = page.locator(nextSelector).first();
 
