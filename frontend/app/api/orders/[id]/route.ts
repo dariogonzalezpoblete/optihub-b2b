@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
-
 const ADMIN_EMAILS = ['multifocuslimitada@gmail.com'];
+
+function getAdminSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://yrdjnkbrvynmnzyrxlfx.supabase.co';
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_X4iaZ7islKo9js4bvdpl3w_T_Ka3dVD';
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const adminSupabase = getAdminSupabase();
     const { id: orderId } = await params;
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('userId');

@@ -2,13 +2,15 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Service role Supabase client for administrative order management
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
+function getAdminSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://yrdjnkbrvynmnzyrxlfx.supabase.co';
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_X4iaZ7islKo9js4bvdpl3w_T_Ka3dVD';
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
 
 export async function POST(req: Request) {
   try {
+    const adminSupabase = getAdminSupabase();
     const body = await req.json();
     const { orderId, shipping_provider, tracking_number, stage, customNote } = body;
 
