@@ -147,7 +147,7 @@ export class SupabaseService {
           if (!this.client) return;
           const { error } = await this.client
             .from(CONFIG.SUPABASE.TABLE_MARCOS)
-            .update({ stock: item.stock })
+            .update({ stock: Math.min(50, Math.max(0, item.stock)) })
             .eq('id_ext', item.id_ext);
 
           if (!error) {
@@ -191,7 +191,10 @@ export class SupabaseService {
     let totalSynced = 0;
 
     for (let i = 0; i < products.length; i += chunkSize) {
-      const chunk = products.slice(i, i + chunkSize);
+      const chunk = products.slice(i, i + chunkSize).map(p => ({
+        ...p,
+        stock: Math.min(50, Math.max(0, p.stock))
+      }));
 
       await withRetry(
         async () => {

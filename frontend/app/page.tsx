@@ -376,7 +376,7 @@ export default function Home() {
 
                     {isLoggedIn && (
                       <span className="text-xs bg-slate-800 px-2 py-0.5 rounded-md text-slate-300 font-medium">
-                        Stock en origen: {marco.stock} un.
+                        Stock en origen: {marco.stock >= 50 ? '50+ un.' : `${marco.stock} un.`}
                       </span>
                     )}
                   </div>

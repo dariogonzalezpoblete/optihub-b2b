@@ -182,7 +182,7 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
                 Stock en origen
               </span>
               <span className="badge-stock">
-                {activeStock} un.
+                {activeStock >= 50 ? '50+ un.' : `${activeStock} un.`}
               </span>
             </div>
           )}

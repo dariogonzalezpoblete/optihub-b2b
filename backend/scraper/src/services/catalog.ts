@@ -129,11 +129,11 @@ export class CatalogRunner {
       const existing = existingCache.get(prod.id_ext);
       if (existing) {
         if (options.stockOnly) {
-          itemsStockOnly.push({ id_ext: prod.id_ext, stock: prod.stock });
+          itemsStockOnly.push({ id_ext: prod.id_ext, stock: Math.min(50, Math.max(0, prod.stock)) });
         } else {
           const hasSecImg = existing.imagenes_secundarias && existing.imagenes_secundarias.trim().length > 5;
           if (hasSecImg) {
-            itemsStockOnly.push({ id_ext: prod.id_ext, stock: prod.stock });
+            itemsStockOnly.push({ id_ext: prod.id_ext, stock: Math.min(50, Math.max(0, prod.stock)) });
           } else {
             itemsNeedingSecondaryImg.push(prod);
           }
@@ -185,7 +185,7 @@ export class CatalogRunner {
                 if (!options.dryRun && this.supabaseService?.isConfigured()) {
                   await this.supabaseService.updateProductPartial(prod.id_ext, {
                     imagenes_secundarias: secWebp,
-                    stock: prod.stock,
+                    stock: Math.min(50, Math.max(0, prod.stock)),
                     material: details.material || prod.material,
                     genero: details.gender || prod.genero,
                   });
@@ -193,7 +193,7 @@ export class CatalogRunner {
               } else {
                 // If no secondary image available at source, just update stock
                 if (!options.dryRun && this.supabaseService?.isConfigured()) {
-                  await this.supabaseService.updateProductPartial(prod.id_ext, { stock: prod.stock });
+                  await this.supabaseService.updateProductPartial(prod.id_ext, { stock: Math.min(50, Math.max(0, prod.stock)) });
                 }
               }
             } catch (err) {
@@ -468,6 +468,8 @@ export class CatalogRunner {
             const stockMatch = text.match(/(?:Qty|Stock|Quantity)\s*:?\s*(\d+)/i);
             if (stockMatch) stock = parseInt(stockMatch[1], 10);
           }
+          // El proveedor en origen tiene tope máximo de 50+
+          stock = Math.min(50, Math.max(0, stock || 1));
 
           const imgEl = card.querySelector<HTMLImageElement>('img[src*="pictures/"], img');
           let imageUrl =
@@ -534,7 +536,7 @@ export class CatalogRunner {
           codigo_color: cleanColor,
           tamano: raw.size,
           upc: raw.upc,
-          stock: raw.stock,
+          stock: Math.min(50, Math.max(0, raw.stock)),
           precio_usd: raw.priceUsd,
           precio_neto_clp: pricing.precio_neto_clp,
           precio_bruto_clp: pricing.precio_bruto_clp,

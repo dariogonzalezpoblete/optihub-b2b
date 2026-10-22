@@ -261,7 +261,7 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
                           ) : inCart > 0 ? (
                             <p className="text-[10px] text-slate-400">Disp: {remainingStock} ({inCart} en carrito)</p>
                           ) : (
-                            <p className="text-[10px] text-slate-500">Stock en origen: {maxStock}</p>
+                            <p className="text-[10px] text-slate-500">Stock en origen: {maxStock >= 50 ? '50+' : maxStock}</p>
                           )}
                         </div>
                         <div>

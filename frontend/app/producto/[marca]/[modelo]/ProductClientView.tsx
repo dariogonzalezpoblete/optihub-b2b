@@ -269,7 +269,7 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                               </span>
                             ) : (
                               <span className="text-xs font-bold px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-400">
-                                {maxStock} un.
+                                {maxStock >= 50 ? '50+ un.' : `${maxStock} un.`}
                               </span>
                             )}
                           </div>

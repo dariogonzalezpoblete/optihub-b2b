@@ -255,7 +255,9 @@ export class NetworkInterceptor {
       const idExt = `${baseSku}-${colorCodeClean}`.toUpperCase();
 
       const priceUsd = getNum(raw.wholesale_price ?? raw.price ?? raw.cost ?? raw.base_price ?? 0);
-      const stock = Math.round(getNum(raw.stock ?? raw.quantity ?? raw.qty ?? raw.available ?? 0));
+      const rawStock = Math.round(getNum(raw.stock ?? raw.quantity ?? raw.qty ?? raw.available ?? 0));
+      // El proveedor en origen tiene tope máximo de "50+". Nunca debe superar 50 ni acumularse.
+      const stock = Math.min(50, Math.max(0, rawStock));
 
       // Calculate Gated Pricing
       const pricing = calculateB2BPricing(priceUsd);
