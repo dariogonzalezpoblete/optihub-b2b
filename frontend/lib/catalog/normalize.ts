@@ -85,6 +85,10 @@ export function labelFor(facet: FacetKey, raw: string): string {
     case 'calibre':
       return CALIBRE_RANGES.find((r) => r.key === key)?.label ?? raw;
     case 'marca':
+      return raw
+        .split(/\s+/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
     default:
       // "RUDY PROJECT" → "Rudy Project"; "Hugo Boss" se mantiene
       return raw === raw.toUpperCase() && raw.length > 3

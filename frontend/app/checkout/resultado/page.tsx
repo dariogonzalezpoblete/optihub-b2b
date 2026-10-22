@@ -1,11 +1,12 @@
 'use client';
 
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CheckCircle2, AlertTriangle, XCircle, ArrowRight, Truck, FileText, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { isValidUuid, resolveVerifiedCheckoutResult } from '@/lib/checkoutWebhookAndResult';
+import { useCartStore } from '@/store/useCartStore';
 
 interface VerifiedOrderRow {
   id: string;
@@ -20,6 +21,10 @@ function ResultadoContent() {
   const urlStatus = searchParams.get('status') || searchParams.get('collection_status');
   const urlRef = searchParams.get('ref') || searchParams.get('external_reference');
   const isMock = searchParams.get('mock') === 'true';
+
+  const clearCart = useCartStore((state) => state.clearCart);
+  const setCartId = useCartStore((state) => state.setCartId);
+  const clearedOrderRef = useRef<string | null>(null);
 
   const [verifiedState, setVerifiedState] = useState<{
     checkedRef: string | null;
@@ -120,6 +125,16 @@ function ResultadoContent() {
   const isPending = displayState === 'pending';
   const isRejected = displayState === 'rejected';
   const displayRef = verifiedOrderId || (isValidUuid(urlRef) ? urlRef : 'SIN-REFERENCIA');
+
+  // Limpieza controlada del carrito: se ejecuta ÚNICAMENTE cuando la orden
+  // ha sido verificada en la base de datos como efectivamente pagada y aprobada.
+  useEffect(() => {
+    if (isApproved && verifiedOrderId && clearedOrderRef.current !== verifiedOrderId) {
+      clearedOrderRef.current = verifiedOrderId;
+      clearCart();
+      setCartId(null);
+    }
+  }, [isApproved, verifiedOrderId, clearCart, setCartId]);
 
   return (
     <div className="min-h-[85vh] bg-slate-950 text-slate-100 flex items-center justify-center px-4 py-16">

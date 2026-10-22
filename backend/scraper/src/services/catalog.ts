@@ -512,6 +512,9 @@ export class CatalogRunner {
         else if (mUpper.startsWith('HARLEY')) productBrand = 'Harley Davidson';
         else if (mUpper.startsWith('HUGO')) productBrand = 'Hugo';
         else if (mUpper.startsWith('ZEISS')) productBrand = 'Zeiss';
+        else {
+          productBrand = (brandName || '').trim().split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        }
 
         const cleanSku = (raw.model || 'OPT').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
         const cleanColor = (raw.colorCode || '001').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();

@@ -39,14 +39,13 @@ export default async function CatalogoPage({
   if (marcas.length > 0) {
     const rawList = marcas.map((m) => m.trim());
     const lowerList = rawList.map((m) => m.toLowerCase());
+    const titleList = rawList.map((m) => m.replace(/\b\w/g, (c) => c.toUpperCase()));
+    const upperList = rawList.map((m) => m.toUpperCase());
     const matchedAuthorized = AUTHORIZED_BRANDS.filter((b) =>
       lowerList.includes(b.toLowerCase())
     );
-    const combined = Array.from(new Set([...rawList, ...matchedAuthorized]));
+    const combined = Array.from(new Set([...rawList, ...lowerList, ...titleList, ...upperList, ...matchedAuthorized]));
     query = query.in('marca', combined);
-  } else {
-    // Solo marcas autorizadas
-    query = query.in('marca', AUTHORIZED_BRANDS);
   }
 
   const generos = parseList(params.genero);

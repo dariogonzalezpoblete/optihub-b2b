@@ -236,6 +236,9 @@ export class NetworkInterceptor {
       else if (mUpper.startsWith('HARLEY')) rawBrand = 'Harley Davidson';
       else if (mUpper.startsWith('HUGO')) rawBrand = 'Hugo';
       else if (mUpper.startsWith('ZEISS')) rawBrand = 'Zeiss';
+      else {
+        rawBrand = (rawBrand || '').trim().split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      }
       const rawColor = getStr(raw.color || raw.color_name || raw.colorName || 'Único');
       const rawColorCode = getStr(raw.color_code || raw.colorCode || raw.code || '001').toUpperCase();
       const rawIdNywd = getStr(raw.id || raw.id_nywd || raw.productId || raw.item_id || '');

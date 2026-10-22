@@ -15,6 +15,15 @@ interface ParsedArgs {
   hasExplicitBrand: boolean;
 }
 
+export function formatBrandName(b: string): string {
+  const trimmed = b.trim();
+  if (!trimmed) return '';
+  return trimmed
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
 function parseArgs(): ParsedArgs {
   const args = process.argv.slice(2);
   let hasExplicitBrand = false;
@@ -35,7 +44,7 @@ function parseArgs(): ParsedArgs {
       if (val) {
         options.brands = val
           .split(',')
-          .map((b) => b.trim())
+          .map((b) => formatBrandName(b))
           .filter(Boolean);
         hasExplicitBrand = true;
       }
@@ -86,7 +95,7 @@ async function promptBrandsInteractive(): Promise<{ brands: string[]; allBrands:
         } else {
           const list = trimmed
             .split(',')
-            .map((b) => b.trim())
+            .map((b) => formatBrandName(b))
             .filter(Boolean);
           resolve({ brands: list.length > 0 ? list : ['Guess'], allBrands: false });
         }
