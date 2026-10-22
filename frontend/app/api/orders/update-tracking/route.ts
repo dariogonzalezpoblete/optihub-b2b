@@ -3,8 +3,13 @@ import { createClient } from '@supabase/supabase-js';
 
 // Service role Supabase client for administrative order management
 function getAdminSupabase() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://yrdjnkbrvynmnzyrxlfx.supabase.co';
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_X4iaZ7islKo9js4bvdpl3w_T_Ka3dVD';
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Configuración de servidor incompleta: NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY ausente.');
+  }
+
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
