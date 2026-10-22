@@ -1,7 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-
-const ADMIN_EMAILS = ['multifocuslimitada@gmail.com'];
+import { authenticateServerRequest } from '@/lib/auth/serverAuth';
 
 function getAdminSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -14,52 +12,67 @@ function getAdminSupabase() {
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+export async function handleGetOrderDetail(
+  req: Request,
+  context: { params: Promise<{ id: string }>; customAuthClient?: any; customAdminClient?: any },
+  options?: { customAuthClient?: any; customAdminClient?: any }
 ) {
   try {
-    const adminSupabase = getAdminSupabase();
-    const { id: orderId } = await params;
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get('userId');
-    const email = searchParams.get('email');
+    // 1. Autenticar identidad mediante Supabase Auth (Bearer <token>)
+    const auth = await authenticateServerRequest(req, {
+      customAuthClient: options?.customAuthClient || context?.customAuthClient,
+    });
 
-    if (!userId && !email) {
-      return NextResponse.json({ error: 'Identificación requerida' }, { status: 401 });
+    if (!auth.authenticated) {
+      return auth.response;
     }
 
-    const isAdmin = Boolean(email && ADMIN_EMAILS.includes(email.toLowerCase().trim()));
+    const { id: orderId } = await context.params;
+    if (!orderId || typeof orderId !== 'string') {
+      return Response.json({ error: 'orderId inválido' }, { status: 400 });
+    }
 
-    // 1. Obtener la orden
+    const adminSupabase = options?.customAdminClient || context?.customAdminClient || getAdminSupabase();
+
+    // 2. Obtener la orden
     let query = adminSupabase.from('orders').select('*').eq('id', orderId);
 
-    if (!isAdmin) {
-      if (!userId) {
-        return NextResponse.json({ error: 'userId requerido para clientes' }, { status: 400 });
-      }
-      query = query.eq('user_id', userId);
+    // Si NO es admin, restringir estrictamente la consulta al user_id verificado
+    if (!auth.isAdmin) {
+      query = query.eq('user_id', auth.user.id);
     }
 
     const { data: order, error: orderError } = await query.single();
 
     if (orderError || !order) {
-      return NextResponse.json({ error: 'Pedido no encontrado o sin permisos' }, { status: 404 });
+      // 404 intencional: no revela la existencia ni pertenencia de órdenes ajenas
+      return Response.json({ error: 'Pedido no encontrado o sin permisos' }, { status: 404 });
     }
 
-    // 2. Obtener los ítems de la orden (SKUs para comprar a NYWD)
+    // 3. Obtener los ítems de la orden (SKUs para comprar a NYWD)
     const { data: items, error: itemsError } = await adminSupabase
       .from('order_items')
       .select('*')
       .eq('order_id', orderId);
 
-    return NextResponse.json({
+    if (itemsError) {
+      console.error('[OrderDetail] Error fetching order items:', itemsError.message || itemsError);
+    }
+
+    return Response.json({
       order,
       items: items || [],
-      isAdmin
+      isAdmin: auth.isAdmin
     });
   } catch (err: any) {
-    console.error('Exception fetching order detail:', err);
-    return NextResponse.json({ error: err.message || 'Error del servidor' }, { status: 500 });
+    console.error('[OrderDetail] Exception fetching order detail:', err?.message || err);
+    return Response.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
+}
+
+export async function GET(
+  req: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  return handleGetOrderDetail(req, context);
 }

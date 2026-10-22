@@ -10,7 +10,7 @@ import type { Order } from '@/lib/catalog/types';
 import { parseOrderTracking } from '@/lib/trackingUtils';
 
 export default function MisPedidosPage() {
-  const { user, isLoggedIn } = useAuth();
+  const { user, session, isLoggedIn } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -20,13 +20,21 @@ export default function MisPedidosPage() {
   const limit = 20;
 
   const fetchOrders = useCallback(async (currentPage: number) => {
-    if (!user) return;
+    if (!session?.access_token) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/orders?userId=${encodeURIComponent(user.id)}&email=${encodeURIComponent(user.email || '')}`);
+      const res = await fetch('/api/orders', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
       const json = await res.json();
 
       if (!res.ok || json.error) {
+        if (res.status === 401) {
+          router.push('/login?redirect=/mis-pedidos');
+          return;
+        }
         console.error("Error fetching orders:", json.error);
         setOrders([]);
         setTotal(0);
@@ -41,15 +49,15 @@ export default function MisPedidosPage() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [session?.access_token, router]);
 
   useEffect(() => {
     if (isLoggedIn === false) {
       router.push('/login?redirect=/mis-pedidos');
-    } else if (isLoggedIn && user) {
+    } else if (isLoggedIn && session?.access_token) {
       fetchOrders(page);
     }
-  }, [isLoggedIn, user, page, router, fetchOrders]);
+  }, [isLoggedIn, session?.access_token, page, router, fetchOrders]);
 
   if (!isLoggedIn || !user) {
     return (
