@@ -1,10 +1,11 @@
 import { Suspense } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import CatalogoClient from '@/components/catalog/CatalogoClient';
-import { AUTHORIZED_BRANDS } from '@/lib/catalog/filterEngine';
+import { normalizeText } from '@/lib/catalog/normalize';
 
-// Optamos por revalidar frecuentemente o dejar como dinámico dado que es un catálogo
-export const revalidate = 60; // SSR cache 60s
+// Renderizado dinámico inmediato para reflejar cambios de stock y nuevas marcas al instante
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function CatalogoPage({
   searchParams,
@@ -12,19 +13,32 @@ export default async function CatalogoPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const params = await searchParams;
+
   // 1. Parsing params de URL
   const page = Math.max(1, parseInt(params.page as string) || 1);
-  const limitStr = parseInt(params.limit as string) || 48; // aprox 12-24 modelos agrupados
-  const limit = Math.max(1, Math.min(limitStr, 120)); // Límite técnico
+  const limitStr = parseInt(params.limit as string) || 48;
+  const limit = Math.max(1, Math.min(limitStr, 120));
   const q = (params.q as string) || '';
   const sort = (params.sort as string) || 'relevancia';
 
-  // 2. Construcción de Query a Supabase
+  // 2. Consulta de metadatos globales de TODO el inventario con stock activo en Supabase
+  // Esto asegura que TODOS los armazones y marcas cargadas alimenten el árbol de filtros dinámico
+  const { data: allFacetItems } = await supabase
+    .from('marcos')
+    .select('id, id_ext, marca, modelo, genero, material, forma, tamano, stock')
+    .gt('stock', 0);
+
+  const facetList = allFacetItems || [];
+  const allDbBrands = Array.from(new Set(facetList.map((r) => r.marca).filter(Boolean)));
+  const allDbGeneros = Array.from(new Set(facetList.map((r) => r.genero).filter(Boolean)));
+  const allDbMateriales = Array.from(new Set(facetList.map((r) => r.material).filter(Boolean)));
+  const allDbFormas = Array.from(new Set(facetList.map((r) => r.forma).filter(Boolean)));
+
+  // 3. Construcción de Query a Supabase
   let query = supabase.from('marcos').select('*', { count: 'exact' });
 
-  // 3. Filtros
+  // 4. Búsqueda por texto libre
   if (q) {
-    // Permite encontrar "RB 2140" o código o marca
     const cleanQ = q.trim();
     query = query.or(`modelo.ilike.%${cleanQ}%,marca.ilike.%${cleanQ}%,id_ext.ilike.%${cleanQ}%`);
   }
@@ -35,29 +49,48 @@ export default async function CatalogoPage({
     return str.split(',').filter(Boolean);
   };
 
+  // 5. Filtros con resolución insensible a mayúsculas, tildes y espacios
   const marcas = parseList(params.marca);
   if (marcas.length > 0) {
-    const rawList = marcas.map((m) => m.trim());
-    const lowerList = rawList.map((m) => m.toLowerCase());
-    const titleList = rawList.map((m) => m.replace(/\b\w/g, (c) => c.toUpperCase()));
-    const upperList = rawList.map((m) => m.toUpperCase());
-    const matchedAuthorized = AUTHORIZED_BRANDS.filter((b) =>
-      lowerList.includes(b.toLowerCase())
+    const matched = allDbBrands.filter((dbBrand) =>
+      marcas.some((m) => normalizeText(m) === normalizeText(dbBrand))
     );
-    const combined = Array.from(new Set([...rawList, ...lowerList, ...titleList, ...upperList, ...matchedAuthorized]));
-    query = query.in('marca', combined);
+    if (matched.length > 0) {
+      query = query.in('marca', matched);
+    }
   }
 
   const generos = parseList(params.genero);
-  if (generos.length > 0) query = query.in('genero', generos);
+  if (generos.length > 0) {
+    const matched = allDbGeneros.filter((dbg) =>
+      generos.some((g) => normalizeText(g) === normalizeText(dbg))
+    );
+    if (matched.length > 0) {
+      query = query.in('genero', matched);
+    }
+  }
 
   const materiales = parseList(params.material);
-  if (materiales.length > 0) query = query.in('material', materiales);
+  if (materiales.length > 0) {
+    const matched = allDbMateriales.filter((dbm) =>
+      materiales.some((m) => normalizeText(m) === normalizeText(dbm))
+    );
+    if (matched.length > 0) {
+      query = query.in('material', matched);
+    }
+  }
 
   const formas = parseList(params.forma);
-  if (formas.length > 0) query = query.in('forma', formas);
+  if (formas.length > 0) {
+    const matched = allDbFormas.filter((dbf) =>
+      formas.some((f) => normalizeText(f) === normalizeText(dbf))
+    );
+    if (matched.length > 0) {
+      query = query.in('forma', matched);
+    }
+  }
 
-  // 4. Ordenamiento
+  // 6. Ordenamiento
   switch (sort) {
     case 'precio-asc':
       query = query.order('precio_neto_clp', { ascending: true });
@@ -72,14 +105,14 @@ export default async function CatalogoPage({
       query = query.order('modelo', { ascending: true });
       break;
     default:
-      query = query.order('id_ext', { ascending: true }); // relevancia
+      query = query.order('id_ext', { ascending: true });
   }
 
-  // 5. Paginación Server-Side real
+  // 7. Paginación Server-Side
   const offset = (page - 1) * limit;
   query = query.range(offset, offset + limit - 1);
 
-  // 6. Ejecución
+  // 8. Ejecución
   const { data, count, error } = await query;
   
   if (error) {
@@ -91,12 +124,13 @@ export default async function CatalogoPage({
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">Cargando catálogo SSR OptiHub...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">Cargando catálogo OptiHub...</div>}>
       <CatalogoClient 
         initialMarcos={marcos} 
         totalCount={total} 
         currentPage={page}
         totalPages={totalPages}
+        allFacetItems={facetList}
       />
     </Suspense>
   );

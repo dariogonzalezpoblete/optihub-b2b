@@ -24,8 +24,14 @@ import SortSelect from "@/components/catalog/SortSelect";
 import ProductCard from "@/components/catalog/ProductCard";
 import QuickViewModal from "@/components/catalog/QuickViewModal";
 
-interface Props { initialMarcos: any[]; totalCount: number; currentPage: number; totalPages: number; }
-export default function CatalogoClient({ initialMarcos, totalCount, currentPage, totalPages }: Props) {
+interface Props { 
+  initialMarcos: any[]; 
+  totalCount: number; 
+  currentPage: number; 
+  totalPages: number; 
+  allFacetItems?: any[];
+}
+export default function CatalogoClient({ initialMarcos, totalCount, currentPage, totalPages, allFacetItems }: Props) {
   const [marcos, setMarcos] = useState<Marco[]>(initialMarcos);
   const [loading, setLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<EnrichedMarco | null>(null);
@@ -76,7 +82,13 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
 
   // Datos derivados (memoizados: se recalculan solo cuando cambian datos o filtros)
   const enriched = useMemo(() => enrichMarcos(marcos), [marcos]);
-  const facets = useMemo(() => getFacets(enriched, filters), [enriched, filters]);
+  const facetSource = useMemo(() => {
+    if (allFacetItems && allFacetItems.length > 0) {
+      return enrichMarcos(allFacetItems);
+    }
+    return enriched;
+  }, [allFacetItems, enriched]);
+  const facets = useMemo(() => getFacets(facetSource, filters), [facetSource, filters]);
   const results = useMemo(
     () => applyFilters(enriched, filters, mounted && isLoggedIn),
     [enriched, filters, mounted, isLoggedIn]
