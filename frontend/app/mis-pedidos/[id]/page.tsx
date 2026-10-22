@@ -18,6 +18,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState<Order | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -25,32 +26,18 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       setLoading(true);
       setError('');
       try {
-        // 1. Fetch Order
-        const { data: orderData, error: orderError } = await supabase
-          .from('orders')
-          .select('*')
-          .eq('id', orderId)
-          .eq('user_id', user!.id)
-          .single();
+        const res = await fetch(`/api/orders/${orderId}?userId=${encodeURIComponent(user!.id)}&email=${encodeURIComponent(user!.email || '')}`);
+        const json = await res.json();
 
-        if (orderError || !orderData) {
-          setError('Pedido no encontrado o no tienes permisos para verlo.');
+        if (!res.ok || json.error) {
+          setError(json.error || 'Pedido no encontrado o no tienes permisos para verlo.');
           setLoading(false);
           return;
         }
 
-        setOrder(orderData);
-
-        // 2. Fetch Order Items (Mantiene precios históricos)
-        const { data: itemsData, error: itemsError } = await supabase
-          .from('order_items')
-          .select('*')
-          .eq('order_id', orderId);
-
-        if (!itemsError && itemsData) {
-          setItems(itemsData);
-        }
-        
+        setOrder(json.order);
+        setItems(json.items || []);
+        setIsAdmin(Boolean(json.isAdmin));
       } catch (err) {
         console.error(err);
         setError('Ocurrió un error al cargar el pedido.');
@@ -182,9 +169,39 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           <OrderTrackingTimeline 
             order={order}
             onOrderUpdated={(updated) => setOrder(updated)}
-            isAdmin={user?.email === 'multifocuslimitada@gmail.com' || (user as any)?.user_metadata?.rol === 'admin'}
+            isAdmin={isAdmin}
           />
         </div>
+
+        {/* Ficha de Gestión de Cliente para el Administrador */}
+        {isAdmin && (
+          <div className="mb-8 p-6 rounded-2xl bg-slate-900 border border-emerald-500/30">
+            <div className="flex items-center gap-2 mb-4 text-emerald-400 font-bold text-sm uppercase tracking-wider">
+              <Building2 className="w-4 h-4" />
+              Ficha del Cliente Óptico (Para Compra en Proveedor NYWD y Facturación)
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                <span className="text-xs text-slate-500 font-semibold block mb-1">Razón Social / Óptica</span>
+                <span className="font-bold text-white text-base">{order.business_name || 'No informada'}</span>
+              </div>
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                <span className="text-xs text-slate-500 font-semibold block mb-1">RUT Empresa</span>
+                <span className="font-bold text-white font-mono text-base">{order.business_rut || 'No informado'}</span>
+              </div>
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                <span className="text-xs text-slate-500 font-semibold block mb-1">Contacto Directo</span>
+                <span className="font-bold text-white block">{order.customer_name || 'Cliente'}</span>
+                <span className="text-xs text-slate-400 block mt-0.5">{order.customer_phone || order.customer_email}</span>
+              </div>
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                <span className="text-xs text-slate-500 font-semibold block mb-1">Destino Despacho</span>
+                <span className="font-bold text-white block">{order.shipping_commune || 'Comuna'}</span>
+                <span className="text-xs text-slate-400 block mt-0.5">{order.shipping_address || 'Dirección no indicada'}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Detalles de productos (Snapshot histórico) */}

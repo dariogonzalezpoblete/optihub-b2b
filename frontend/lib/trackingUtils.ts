@@ -29,26 +29,26 @@ export const IMPORT_STAGES: StageDefinition[] = [
   {
     key: 'desaduanamiento',
     step: 3,
-    label: 'En Desaduanamiento',
+    label: 'Control de Aduanas',
     badge: 'Aduana SCL',
-    location: 'Aduana de Chile & Control OptiHub',
-    description: 'Trámite de internación comercial, aforo aduanero y verificación técnica física de piezas por OptiHub.'
+    location: 'Aduana de Chile',
+    description: 'Trámite de internación comercial, aforo aduanero y validación técnica por OptiHub.'
   },
   {
     key: 'reparto_chile',
     step: 4,
-    label: 'En Reparto en Chile',
+    label: 'Reparto Nacional',
     badge: 'Última Milla',
-    location: 'Courier Nacional en Ruta',
-    description: 'En despacho terrestre hacia la dirección comercial de tu óptica con courier asignado.'
+    location: 'Courier Nacional',
+    description: 'En despacho hacia la dirección de tu óptica con courier asignado.'
   },
   {
     key: 'entregado',
     step: 5,
-    label: 'Entregado Conforme',
+    label: 'Entregado',
     badge: 'Completado',
     location: 'En Óptica',
-    description: 'Pedido recibido con sus estuches originales, paños de microfibra oficiales y Factura Electrónica SII.'
+    description: 'Pedido recibido con estuches originales de marca y Factura Electrónica SII.'
   }
 ];
 

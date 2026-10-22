@@ -14,6 +14,7 @@ export default function MisPedidosPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const limit = 20;
@@ -22,27 +23,18 @@ export default function MisPedidosPage() {
     if (!user) return;
     setLoading(true);
     try {
-      const offset = (currentPage - 1) * limit;
-      
-      // Mostrar exclusivamente pedidos realizados y confirmados (no cancelados ni abandonados)
-      const { data, count, error } = await supabase
-        .from('orders')
-        .select('*', { count: 'exact' })
-        .eq('user_id', user.id)
-        .neq('status', 'cancelled')
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
+      const res = await fetch(`/api/orders?userId=${encodeURIComponent(user.id)}&email=${encodeURIComponent(user.email || '')}`);
+      const json = await res.json();
 
-      if (error) {
-        console.error("Error fetching orders:", error);
+      if (!res.ok || json.error) {
+        console.error("Error fetching orders:", json.error);
+        setOrders([]);
+        setTotal(0);
       } else {
-        // Filtrar sesiones de checkout abandonadas sin pago ni confirmación
-        const validOrders = (data || []).filter(order => 
-          order.status !== 'cancelled' && 
-          !(order.status === 'pending' && order.payment_status === 'pending')
-        );
-        setOrders(validOrders);
-        setTotal(validOrders.length);
+        const fetchedOrders: Order[] = json.orders || [];
+        setOrders(fetchedOrders);
+        setTotal(fetchedOrders.length);
+        setIsAdmin(Boolean(json.isAdmin));
       }
     } catch (err) {
       console.error(err);
@@ -98,14 +90,24 @@ export default function MisPedidosPage() {
   return (
     <main className="min-h-screen pt-24 pb-20 bg-slate-950">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
-        <div className="mb-8">
-          <h1 className="text-3xl font-black text-white flex items-center gap-3">
-            <Package className="w-8 h-8 text-emerald-400" />
-            Mis Pedidos B2B
-          </h1>
-          <p className="text-slate-400 mt-2">
-            Historial de compras y estado de tus importaciones.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-black text-white flex items-center gap-3">
+              <Package className="w-8 h-8 text-emerald-400" />
+              {isAdmin ? 'Gestión Maestra de Pedidos' : 'Mis Pedidos B2B'}
+            </h1>
+            <p className="text-slate-400 mt-2">
+              {isAdmin 
+                ? 'Supervisión y control de pedidos de clientes ópticos, seguimiento logístico y estados.' 
+                : 'Historial de compras y estado de tus importaciones.'}
+            </p>
+          </div>
+          {isAdmin && (
+            <div className="self-start sm:self-center px-3.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-black uppercase tracking-wider flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4" />
+              Panel de Administrador (Todas las Ópticas)
+            </div>
+          )}
         </div>
 
         {loading ? (
@@ -166,6 +168,31 @@ export default function MisPedidosPage() {
                           </span>
                         )}
                       </div>
+
+                      {/* Información de Cliente Óptico (Vista Administrador) */}
+                      {isAdmin && (
+                        <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs">
+                          <span className="font-bold text-white flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                            {order.business_name || 'Óptica Cliente'}
+                          </span>
+                          {order.business_rut && (
+                            <span className="text-slate-400 font-mono">
+                              RUT: <strong className="text-slate-300">{order.business_rut}</strong>
+                            </span>
+                          )}
+                          {(order.customer_name || order.customer_phone || order.customer_email) && (
+                            <span className="text-slate-400">
+                              Contacto: <strong className="text-slate-300">{order.customer_name}</strong> {order.customer_phone ? `(${order.customer_phone})` : order.customer_email ? `(${order.customer_email})` : ''}
+                            </span>
+                          )}
+                          {order.shipping_commune && (
+                            <span className="text-slate-500">
+                              Envío: {order.shipping_commune}{order.shipping_region ? `, ${order.shipping_region}` : ''}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       
                       <div className="flex flex-wrap gap-4 text-sm text-slate-400">
                         <div className="flex items-center gap-1.5">

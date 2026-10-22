@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Building2, 
   Plane, 
@@ -50,6 +50,13 @@ export default function OrderTrackingTimeline({
   const [selectedCourier, setSelectedCourier] = useState(tracking.courier || 'DHL Express');
   const [trackingInput, setTrackingInput] = useState(tracking.trackingNumber || '');
   const [noteInput, setNoteInput] = useState(tracking.customNote || '');
+
+  useEffect(() => {
+    setSelectedStage(tracking.currentStageKey);
+    setSelectedCourier(tracking.courier || 'DHL Express');
+    setTrackingInput(tracking.trackingNumber || '');
+    setNoteInput(tracking.customNote || '');
+  }, [order]);
 
   const handleCopy = () => {
     if (!tracking.trackingNumber) return;
