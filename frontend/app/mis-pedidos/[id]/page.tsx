@@ -7,6 +7,7 @@ import { Package, Clock, ChevronLeft, MapPin, Building2, CreditCard, ShoppingBag
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import type { Order, OrderItem } from '@/lib/catalog/types';
+import OrderTrackingTimeline from '@/components/orders/OrderTrackingTimeline';
 
 export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
@@ -176,6 +177,15 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         )}
 
+        {/* Módulo Interactivo de Seguimiento de Importación de 5 Fases */}
+        <div className="mb-8">
+          <OrderTrackingTimeline 
+            order={order}
+            onOrderUpdated={(updated) => setOrder(updated)}
+            isAdmin={user?.email === 'multifocuslimitada@gmail.com' || (user as any)?.user_metadata?.rol === 'admin'}
+          />
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Detalles de productos (Snapshot histórico) */}
           <div className="lg:col-span-2 space-y-6">
@@ -207,26 +217,6 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                       </div>
                     </div>
                   ))
-                )}
-              </div>
-            </div>
-
-            {/* Tracking simplificado */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-800 bg-slate-900/50">
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Truck className="w-5 h-5 text-emerald-400" />
-                  Estado de Despacho
-                </h2>
-              </div>
-              <div className="p-6">
-                {order.tracking_number ? (
-                  <div>
-                    <p className="text-sm text-slate-400 mb-1">Número de Seguimiento ({order.shipping_provider || 'Courier'})</p>
-                    <p className="text-xl font-mono text-white font-bold">{order.tracking_number}</p>
-                  </div>
-                ) : (
-                  <p className="text-slate-400">Aún no hay información de despacho disponible. Te notificaremos cuando tu pedido sea enviado.</p>
                 )}
               </div>
             </div>

@@ -17,6 +17,7 @@ import {
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
+import OrderTrackingTimeline from '@/components/orders/OrderTrackingTimeline';
 
 export default function SeguimientoPage() {
   const [orderNumber, setOrderNumber] = useState('');
@@ -41,7 +42,7 @@ export default function SeguimientoPage() {
     try {
       const { data, error: sbError } = await supabase
         .from('orders')
-        .select('id, status, payment_status, created_at, tracking_number, shipping_provider')
+        .select('*')
         .eq('id', orderNumber.trim())
         .single();
 
@@ -141,85 +142,15 @@ export default function SeguimientoPage() {
               </div>
             </div>
 
-            {/* Stages B2B Honestos */}
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 md:p-12">
-              <h3 className="text-xl font-bold text-white mb-10">Progreso de Importación Directa</h3>
-              
-              <div className="relative">
-                {/* LÍNEA CONECTORA VERTICAL */}
-                <div className="absolute left-6 top-6 bottom-6 w-0.5 bg-slate-800" />
-                
-                <div className="space-y-12">
-                  {/* Fase 1: Pago */}
-                  <div className="relative flex gap-6">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center relative z-10 shrink-0 ${
-                      getCurrentStage(trackedOrder.status, trackedOrder.payment_status) >= 1 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500'
-                    }`}>
-                      <ShieldCheck className="w-6 h-6" />
-                    </div>
-                    <div className="pt-3">
-                      <h4 className={`text-lg font-bold ${getCurrentStage(trackedOrder.status, trackedOrder.payment_status) >= 1 ? 'text-white' : 'text-slate-500'}`}>
-                        Pago Aprobado
-                      </h4>
-                      <p className="text-slate-400 mt-1 text-sm">Transacción B2B verificada exitosamente.</p>
-                    </div>
-                  </div>
-
-                  {/* Fase 2: Preparación */}
-                  <div className="relative flex gap-6">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center relative z-10 shrink-0 ${
-                      getCurrentStage(trackedOrder.status, trackedOrder.payment_status) >= 2 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500'
-                    }`}>
-                      <Building2 className="w-6 h-6" />
-                    </div>
-                    <div className="pt-3">
-                      <h4 className={`text-lg font-bold ${getCurrentStage(trackedOrder.status, trackedOrder.payment_status) >= 2 ? 'text-white' : 'text-slate-500'}`}>
-                        Preparación en Bodega
-                      </h4>
-                      <p className="text-slate-400 mt-1 text-sm">El pedido está siendo consolidado para despacho.</p>
-                    </div>
-                  </div>
-
-                  {/* Fase 4: Enviado */}
-                  <div className="relative flex gap-6">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center relative z-10 shrink-0 ${
-                      getCurrentStage(trackedOrder.status, trackedOrder.payment_status) >= 4 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500'
-                    }`}>
-                      <Truck className="w-6 h-6" />
-                    </div>
-                    <div className="pt-3">
-                      <h4 className={`text-lg font-bold ${getCurrentStage(trackedOrder.status, trackedOrder.payment_status) >= 4 ? 'text-white' : 'text-slate-500'}`}>
-                        Enviado al Cliente
-                      </h4>
-                      <p className="text-slate-400 mt-1 text-sm">
-                        {trackedOrder.tracking_number 
-                          ? `En tránsito vía ${trackedOrder.shipping_provider}. Tracking: ${trackedOrder.tracking_number}` 
-                          : 'El pedido ya fue despachado.'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Fase 5: Entregado */}
-                  <div className="relative flex gap-6">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center relative z-10 shrink-0 ${
-                      getCurrentStage(trackedOrder.status, trackedOrder.payment_status) >= 5 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500'
-                    }`}>
-                      <CheckCircle2 className="w-6 h-6" />
-                    </div>
-                    <div className="pt-3">
-                      <h4 className={`text-lg font-bold ${getCurrentStage(trackedOrder.status, trackedOrder.payment_status) >= 5 ? 'text-white' : 'text-slate-500'}`}>
-                        Entregado
-                      </h4>
-                      <p className="text-slate-400 mt-1 text-sm">El cargamento B2B fue recibido exitosamente en destino.</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* Stages B2B de Importación Directa (5 Fases) */}
+            <OrderTrackingTimeline 
+              order={trackedOrder}
+              onOrderUpdated={(updated) => setTrackedOrder(updated)}
+            />
             
-            <div className="text-center">
+            <div className="text-center pt-4">
               <Link href={`/mis-pedidos/${trackedOrder.id}`} className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 font-bold transition">
-                Ver detalle completo del pedido <ChevronRight className="w-4 h-4" />
+                Ver detalle de productos y facturación <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
           </div>
