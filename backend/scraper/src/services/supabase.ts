@@ -222,7 +222,7 @@ export class SupabaseService {
   }
 
   /**
-   * Marks products that are no longer present in provider catalog as stock = 0
+   * Deletes products that are no longer present in provider catalog (discontinued or stock <= 0)
    */
   public async syncOutOfStock(brand: string, scannedIds: Set<string>): Promise<number> {
     if (!this.client || scannedIds.size === 0) return 0;
@@ -231,38 +231,38 @@ export class SupabaseService {
       const existing = await this.getExistingBrandRecords(brand);
       const outOfStockIds: string[] = [];
 
-      for (const [idExt, meta] of existing.entries()) {
-        if (!scannedIds.has(idExt) && meta.stock > 0) {
+      for (const [idExt] of existing.entries()) {
+        if (!scannedIds.has(idExt)) {
           outOfStockIds.push(idExt);
         }
       }
 
       if (outOfStockIds.length === 0) {
-        Logger.info(`Inventory reconciliation: zero items of '${brand}' to mark out-of-stock.`);
+        Logger.info(`Inventory reconciliation: zero items of '${brand}' to delete.`);
         return 0;
       }
 
-      Logger.warn(`Marking ${outOfStockIds.length} discontinued/out-of-stock items as stock = 0 for '${brand}'...`);
+      Logger.warn(`Deleting ${outOfStockIds.length} discontinued/out-of-stock items from database for '${brand}'...`);
 
       const chunkSize = 100;
-      let updatedCount = 0;
+      let deletedCount = 0;
 
       for (let i = 0; i < outOfStockIds.length; i += chunkSize) {
         const chunk = outOfStockIds.slice(i, i + chunkSize);
         const { error } = await this.client
           .from(CONFIG.SUPABASE.TABLE_MARCOS)
-          .update({ stock: 0 })
+          .delete()
           .in('id_ext', chunk);
 
         if (error) {
-          Logger.error(`Failed to zero-out stock for batch: ${error.message}`);
+          Logger.error(`Failed to delete out-of-stock batch: ${error.message}`);
         } else {
-          updatedCount += chunk.length;
+          deletedCount += chunk.length;
         }
       }
 
-      Logger.success(`Successfully updated ${updatedCount} products to stock = 0.`);
-      return updatedCount;
+      Logger.success(`Successfully deleted ${deletedCount} out-of-stock products from database.`);
+      return deletedCount;
     } catch (err) {
       Logger.error(`Error in syncOutOfStock for ${brand}:`, err);
       return 0;

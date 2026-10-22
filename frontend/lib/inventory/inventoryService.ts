@@ -279,11 +279,15 @@ export async function createPurchaseOrderWithAtomicStockDeduction(
       const previousStock = Number(marco.stock ?? 0);
       const newStock = previousStock - qtyToDeduct;
 
-      // Update marcos stock
-      await client.query(
-        `UPDATE marcos SET stock = stock - $1 WHERE id_ext = $2`,
-        [qtyToDeduct, pid]
-      );
+      // Update marcos stock (o eliminar de la base de datos si llega a 0)
+      if (newStock <= 0) {
+        await client.query(`DELETE FROM marcos WHERE id_ext = $1`, [pid]);
+      } else {
+        await client.query(
+          `UPDATE marcos SET stock = stock - $1 WHERE id_ext = $2`,
+          [qtyToDeduct, pid]
+        );
+      }
 
       // Insert audit movement record (type: SALE, quantity negative for audit ledger)
       const insertMovementQuery = `
@@ -427,10 +431,14 @@ export async function deductStockForOrderAtomic(
       const previousStock = Number(item.stock ?? 0);
       const newStock = previousStock - item.quantity;
 
-      await client.query(`UPDATE marcos SET stock = stock - $1 WHERE id_ext = $2`, [
-        item.quantity,
-        item.product_id,
-      ]);
+      if (newStock <= 0) {
+        await client.query(`DELETE FROM marcos WHERE id_ext = $1`, [item.product_id]);
+      } else {
+        await client.query(`UPDATE marcos SET stock = stock - $1 WHERE id_ext = $2`, [
+          item.quantity,
+          item.product_id,
+        ]);
+      }
 
       await client.query(
         `INSERT INTO inventory_movements (
@@ -532,11 +540,15 @@ export async function adjustOrReplenishStockAtomic(
       );
     }
 
-    // 2. Update stock
-    await client.query(`UPDATE marcos SET stock = $1 WHERE id_ext = $2`, [
-      newStock,
-      productId,
-    ]);
+    // 2. Update stock (o eliminar de BD si llega a 0)
+    if (newStock <= 0) {
+      await client.query(`DELETE FROM marcos WHERE id_ext = $1`, [productId]);
+    } else {
+      await client.query(`UPDATE marcos SET stock = $1 WHERE id_ext = $2`, [
+        newStock,
+        productId,
+      ]);
+    }
 
     // 3. Write movement ledger
     const insertMovement = `

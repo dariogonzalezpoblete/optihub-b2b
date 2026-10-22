@@ -47,8 +47,8 @@ export default async function CatalogoPage({
   const allDbMateriales = Array.from(new Set(facetList.map((r) => r.material).filter((m) => m && m.toLowerCase() !== 'select')));
   const allDbFormas = Array.from(new Set(facetList.map((r) => r.forma).filter((f) => f && f.toLowerCase() !== 'select')));
 
-  // 3. Construcción de Query a Supabase
-  let query = supabase.from('marcos').select('*', { count: 'exact' });
+  // 3. Construcción de Query a Supabase (solo productos con inventario activo)
+  let query = supabase.from('marcos').select('*', { count: 'exact' }).gt('stock', 0);
 
   // 4. Búsqueda por texto libre
   if (q) {
