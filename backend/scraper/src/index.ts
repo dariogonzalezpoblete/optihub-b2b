@@ -18,6 +18,10 @@ interface ParsedArgs {
 export function formatBrandName(b: string): string {
   const trimmed = b.trim();
   if (!trimmed) return '';
+  const lower = trimmed.toLowerCase();
+  if (lower === 'ic berlin' || lower === 'ic! berlin') return 'IC! Berlin';
+  if (lower === 'bmw') return 'BMW';
+  if (lower === 'dkny') return 'DKNY';
   return trimmed
     .split(/\s+/)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())

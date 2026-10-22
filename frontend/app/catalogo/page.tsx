@@ -23,17 +23,29 @@ export default async function CatalogoPage({
   const sort = (params.sort as string) || 'relevancia';
 
   // 2. Consulta de metadatos globales de TODO el inventario con stock activo en Supabase
-  // Esto asegura que TODOS los armazones y marcas cargadas alimenten el árbol de filtros dinámico
-  const { data: allFacetItems } = await supabase
-    .from('marcos')
-    .select('id, id_ext, marca, modelo, genero, material, forma, tamano, stock')
-    .gt('stock', 0);
+  // Usamos lectura paginada para asegurar que el 100% de los armazones alimenten las facetas
+  const allFacetItems: any[] = [];
+  let facetOffset = 0;
+  const facetChunkSize = 1000;
+  while (true) {
+    const { data: chunk, error: chunkErr } = await supabase
+      .from('marcos')
+      .select('id, id_ext, marca, modelo, genero, material, forma, tamano, stock')
+      .gt('stock', 0)
+      .range(facetOffset, facetOffset + facetChunkSize - 1);
+    if (chunkErr || !chunk || chunk.length === 0) break;
+    allFacetItems.push(...chunk);
+    if (chunk.length < facetChunkSize) break;
+    facetOffset += facetChunkSize;
+  }
 
-  const facetList = (allFacetItems || []).filter((item) => !isFillerBrand(item.marca));
-  const allDbBrands = Array.from(new Set(facetList.map((r) => r.marca).filter(Boolean)));
-  const allDbGeneros = Array.from(new Set(facetList.map((r) => r.genero).filter(Boolean)));
-  const allDbMateriales = Array.from(new Set(facetList.map((r) => r.material).filter(Boolean)));
-  const allDbFormas = Array.from(new Set(facetList.map((r) => r.forma).filter(Boolean)));
+  const facetList = (allFacetItems || []).filter(
+    (item) => !isFillerBrand(item.marca) && item.marca && item.marca.toLowerCase() !== 'select'
+  );
+  const allDbBrands = Array.from(new Set(facetList.map((r) => r.marca).filter((b) => b && b.toLowerCase() !== 'select')));
+  const allDbGeneros = Array.from(new Set(facetList.map((r) => r.genero).filter((g) => g && g.toLowerCase() !== 'select')));
+  const allDbMateriales = Array.from(new Set(facetList.map((r) => r.material).filter((m) => m && m.toLowerCase() !== 'select')));
+  const allDbFormas = Array.from(new Set(facetList.map((r) => r.forma).filter((f) => f && f.toLowerCase() !== 'select')));
 
   // 3. Construcción de Query a Supabase
   let query = supabase.from('marcos').select('*', { count: 'exact' });

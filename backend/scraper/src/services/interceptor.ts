@@ -212,7 +212,11 @@ export class NetworkInterceptor {
    */
   public normalizeItem(raw: RawCatalogItem, sourceUrl: string): OptiHubProduct | null {
     try {
-      const getStr = (val: unknown): string => (val !== undefined && val !== null ? String(val).trim() : '');
+      const getStr = (val: unknown): string => {
+        if (val === undefined || val === null) return '';
+        const s = String(val).trim();
+        return s.toLowerCase() === 'select' || s.toLowerCase() === 'none' ? '' : s;
+      };
       const getNum = (val: unknown): number => {
         if (typeof val === 'number') return val;
         if (!val) return 0;
@@ -236,6 +240,9 @@ export class NetworkInterceptor {
       else if (mUpper.startsWith('HARLEY')) rawBrand = 'Harley Davidson';
       else if (mUpper.startsWith('HUGO')) rawBrand = 'Hugo';
       else if (mUpper.startsWith('ZEISS')) rawBrand = 'Zeiss';
+      else if (mUpper.startsWith('IC BERLIN') || mUpper.startsWith('IC! BERLIN') || (rawBrand || '').toLowerCase().includes('berlin')) rawBrand = 'IC! Berlin';
+      else if ((rawBrand || '').toLowerCase() === 'bmw') rawBrand = 'BMW';
+      else if ((rawBrand || '').toLowerCase() === 'dkny') rawBrand = 'DKNY';
       else {
         rawBrand = (rawBrand || '').trim().split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
       }

@@ -27,8 +27,8 @@ export default function Footer() {
       a: 'Cada pieza incluye su estuche rígido original de la marca, paño de microfibra oficial y folletería de certificación de fábrica.'
     },
     {
-      q: '¿Cuál es la garantía?',
-      a: 'Cuentas con 12 meses de garantía directa OptiHub ante cualquier falla de manufactura o defecto en bisagras y materiales.'
+      q: '¿Cómo se asegura el estado del producto?',
+      a: 'Todos los armazones son piezas nuevas de vitrina original de distribuidores autorizados internacionales, despachados en su empaque completo de fábrica y verificados al momento de la entrega.'
     },
     {
       q: '¿Plazo de entrega?',

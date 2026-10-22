@@ -512,6 +512,9 @@ export class CatalogRunner {
         else if (mUpper.startsWith('HARLEY')) productBrand = 'Harley Davidson';
         else if (mUpper.startsWith('HUGO')) productBrand = 'Hugo';
         else if (mUpper.startsWith('ZEISS')) productBrand = 'Zeiss';
+        else if (mUpper.startsWith('IC BERLIN') || mUpper.startsWith('IC! BERLIN') || (brandName || '').toLowerCase().includes('berlin')) productBrand = 'IC! Berlin';
+        else if ((brandName || '').toLowerCase() === 'bmw') productBrand = 'BMW';
+        else if ((brandName || '').toLowerCase() === 'dkny') productBrand = 'DKNY';
         else {
           productBrand = (brandName || '').trim().split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
         }

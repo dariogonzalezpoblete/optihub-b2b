@@ -172,7 +172,7 @@ export function getFacets(list: EnrichedMarco[], state: FilterState): Facets {
     // Todas las opciones existentes en el catálogo completo (para que no "desaparezcan")
     for (const m of list) {
       const key = m._k[f];
-      if (!key || labels.has(key)) continue;
+      if (!key || key === 'select' || key === 'none' || labels.has(key)) continue;
       labels.set(key, labelFor(f, f === 'calibre' ? key : String(m[f as keyof Marco] ?? '')));
       counts.set(key, 0);
     }
@@ -189,6 +189,7 @@ export function getFacets(list: EnrichedMarco[], state: FilterState): Facets {
         count: counts.get(key) || 0,
       }))
       .filter((opt) => {
+        if (!opt.key || opt.key === 'select' || opt.key === 'none' || opt.label.toLowerCase() === 'select') return false;
         if (f === 'marca' && isFillerBrand(opt.label)) return false;
         return opt.count > 0 || state[f].includes(opt.key);
       });
@@ -204,11 +205,9 @@ export function getFacets(list: EnrichedMarco[], state: FilterState): Facets {
           count: counts.get(r.key) || 0,
         }))
         .filter((opt) => opt.count > 0 || state[f].includes(opt.key));
-    } else if (f === 'genero') {
-      const order = ['men', 'women', 'unisex'];
-      options.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
     } else {
-      options.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'es'));
+      // Orden alfabético automático (A-Z) para todas las categorías
+      options.sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
     }
 
     result[f] = options;

@@ -25,13 +25,13 @@ export default function AuthenticityBanner() {
       icon: Award,
       title: 'Certificación & Trazabilidad',
       desc: 'Productos con folletería de autenticidad del fabricante, código de barras y trazabilidad de lote directo desde distribuidores autorizados.',
-      tag: 'Garantía de Fábrica'
+      tag: 'Origen Autorizado'
     },
     {
       icon: CheckCircle2,
-      title: 'Inspección de Calidad en Miami',
-      desc: 'Revisión óptica unitaria previa al embarque: verificación de bisagras, calibración de varillas y estado impecable del acetato o titanio.',
-      tag: 'Control Pre-Despacho'
+      title: 'Proceso Logístico en Origen',
+      desc: 'Consolidación profesional, etiquetado y embalaje de seguridad en bodega de origen previo al embarque aéreo directo a Santiago.',
+      tag: 'Logística en Origen'
     },
     {
       icon: FileText,

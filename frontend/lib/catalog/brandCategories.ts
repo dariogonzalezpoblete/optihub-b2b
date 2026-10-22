@@ -15,36 +15,85 @@ export const BRAND_SEGMENTS: BrandSegment[] = [
     id: 'bestsellers',
     label: 'Más Vendidos en Chile',
     icon: '🔥',
-    brands: ['Guess', 'Hugo Boss', 'Tommy Hilfiger', 'Lacoste', 'Carrera'],
+    brands: [
+      'Guess', 
+      'Guess By Marciano', 
+      'Calvin Klein', 
+      'Calvin Klein Jeans', 
+      'Dkny', 
+      'DKNY', 
+      'Hugo Boss', 
+      'Tommy Hilfiger', 
+      'Lacoste', 
+      'Carrera'
+    ],
     description: 'Modelos de alta rotación comprobada en el mercado óptico chileno.'
   },
   {
     id: 'luxury',
-    label: 'Lujo & Alta Gama',
+    label: 'Alta Gama',
     icon: '💎',
-    brands: ['Tom Ford', 'Gucci', 'Ferragamo', 'Salvatore Ferragamo', 'Versace', 'Burberry', 'Prada', 'Chopard'],
-    description: 'Segmento ABC1 con alto ticket promedio y valor de reventa.'
+    brands: [
+      'Gucci', 
+      'Burberry', 
+      'Bmw', 
+      'BMW', 
+      'Tom Ford', 
+      'Ferragamo', 
+      'Salvatore Ferragamo', 
+      'Versace', 
+      'Prada', 
+      'Chopard'
+    ],
+    description: 'Armazones de prestigio internacional con alto valor de reventa.'
   },
   {
     id: 'sport',
-    label: 'Deporte & Escolar',
+    label: 'Sport',
     icon: '⚡',
-    brands: ['Nike', 'Adidas', 'Carrera', 'Rudy Project', 'SPY', 'Under Armour', 'Spyder'],
-    description: 'Armazones envolventes, acetatos deportivos y alta resistencia.'
+    brands: [
+      'Nike', 
+      'Adidas', 
+      'Rudy Project', 
+      'Bolle', 
+      'Converse', 
+      'Carrera', 
+      'SPY', 
+      'Under Armour', 
+      'Spyder'
+    ],
+    description: 'Armazones envolventes, dinámicos, deportivos y de alta resistencia.'
   },
   {
     id: 'clinical',
     label: 'Autoridad Clínica',
     icon: '🩺',
-    brands: ['Zeiss', 'Silhouette', 'IC Berlin', 'IC! Berlin', 'Flexon', 'Police'],
-    description: 'Titanio, bisagras sin tornillos y máxima ergonomía médica.'
+    brands: [
+      'IC! Berlin', 
+      'Ic Berlin', 
+      'IC Berlin', 
+      'Zeiss', 
+      'Silhouette', 
+      'Flexon', 
+      'Police'
+    ],
+    description: 'Titanio, bisagras de precisión técnica y máxima ergonomía médica.'
   },
   {
     id: 'women',
     label: 'Gemas Femeninas',
     icon: '✨',
-    brands: ['Tous', 'Tiffany', 'Tiffany & Co.', 'Kate Spade', 'Swarovski', 'Furla', 'Draper James', 'Marc Jacobs'],
-    description: 'Detalles de joyería, cristales y elegancia para el público femenino.'
+    brands: [
+      'Tous', 
+      'Tiffany', 
+      'Tiffany & Co.', 
+      'Kate Spade', 
+      'Swarovski', 
+      'Furla', 
+      'Draper James', 
+      'Marc Jacobs'
+    ],
+    description: 'Detalles de joyería, elegancia y alta demanda femenina.'
   }
 ];
 
@@ -76,7 +125,7 @@ export function getRotationBadge(brand: string): { label: string; bg: string; te
   if (!brand) return null;
   const b = brand.toLowerCase();
 
-  if (['guess', 'tommy hilfiger', 'hugo boss', 'lacoste'].some(x => b.includes(x))) {
+  if (['guess', 'calvin klein', 'tommy hilfiger', 'hugo boss', 'lacoste', 'dkny'].some(x => b.includes(x))) {
     return {
       label: 'Bestseller Chile',
       bg: 'bg-amber-500/15 border-amber-500/30',
@@ -85,16 +134,16 @@ export function getRotationBadge(brand: string): { label: string; bg: string; te
     };
   }
 
-  if (['tom ford', 'gucci', 'versace', 'burberry', 'ferragamo', 'prada', 'chopard'].some(x => b.includes(x))) {
+  if (['gucci', 'burberry', 'bmw', 'tom ford', 'versace', 'ferragamo', 'prada', 'chopard'].some(x => b.includes(x))) {
     return {
-      label: 'Alta Gama ABC1',
+      label: 'Alta Gama',
       bg: 'bg-purple-500/15 border-purple-500/30',
       text: 'text-purple-300',
       icon: '💎'
     };
   }
 
-  if (['zeiss', 'silhouette', 'ic berlin', 'flexon'].some(x => b.includes(x))) {
+  if (['ic! berlin', 'ic berlin', 'zeiss', 'silhouette', 'flexon'].some(x => b.includes(x))) {
     return {
       label: 'Clínico / Titanio',
       bg: 'bg-sky-500/15 border-sky-500/30',
@@ -112,9 +161,9 @@ export function getRotationBadge(brand: string): { label: string; bg: string; te
     };
   }
 
-  if (['nike', 'adidas', 'rudy project', 'carrera', 'spy'].some(x => b.includes(x))) {
+  if (['nike', 'adidas', 'rudy project', 'bolle', 'converse', 'carrera', 'spy'].some(x => b.includes(x))) {
     return {
-      label: 'Sport & Escolar',
+      label: 'Sport',
       bg: 'bg-emerald-500/15 border-emerald-500/30',
       text: 'text-emerald-300',
       icon: '⚡'
