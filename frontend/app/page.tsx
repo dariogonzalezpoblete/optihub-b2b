@@ -23,7 +23,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import HeroSpotlight from '@/components/home/HeroSpotlight';
-import ProfitSimulator from '@/components/home/ProfitSimulator';
+import AuthenticityBanner from '@/components/home/AuthenticityBanner';
 import ImportSteps from '@/components/home/ImportSteps';
 import RecentlyViewed from '@/components/catalog/RecentlyViewed';
 
@@ -397,8 +397,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 4. SIMULADOR DE RENTABILIDAD B2B INTERACTIVO */}
-      <ProfitSimulator />
+      {/* 4. GARANTÍA DE AUTENTICIDAD Y EMPAQUE OFICIAL */}
+      <AuthenticityBanner />
 
       {/* 5. PROCESO DE IMPORTACIÓN TRANSPARENTE (PASO A PASO) */}
       <ImportSteps />
