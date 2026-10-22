@@ -5,6 +5,7 @@ import { FACET_KEYS, type FacetKey, type Facets, type FilterState } from '@/lib/
 
 const FACET_TITLES: Record<FacetKey, string> = {
   marca: 'Marca',
+  color: 'Color',
   genero: 'Género',
   material: 'Material',
   forma: 'Forma',

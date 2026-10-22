@@ -24,9 +24,9 @@ export interface Marco {
 }
 
 /** Facetas filtrables del catálogo (el orden define el orden visual) */
-export type FacetKey = 'marca' | 'genero' | 'material' | 'forma' | 'calibre';
+export type FacetKey = 'marca' | 'color' | 'genero' | 'material' | 'forma' | 'calibre';
 
-export const FACET_KEYS: FacetKey[] = ['marca', 'genero', 'material', 'forma', 'calibre'];
+export const FACET_KEYS: FacetKey[] = ['marca', 'color', 'genero', 'material', 'forma', 'calibre'];
 
 export type SortKey = 'relevancia' | 'stock' | 'precio-asc' | 'precio-desc' | 'modelo';
 
@@ -35,6 +35,7 @@ export const SORT_KEYS: SortKey[] = ['relevancia', 'stock', 'precio-asc', 'preci
 export interface FilterState {
   q: string;
   marca: string[];
+  color: string[];
   genero: string[];
   material: string[];
   forma: string[];

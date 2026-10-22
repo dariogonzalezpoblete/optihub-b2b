@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
 import AIChatbox from '@/components/ui/AIChatbox';
 import { AuthProvider } from '@/context/AuthContext';
 import CartSync from '@/components/CartSync';
@@ -42,6 +43,9 @@ export default function RootLayout({
           <CartSync />
           {/* Contenido de las páginas */}
           {children}
+
+          {/* Footer Institucional B2B */}
+          <Footer />
 
           {/* AI Chatbox Flotante */}
           <AIChatbox />

@@ -20,6 +20,13 @@ export default function FilterPanel({ facets, state, onToggle }: FilterPanelProp
         onToggle={(k) => onToggle('marca', k)}
       />
       <FilterGroup
+        title="Color Predominante"
+        options={facets.color || []}
+        selected={state.color || []}
+        onToggle={(k) => onToggle('color', k)}
+        initialVisible={5}
+      />
+      <FilterGroup
         title="Género"
         options={facets.genero}
         selected={state.genero}

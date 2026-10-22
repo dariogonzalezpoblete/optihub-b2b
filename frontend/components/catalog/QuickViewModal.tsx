@@ -6,7 +6,8 @@ import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { useCartStore, getValidStock, getProductCartKey } from '@/store/useCartStore';
 import type { EnrichedMarco } from '@/lib/catalog/types';
-import { X, Lock, ShoppingBag, Ruler, AlertCircle } from 'lucide-react';
+import { X, Lock, ShoppingBag, Ruler, AlertCircle, TrendingUp, ShieldCheck, Truck } from 'lucide-react';
+import { getRotationBadge, calculateRetailProjection } from '@/lib/catalog/brandCategories';
 
 interface Props {
   variants: EnrichedMarco[];
@@ -158,26 +159,63 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
             )}
           </div>
 
-          <div className="mt-4 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-            <span>Envío mayorista consolidado</span>
-            <Link href={`/producto/${encodeURIComponent(baseProduct.marca)}/${encodeURIComponent(baseProduct.modelo)}`} className="text-emerald-400 hover:underline font-bold">
-              Ver ficha completa →
-            </Link>
+          <div className="mt-4 pt-4 border-t border-slate-800/80 space-y-2.5">
+            <div className="flex items-center gap-2 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl">
+              <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-400" />
+              <span>100% Original: Con estuche de marca, paño y Factura SII</span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span className="flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-slate-500" /> Entrega: 10 a 15 días hábiles</span>
+              <Link href={`/producto/${encodeURIComponent(baseProduct.marca)}/${encodeURIComponent(baseProduct.modelo)}`} className="text-emerald-400 hover:underline font-bold">
+                Ficha completa →
+              </Link>
+            </div>
           </div>
         </div>
 
         {/* Información y Compra */}
         <div className="w-full md:w-7/12 flex flex-col max-h-[90vh] overflow-y-auto">
           <div className="p-6 md:p-8 border-b border-slate-800">
-            <span className="text-xs uppercase tracking-wider font-extrabold text-emerald-400 mb-1 block">
-              {baseProduct.marca}
-            </span>
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className="text-xs uppercase tracking-wider font-extrabold text-emerald-400">
+                {baseProduct.marca}
+              </span>
+              {getRotationBadge(baseProduct.marca) && (
+                <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border ${getRotationBadge(baseProduct.marca)?.bg} ${getRotationBadge(baseProduct.marca)?.text}`}>
+                  <span>{getRotationBadge(baseProduct.marca)?.icon}</span>
+                  <span>{getRotationBadge(baseProduct.marca)?.label}</span>
+                </span>
+              )}
+            </div>
+
             <h2 className="text-2xl font-black text-white">{baseProduct.modelo}</h2>
             <p className="text-slate-400 text-xs mt-1">Material: {baseProduct.material || 'Estándar'} • Género: {baseProduct.genero || 'Unisex'}</p>
 
+            {/* Calculadora de Margen Retail en Modal */}
+            {isLoggedIn && activeVariant.precio_neto_clp && (
+              <div className="mt-3 bg-slate-950/80 rounded-2xl p-3 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div>
+                  <span className="text-slate-500 block text-[10px] uppercase font-bold">Costo Mayorista</span>
+                  <span className="text-emerald-400 font-black text-sm font-mono">
+                    ${activeVariant.precio_neto_clp.toLocaleString('es-CL')} CLP Neto
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px] uppercase font-bold">PVP Sugerido Óptica</span>
+                  <span className="text-slate-200 font-bold font-mono">
+                    ${calculateRetailProjection(activeVariant.precio_neto_clp).pvpSugerido.toLocaleString('es-CL')} CLP
+                  </span>
+                </div>
+                <div className="bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-xl text-emerald-400 font-bold text-[11px] flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>Margen ~{calculateRetailProjection(activeVariant.precio_neto_clp).margenPorcentaje}% (+${calculateRetailProjection(activeVariant.precio_neto_clp).gananciaPorUnidad.toLocaleString('es-CL')}/un)</span>
+                </div>
+              </div>
+            )}
+
             {/* Dimensiones */}
             {dims && (
-              <div className="flex items-center gap-4 mt-4 bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs">
+              <div className="flex items-center gap-4 mt-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs">
                 <Ruler className="w-4 h-4 text-slate-500" />
                 <span className="text-slate-400">Calibre: <strong className="text-slate-200">{dims.calibre} mm</strong></span>
                 <span className="text-slate-400">Puente: <strong className="text-slate-200">{dims.puente} mm</strong></span>

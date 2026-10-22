@@ -23,6 +23,8 @@ import PredictiveSearch from "@/components/catalog/PredictiveSearch";
 import SortSelect from "@/components/catalog/SortSelect";
 import ProductCard from "@/components/catalog/ProductCard";
 import QuickViewModal from "@/components/catalog/QuickViewModal";
+import QuickSegmentPills from "@/components/catalog/QuickSegmentPills";
+import { normalizeText } from "@/lib/catalog/normalize";
 
 interface Props { 
   initialMarcos: any[]; 
@@ -51,7 +53,7 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
   const getMontoNeto = useCartStore((state) => state.getMontoNeto);
 
   // Filtros sincronizados con la URL
-  const { state: filters, toggle, setQuery, setSort, clearAll, setPage } = useCatalogFilters();
+  const { state: filters, toggle, setFacet, setQuery, setSort, clearAll, setPage } = useCatalogFilters();
 
   useEffect(() => {
     setMounted(true);
@@ -224,6 +226,13 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
           <FilterSidebar {...filterPanelProps} activeCount={activeCount} onClearAll={clearAll} />
 
           <div className="flex-1 min-w-0 space-y-5">
+            {/* Curaduría de Marcas: Pestañas Rápidas por Segmento */}
+            <QuickSegmentPills
+              selectedBrands={filters.marca}
+              onSelectSegment={(brands) => setFacet('marca', brands.map(normalizeText))}
+              onClear={() => setFacet('marca', [])}
+            />
+
             {/* Barra de herramientas: buscador + filtros mobile + orden */}
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
@@ -383,13 +392,21 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
                   )}
                 </p>
                 <p className="text-xs text-slate-400">
-                  {!moqAlcanzado ? (
+                  {totalUnidades < 6 ? (
                     <span className="text-amber-400 font-semibold">
-                      ⚠️ Faltan {10 - totalUnidades} unidades para el mínimo B2B (10 un.)
+                      ⚠️ Faltan {10 - totalUnidades} {10 - totalUnidades === 1 ? 'armazón' : 'armazones'} para liberar tu importación (mínimo 10 un.)
+                    </span>
+                  ) : totalUnidades < 10 ? (
+                    <span className="text-amber-300 font-bold animate-pulse">
+                      🔥 ¡Te faltan solo {10 - totalUnidades} {10 - totalUnidades === 1 ? 'armazón' : 'armazones'} para liberar tu importación desde USA!
+                    </span>
+                  ) : totalUnidades < 15 ? (
+                    <span className="text-emerald-400 font-bold">
+                      ✅ ¡Mínimo de 10 unidades cumplido! Pedido listo para importar desde USA
                     </span>
                   ) : (
-                    <span className="text-emerald-400 font-semibold">
-                      ✅ ¡Mínimo de 10 unidades cumplido!
+                    <span className="text-cyan-300 font-black">
+                      🚀 ¡Escala Mayorista alcanzada ({totalUnidades} un.)! Despacho prioritario y embalaje reforzado
                     </span>
                   )}
                 </p>

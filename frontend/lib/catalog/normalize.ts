@@ -43,6 +43,35 @@ const GENERO_LABELS: Record<string, string> = {
   unisex: 'Unisex',
 };
 
+const COLOR_LABELS: Record<string, string> = {
+  negro: 'Negro',
+  carey: 'Carey / Habana',
+  dorado: 'Dorado',
+  plateado: 'Plateado / Metal',
+  azul: 'Azul / Navy',
+  marron: 'Café / Marrón',
+  gris: 'Gris',
+  rosa: 'Rosado / Rojo',
+  blanco: 'Blanco / Marfil',
+  cristal: 'Transparente / Cristal',
+};
+
+export function extractColorGroup(colorStr: string): string {
+  if (!colorStr) return '';
+  const c = colorStr.toLowerCase();
+  if (c.includes('black') || c.includes('negro')) return 'negro';
+  if (c.includes('havana') || c.includes('tortoise') || c.includes('carey')) return 'carey';
+  if (c.includes('gold') || c.includes('dorad')) return 'dorado';
+  if (c.includes('silver') || c.includes('gunmetal') || c.includes('platead') || c.includes('metal')) return 'plateado';
+  if (c.includes('blue') || c.includes('azul') || c.includes('navy')) return 'azul';
+  if (c.includes('brown') || c.includes('marron') || c.includes('cafe')) return 'marron';
+  if (c.includes('grey') || c.includes('gray') || c.includes('gris')) return 'gris';
+  if (c.includes('pink') || c.includes('rose') || c.includes('red') || c.includes('rojo') || c.includes('violet') || c.includes('bordeaux')) return 'rosa';
+  if (c.includes('white') || c.includes('blanco') || c.includes('ivory') || c.includes('beige')) return 'blanco';
+  if (c.includes('crystal') || c.includes('clear') || c.includes('transparent')) return 'cristal';
+  return '';
+}
+
 // ---------- Calibre ----------
 
 export const CALIBRE_RANGES = [
@@ -78,6 +107,8 @@ export function labelFor(facet: FacetKey, raw: string): string {
   switch (facet) {
     case 'material':
       return MATERIAL_LABELS[key] ?? raw;
+    case 'color':
+      return COLOR_LABELS[key] ?? raw;
     case 'forma':
       return FORMA_LABELS[key] ?? raw;
     case 'genero':

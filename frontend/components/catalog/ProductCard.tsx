@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Lock } from 'lucide-react';
+import { Lock, TrendingUp, Sparkles } from 'lucide-react';
 import type { EnrichedMarco, FacetOption } from '@/lib/catalog/types';
 import { getValidStock } from '@/store/useCartStore';
+import { getRotationBadge, calculateRetailProjection } from '@/lib/catalog/brandCategories';
 
 interface ProductCardProps {
   variants: EnrichedMarco[];
@@ -15,18 +16,19 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materialLabels }: ProductCardProps) {
-  // Estado para manejar qué variante (color) está activa en la tarjeta
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [imgLoaded, setImgLoaded] = useState(false);
 
-  // Si cambian los resultados (ej. por una búsqueda), reiniciamos al primer elemento
   useEffect(() => {
     setSelectedIndex(0);
+    setImgLoaded(false);
   }, [variants]);
 
   const active = variants[selectedIndex] || variants[0];
   const activeStock = getValidStock(active.stock);
-  const inStock = activeStock > 0;
   const materialLabel = materialLabels.find((o) => o.key === active._k.material)?.label ?? active.material;
+  const rotationBadge = getRotationBadge(active.marca);
+  const retail = calculateRetailProjection(active.precio_neto_clp);
 
   return (
     <div 
@@ -38,18 +40,40 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
         className="relative h-56 bg-slate-950 flex items-center justify-center p-4 overflow-hidden cursor-pointer"
         onClick={() => onOpen(active)}
       >
-        <Image unoptimized key={active.id_ext} // Forzar re-render de la animación al cambiar variante
+        {/* Skeleton Loader mientras carga la foto */}
+        {!imgLoaded && (
+          <div className="absolute inset-4 bg-slate-900 rounded-2xl animate-pulse flex items-center justify-center">
+            <span className="text-[10px] text-slate-700 font-mono tracking-wider">CARGANDO FOTO...</span>
+          </div>
+        )}
+
+        <Image 
+          unoptimized 
+          key={active.id_ext}
           src={active.imagen_principal || "/placeholder.png"} 
           alt={`${active.marca} ${active.modelo} ${active.color}`}
           fill
           sizes="(max-width: 768px) 100vw, 33vw"
-          className="object-contain p-4 group-hover:scale-105 transition-transform duration-500 animate-fade-in"
+          className={`object-contain p-4 group-hover:scale-105 transition-all duration-500 ${
+            imgLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
+          onLoad={() => setImgLoaded(true)}
         />
         
-        {/* Badges Superiores */}
-        <span className="badge-brand absolute top-3 left-3 z-10 shadow-md">
-          {active.marca}
-        </span>
+        {/* Badges Superiores: Marca y Calibre */}
+        <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5 items-start">
+          <span className="badge-brand shadow-md">
+            {active.marca}
+          </span>
+
+          {/* Badge de Rotación B2B */}
+          {rotationBadge && (
+            <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border shadow-sm backdrop-blur-md ${rotationBadge.bg} ${rotationBadge.text}`}>
+              <span>{rotationBadge.icon}</span>
+              <span>{rotationBadge.label}</span>
+            </span>
+          )}
+        </div>
         
         {active._dims && (
           <span className="absolute top-3 right-3 z-10 text-[10px] font-mono text-slate-300 bg-slate-900/90 border border-slate-700/80 px-2 py-1 rounded-md shadow-md backdrop-blur-sm">
@@ -57,7 +81,7 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
           </span>
         )}
 
-        {/* Overlay sutil al hover (B2B Glow) */}
+        {/* Overlay sutil al hover */}
         <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/5 transition duration-300 rounded-t-2xl pointer-events-none" />
       </div>
 
@@ -85,8 +109,8 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
 
           {/* SELECTOR RÁPIDO DE VARIANTES (SWATCHES) */}
           {variants.length > 1 && (
-            <div className="mt-4">
-              <p className="text-[10px] text-slate-500 mb-2 font-medium">{variants.length} colores disponibles:</p>
+            <div className="mt-3">
+              <p className="text-[10px] text-slate-500 mb-1.5 font-medium">{variants.length} colores disponibles:</p>
               <div className="flex flex-wrap gap-2">
                 {variants.map((v, i) => (
                   <button
@@ -95,6 +119,7 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
                     onClick={(e) => { 
                       e.stopPropagation(); 
                       setSelectedIndex(i); 
+                      setImgLoaded(false);
                     }}
                     className={`relative w-9 h-9 rounded-lg border overflow-hidden bg-slate-950 transition-all ${
                       i === selectedIndex 
@@ -103,7 +128,9 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
                     }`}
                     title={`${v.color || v.codigo_color} (SKU: ${v.id_ext})`}
                   >
-                    <Image unoptimized src={v.imagen_principal || "/placeholder.png"} 
+                    <Image 
+                      unoptimized 
+                      src={v.imagen_principal || "/placeholder.png"} 
                       className="object-cover p-1" 
                       alt={v.codigo_color || "Color"} 
                       fill
@@ -116,12 +143,29 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
           )}
         </div>
 
+        {/* CALCULADORA DE MARGEN RETAIL PARA ÓPTICAS LOGUEADAS */}
+        {isLoggedIn && retail.pvpSugerido > 0 && (
+          <div className="bg-slate-950/70 rounded-xl p-2.5 border border-slate-800/90 space-y-1 my-1">
+            <div className="flex justify-between items-center text-[10px]">
+              <span className="text-slate-400">PVP Sugerido en Óptica:</span>
+              <span className="font-bold text-slate-200 font-mono">${retail.pvpSugerido.toLocaleString('es-CL')}</span>
+            </div>
+            <div className="flex justify-between items-center text-[10px] font-bold text-emerald-400">
+              <span className="flex items-center gap-1">
+                <TrendingUp className="w-3 h-3 text-emerald-400" />
+                Margen ~{retail.margenPorcentaje}%
+              </span>
+              <span>Ganas +${retail.gananciaPorUnidad.toLocaleString('es-CL')}/un</span>
+            </div>
+          </div>
+        )}
+
         {/* PIE DE TARJETA: PRECIO Y STOCK B2B */}
-        <div className="pt-4 mt-2 border-t border-slate-800/80 flex justify-between items-end">
+        <div className="pt-3 border-t border-slate-800/80 flex justify-between items-end">
           {isLoggedIn ? (
             <div>
-              <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-widest mb-0.5">Neto B2B</span>
-              <span className="text-emerald-400 font-black text-lg leading-none">
+              <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-widest mb-0.5">Neto B2B (+IVA)</span>
+              <span className="text-emerald-400 font-black text-lg leading-none font-mono">
                 ${active.precio_neto_clp?.toLocaleString('es-CL')} <span className="text-xs font-medium text-emerald-400/60">CLP</span>
               </span>
             </div>

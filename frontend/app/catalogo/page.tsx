@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import CatalogoClient from '@/components/catalog/CatalogoClient';
 import { normalizeText } from '@/lib/catalog/normalize';
+import { isFillerBrand } from '@/lib/catalog/brandCategories';
 
 // Renderizado dinámico inmediato para reflejar cambios de stock y nuevas marcas al instante
 export const dynamic = 'force-dynamic';
@@ -28,7 +29,7 @@ export default async function CatalogoPage({
     .select('id, id_ext, marca, modelo, genero, material, forma, tamano, stock')
     .gt('stock', 0);
 
-  const facetList = allFacetItems || [];
+  const facetList = (allFacetItems || []).filter((item) => !isFillerBrand(item.marca));
   const allDbBrands = Array.from(new Set(facetList.map((r) => r.marca).filter(Boolean)));
   const allDbGeneros = Array.from(new Set(facetList.map((r) => r.genero).filter(Boolean)));
   const allDbMateriales = Array.from(new Set(facetList.map((r) => r.material).filter(Boolean)));
@@ -57,6 +58,29 @@ export default async function CatalogoPage({
     );
     if (matched.length > 0) {
       query = query.in('marca', matched);
+    }
+  } else {
+    // Ocultar marcas de relleno de bajo valor para proyectar máxima exclusividad
+    query = query.not('marca', 'in', '("GAP","Gap","Chesterfield","Adensco","Bebe","Emozioni","Elasta")');
+  }
+
+  const colores = parseList(params.color);
+  if (colores.length > 0) {
+    const colorFilters = colores.map((c) => {
+      if (c === 'negro') return 'color.ilike.%black%,color.ilike.%negro%';
+      if (c === 'carey') return 'color.ilike.%havana%,color.ilike.%tortoise%,color.ilike.%carey%';
+      if (c === 'dorado') return 'color.ilike.%gold%,color.ilike.%dorad%';
+      if (c === 'plateado') return 'color.ilike.%silver%,color.ilike.%gunmetal%,color.ilike.%platead%';
+      if (c === 'azul') return 'color.ilike.%blue%,color.ilike.%azul%,color.ilike.%navy%';
+      if (c === 'marron') return 'color.ilike.%brown%,color.ilike.%marron%,color.ilike.%cafe%';
+      if (c === 'gris') return 'color.ilike.%grey%,color.ilike.%gray%,color.ilike.%gris%';
+      if (c === 'rosa') return 'color.ilike.%pink%,color.ilike.%rose%,color.ilike.%red%,color.ilike.%rojo%,color.ilike.%violet%';
+      if (c === 'blanco') return 'color.ilike.%white%,color.ilike.%blanco%,color.ilike.%ivory%,color.ilike.%beige%';
+      if (c === 'cristal') return 'color.ilike.%crystal%,color.ilike.%clear%,color.ilike.%transparent%';
+      return `color.ilike.%${c}%`;
+    }).join(',');
+    if (colorFilters) {
+      query = query.or(colorFilters);
     }
   }
 

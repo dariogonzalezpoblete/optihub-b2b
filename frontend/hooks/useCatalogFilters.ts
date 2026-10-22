@@ -26,6 +26,7 @@ export function useCatalogFilters() {
       q: searchParams.get('q') ?? '',
       page: Number(searchParams.get('page')) || 1,
       marca: parseList(searchParams.get('marca')),
+      color: parseList(searchParams.get('color')),
       genero: parseList(searchParams.get('genero')),
       material: parseList(searchParams.get('material')),
       forma: parseList(searchParams.get('forma')),
@@ -59,15 +60,22 @@ export function useCatalogFilters() {
     [state, commit]
   );
 
+  const setFacet = useCallback(
+    (facet: FacetKey, values: string[]) => {
+      commit({ ...state, [facet]: values, page: 1 });
+    },
+    [state, commit]
+  );
+
   const setQuery = useCallback((q: string) => commit({ ...state, q, page: 1 }), [state, commit]);
   const setSort = useCallback((sort: SortKey) => commit({ ...state, sort, page: 1 }), [state, commit]);
   const setPage = useCallback((page: number) => commit({ ...state, page }), [state, commit]);
 
   const clearAll = useCallback(
     () =>
-      commit({ q: '', marca: [], genero: [], material: [], forma: [], calibre: [], sort: state.sort }),
+      commit({ q: '', marca: [], color: [], genero: [], material: [], forma: [], calibre: [], sort: state.sort }),
     [state.sort, commit]
   );
 
-  return { state, toggle, setQuery, setSort, setPage, clearAll };
+  return { state, toggle, setFacet, setQuery, setSort, setPage, clearAll };
 }

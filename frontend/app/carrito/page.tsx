@@ -16,9 +16,12 @@ import {
   AlertCircle, 
   CheckCircle2,
   Lock,
-  X
+  X,
+  Printer,
+  Share2
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import DeliveryTimeline from '@/components/catalog/DeliveryTimeline';
 
 export default function CarritoPage() {
   const [mounted, setMounted] = useState(false);
@@ -70,6 +73,19 @@ export default function CarritoPage() {
   });
 
   const activeNotice = stockWarning || lastError;
+
+  const generateWhatsAppOrderUrl = () => {
+    let text = `*SOLICITUD DE PEDIDO MAYORISTA - OPTIHUB B2B*\n\n`;
+    text += `📦 *Detalle (${totalUnits} armazones):*\n`;
+    cart.forEach((it, idx) => {
+      text += `${idx + 1}. ${it.producto.marca} ${it.producto.modelo} (${it.producto.id_ext}) x ${it.cantidad} un. -> $${((it.producto.precio_neto_clp || 0) * it.cantidad).toLocaleString('es-CL')} CLP Neto\n`;
+    });
+    text += `\n💵 *Total Neto:* $${montoNeto.toLocaleString('es-CL')} CLP`;
+    text += `\n📑 *IVA (19%):* $${montoIva.toLocaleString('es-CL')} CLP`;
+    text += `\n💰 *Total Facturado:* $${montoTotal.toLocaleString('es-CL')} CLP`;
+    text += `\n\n_Solicito confirmación de disponibilidad para emitir Factura Electrónica y coordinar despacho a óptica._`;
+    return `https://wa.me/56987654321?text=${encodeURIComponent(text)}`;
+  };
 
   if (cart.length === 0) {
     return (
@@ -498,6 +514,28 @@ export default function CarritoPage() {
               )}
             </div>
 
+            {/* Opciones B2B: WhatsApp y Cotización Formal */}
+            <div className="pt-4 border-t border-slate-800 space-y-2">
+              <a
+                href={generateWhatsAppOrderUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-bold py-2.5 px-4 rounded-xl transition text-xs border border-emerald-500/30 flex items-center justify-center gap-2 text-center"
+              >
+                <span>💬</span>
+                <span>Enviar Pedido por WhatsApp</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="w-full bg-slate-950 hover:bg-slate-850 text-slate-300 font-semibold py-2.5 px-4 rounded-xl transition text-xs border border-slate-800 flex items-center justify-center gap-2 text-center"
+              >
+                <Printer className="w-3.5 h-3.5 text-slate-400" />
+                <span>Imprimir / Descargar Cotización</span>
+              </button>
+            </div>
+
             {/* Pasarela y Medios de Pago */}
             <div className="pt-4 border-t border-slate-800 text-center space-y-2">
               <span className="text-[11px] text-slate-400 block">
@@ -511,6 +549,9 @@ export default function CarritoPage() {
           </div>
 
         </div>
+
+        {/* LÍNEA DE TIEMPO VISUAL LOGÍSTICA */}
+        <DeliveryTimeline />
 
       </div>
 

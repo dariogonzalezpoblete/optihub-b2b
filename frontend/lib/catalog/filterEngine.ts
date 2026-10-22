@@ -7,7 +7,8 @@ import {
   type FilterState,
   type Marco,
 } from './types';
-import { CALIBRE_RANGES, calibreRangeKey, labelFor, normalizeText, parseTamano } from './normalize';
+import { CALIBRE_RANGES, calibreRangeKey, extractColorGroup, labelFor, normalizeText, parseTamano } from './normalize';
+import { isFillerBrand } from './brandCategories';
 
 // ---------------------------------------------------------------------------
 // Enriquecimiento (se ejecuta una sola vez al cargar el catálogo)
@@ -23,6 +24,7 @@ export function enrichMarcos(list: Marco[]): EnrichedMarco[] {
       _dims: dims,
       _k: {
         marca: normalizeText(m.marca),
+        color: extractColorGroup(m.color),
         genero: normalizeText(m.genero),
         material: normalizeText(m.material),
         forma: normalizeText(m.forma),
@@ -117,6 +119,18 @@ export function applyFilters(
 
 export const STATIC_FACETS = {
   marca: AUTHORIZED_BRANDS.map(b => ({ key: normalizeText(b), label: b, count: 0 })),
+  color: [
+    { key: 'negro', label: 'Negro', count: 0 },
+    { key: 'carey', label: 'Carey / Habana', count: 0 },
+    { key: 'dorado', label: 'Dorado', count: 0 },
+    { key: 'plateado', label: 'Plateado / Metal', count: 0 },
+    { key: 'azul', label: 'Azul / Navy', count: 0 },
+    { key: 'marron', label: 'Café / Marrón', count: 0 },
+    { key: 'gris', label: 'Gris', count: 0 },
+    { key: 'rosa', label: 'Rosado / Rojo', count: 0 },
+    { key: 'blanco', label: 'Blanco / Marfil', count: 0 },
+    { key: 'cristal', label: 'Transparente / Cristal', count: 0 },
+  ],
   genero: [
     { key: 'men', label: 'Hombre', count: 0 },
     { key: 'women', label: 'Mujer', count: 0 },
@@ -174,7 +188,10 @@ export function getFacets(list: EnrichedMarco[], state: FilterState): Facets {
         label,
         count: counts.get(key) || 0,
       }))
-      .filter((opt) => opt.count > 0 || state[f].includes(opt.key));
+      .filter((opt) => {
+        if (f === 'marca' && isFillerBrand(opt.label)) return false;
+        return opt.count > 0 || state[f].includes(opt.key);
+      });
 
     if (f === 'calibre') {
       // Orden fijo de menor a mayor + texto secundario
