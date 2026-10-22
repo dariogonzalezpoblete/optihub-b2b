@@ -219,37 +219,83 @@ function generateAdminEmailHtml(data: OrderEmailPayload): string {
 }
 
 // Función principal de envío de correos automáticos
-export async function sendOrderConfirmationEmails(data: OrderEmailPayload) {
+export async function sendOrderConfirmationEmails(
+  data: OrderEmailPayload,
+  options?: { idempotencyKey?: string }
+) {
   const adminEmail = process.env.ADMIN_EMAIL || 'contacto@optihub.cl';
   const fromEmail = process.env.EMAIL_FROM || 'OptiHub B2B <onboarding@resend.dev>';
+  const isSimulationMode = process.env.EMAIL_SIMULATION_MODE === 'true';
 
   console.log(`📧 Preparando envío de correos automáticos para orden ${data.externalReference}...`);
 
-  if (!resend) {
-    console.log('ℹ RESEND_API_KEY no detectada. Simulación de envío de correos:');
-    console.log(`-> Correo Óptica enviado a: ${data.billing.contacto_email}`);
-    console.log(`-> Correo Admin enviado a: ${adminEmail}`);
-    return { success: true, simulated: true };
+  if (!resend || isSimulationMode) {
+    const simulationReason = isSimulationMode
+      ? 'EMAIL_SIMULATION_MODE activado'
+      : 'RESEND_API_KEY no detectada';
+    console.log(`ℹ Simulación de envío de correos (${simulationReason}):`);
+    console.log(`-> Correo Óptica simulado a: ${data.billing.contacto_email}`);
+    console.log(`-> Correo Admin simulado a: ${adminEmail}`);
+    return {
+      success: true,
+      simulated: true,
+      simulationReason,
+      recipients: {
+        client: data.billing.contacto_email,
+        admin: adminEmail,
+      },
+    };
   }
 
   try {
+    const clientHeaders: Record<string, string> = {};
+    const adminHeaders: Record<string, string> = {};
+
+    if (options?.idempotencyKey) {
+      clientHeaders['X-Entity-Ref-ID'] = `${options.idempotencyKey}_client`;
+      adminHeaders['X-Entity-Ref-ID'] = `${options.idempotencyKey}_admin`;
+    }
+
+    const clientReqOptions = options?.idempotencyKey
+      ? { headers: { 'Idempotency-Key': `${options.idempotencyKey}_client` } }
+      : undefined;
+
+    const adminReqOptions = options?.idempotencyKey
+      ? { headers: { 'Idempotency-Key': `${options.idempotencyKey}_admin` } }
+      : undefined;
+
     // 1. Enviar correo a la Óptica (Cliente)
-    const clientPromise = resend.emails.send({
-      from: fromEmail,
-      to: data.billing.contacto_email,
-      subject: `👓 Pedido Mayorista Confirmado #${data.externalReference} | OptiHub B2B`,
-      html: generateClientEmailHtml(data),
-    });
+    const clientPromise = resend.emails.send(
+      {
+        from: fromEmail,
+        to: data.billing.contacto_email,
+        subject: `👓 Pedido Mayorista Confirmado #${data.externalReference} | OptiHub B2B`,
+        html: generateClientEmailHtml(data),
+        headers: Object.keys(clientHeaders).length > 0 ? clientHeaders : undefined,
+      },
+      clientReqOptions
+    );
 
     // 2. Enviar correo de alerta al Administrador (Tú)
-    const adminPromise = resend.emails.send({
-      from: fromEmail,
-      to: adminEmail,
-      subject: `🚨 [NUEVA VENTA B2B] #${data.externalReference} - ${data.billing.razon_social} (${data.totals.totalUnits} un.)`,
-      html: generateAdminEmailHtml(data),
-    });
+    const adminPromise = resend.emails.send(
+      {
+        from: fromEmail,
+        to: adminEmail,
+        subject: `🚨 [NUEVA VENTA B2B] #${data.externalReference} - ${data.billing.razon_social} (${data.totals.totalUnits} un.)`,
+        html: generateAdminEmailHtml(data),
+        headers: Object.keys(adminHeaders).length > 0 ? adminHeaders : undefined,
+      },
+      adminReqOptions
+    );
 
     const [clientRes, adminRes] = await Promise.all([clientPromise, adminPromise]);
+
+    if (clientRes.error || adminRes.error) {
+      const err = clientRes.error || adminRes.error;
+      const errMsg = err?.message || 'Error reportado por el proveedor Resend.';
+      console.error('Error reportado por la API de Resend:', err);
+      return { success: false, error: errMsg };
+    }
 
     console.log('✓ Ambos correos automáticos enviados con éxito vía Resend:', {
       client: clientRes,
@@ -258,7 +304,8 @@ export async function sendOrderConfirmationEmails(data: OrderEmailPayload) {
 
     return { success: true, clientRes, adminRes };
   } catch (error: any) {
-    console.error('Error enviando correos con Resend:', error);
-    return { success: false, error: error.message };
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('Error enviando correos con Resend:', errorMsg);
+    return { success: false, error: errorMsg };
   }
 }

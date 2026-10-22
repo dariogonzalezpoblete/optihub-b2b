@@ -1,5 +1,6 @@
 // frontend/lib/db/postgres.ts
-import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
+import { Pool } from 'pg';
+import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 
 /**
  * Interface representing the database configuration parameters

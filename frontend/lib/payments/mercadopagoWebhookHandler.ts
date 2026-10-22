@@ -4,6 +4,11 @@ import { PoolClient } from 'pg';
 import { withTransaction, executeQuery } from '../db/postgres';
 import { deductStockForOrderAtomic } from '../inventory/inventoryService';
 import { isValidUuid } from '../checkoutWebhookAndResult';
+import {
+  createOrderEmailOutboxRecord,
+  dispatchOrderEmailOutbox,
+} from './orderEmailOutboxService';
+import type { sendOrderConfirmationEmails } from '../email';
 
 /**
  * Result structure of processing a webhook event
@@ -18,6 +23,7 @@ export interface WebhookProcessingResult {
     orderId?: string;
     paymentId?: string;
     stockStatus?: string;
+    outboxCreated?: boolean;
     details?: unknown;
   };
 }
@@ -96,7 +102,11 @@ async function ensureAuditTableExists(client: PoolClient): Promise<void> {
  */
 export async function processMercadoPagoWebhookEvent(
   params: WebhookRequestParams,
-  options?: { bypassSignature?: boolean; customClient?: PoolClient }
+  options?: {
+    bypassSignature?: boolean;
+    customClient?: PoolClient;
+    emailSender?: typeof sendOrderConfirmationEmails;
+  }
 ): Promise<WebhookProcessingResult> {
   const { xSignature, xRequestId, dataId, type, bodyPayload } = params;
   const mpAccessToken = process.env.MP_ACCESS_TOKEN;
@@ -347,6 +357,14 @@ export async function processMercadoPagoWebhookEvent(
         }
       }
 
+      // Create email outbox record atomically within the transaction
+      // ONLY if stock deduction did not fail and order was not moved to requires_attention
+      let outboxCreated = false;
+      if (stockStatus !== 'failed') {
+        const outboxRes = await createOrderEmailOutboxRecord(client, order.id, String(dataId));
+        outboxCreated = outboxRes.created;
+      }
+
       // Record successful event in processed_webhooks audit table
       await client.query(
         `INSERT INTO processed_webhooks (event_id, payment_id, order_id, event_type, action, payload, status)
@@ -362,6 +380,7 @@ export async function processMercadoPagoWebhookEvent(
           orderId: order.id,
           paymentId: String(dataId),
           stockStatus,
+          outboxCreated,
         },
       };
     }
@@ -406,9 +425,33 @@ export async function processMercadoPagoWebhookEvent(
     };
   };
 
+  let result: WebhookProcessingResult;
   if (options?.customClient) {
-    return runTransaction(options.customClient);
+    result = await runTransaction(options.customClient);
+  } else {
+    result = await withTransaction(runTransaction);
   }
 
-  return withTransaction(runTransaction);
+  // 5. Post-commit immediate dispatch optimization (best effort, non-blocking)
+  // Completely isolated from transaction: failures or network timeouts here
+  // CANNOT revert the committed payment, inventory deduction, or outbox record.
+  if (
+    (result.body?.action === 'approved' || result.body?.alreadyProcessed) &&
+    result.body?.orderId
+  ) {
+    try {
+      await dispatchOrderEmailOutbox({
+        orderId: result.body.orderId,
+        customClient: options?.customClient,
+        emailSender: options?.emailSender,
+      });
+    } catch (dispatchErr) {
+      console.warn(
+        `[MP Webhook] Immediate outbox dispatch failed for order ${result.body.orderId} (will be retried by outbox recovery process):`,
+        dispatchErr
+      );
+    }
+  }
+
+  return result;
 }
