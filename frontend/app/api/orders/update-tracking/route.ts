@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { authenticateServerRequest } from '@/lib/auth/serverAuth';
+import { checkBusinessMutationAllowed } from '@/lib/env/runtimeEnv';
 
 // Service role Supabase client for administrative order management
 function getAdminSupabase() {
@@ -33,6 +34,12 @@ export async function handleUpdateTracking(
         { error: 'Acceso denegado: Se requieren permisos administrativos para actualizar el seguimiento.' },
         { status: 403 }
       );
+    }
+
+    // 3. Control de aislamiento de entorno: bloqueado en Preview para proteger la base compartida
+    const envGuard = checkBusinessMutationAllowed('update_order_tracking', options);
+    if (!envGuard.allowed) {
+      return envGuard.response;
     }
 
     const adminSupabase = options?.customAdminClient || getAdminSupabase();

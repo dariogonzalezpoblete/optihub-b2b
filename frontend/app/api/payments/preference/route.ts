@@ -1,6 +1,7 @@
 // frontend/app/api/payments/preference/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createOrderPaymentPreference } from '@/lib/payments/mercadopagoService';
+import { checkCheckoutPreferenceAllowed } from '@/lib/env/runtimeEnv';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +12,22 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: NextRequest) {
   try {
+    const checkoutGuard = checkCheckoutPreferenceAllowed();
+    if (!checkoutGuard.allowed) {
+      return (
+        checkoutGuard.response ||
+        NextResponse.json(
+          {
+            error: checkoutGuard.reason,
+            code: checkoutGuard.code || 'CHECKOUT_BLOCKED',
+            environment: checkoutGuard.environment,
+            statusCode: 403,
+            timestamp: new Date().toISOString(),
+          },
+          { status: 403 }
+        )
+      );
+    }
     let body: any;
     try {
       body = await req.json();

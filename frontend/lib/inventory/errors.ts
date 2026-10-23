@@ -1,7 +1,7 @@
 // frontend/lib/inventory/errors.ts
 import { NextResponse } from 'next/server';
 import { isPoolConnectionError, isTransientConcurrencyError } from '../db/postgres';
-import { InventoryApiErrorResponse } from './types';
+import type { InventoryApiErrorResponse } from './types';
 
 /**
  * Base custom error class for inventory domain errors

@@ -1,6 +1,6 @@
 // frontend/lib/payments/mercadopagoWebhookHandler.ts
 import { MercadoPagoConfig, Payment, WebhookSignatureValidator } from 'mercadopago';
-import { PoolClient } from 'pg';
+import type { PoolClient } from 'pg';
 import { withTransaction, executeQuery } from '../db/postgres';
 import { deductStockForOrderAtomic } from '../inventory/inventoryService';
 import { isValidUuid } from '../checkoutWebhookAndResult';
@@ -9,6 +9,7 @@ import {
   dispatchOrderEmailOutbox,
 } from './orderEmailOutboxService';
 import type { sendOrderConfirmationEmails } from '../email';
+import { checkBusinessMutationAllowed } from '../env/runtimeEnv';
 
 /**
  * Result structure of processing a webhook event
@@ -25,6 +26,8 @@ export interface WebhookProcessingResult {
     stockStatus?: string;
     outboxCreated?: boolean;
     details?: unknown;
+    code?: string;
+    environment?: string;
   };
 }
 
@@ -106,8 +109,23 @@ export async function processMercadoPagoWebhookEvent(
     bypassSignature?: boolean;
     customClient?: PoolClient;
     emailSender?: typeof sendOrderConfirmationEmails;
+    allowInTest?: boolean;
   }
 ): Promise<WebhookProcessingResult> {
+  // 0. Environment isolation guard: Preview deployments must not process mutations on shared DB
+  const envGuard = checkBusinessMutationAllowed('mercadopago_webhook', options);
+  if (!envGuard.allowed) {
+    console.warn(`[MP Webhook] ${envGuard.reason}`);
+    return {
+      statusCode: 403,
+      body: {
+        error: envGuard.reason,
+        code: 'PREVIEW_MUTATION_BLOCKED',
+        environment: envGuard.environment,
+      },
+    };
+  }
+
   const { xSignature, xRequestId, dataId, type, bodyPayload } = params;
   const mpAccessToken = process.env.MP_ACCESS_TOKEN;
   const mpWebhookSecret = process.env.MP_WEBHOOK_SECRET;

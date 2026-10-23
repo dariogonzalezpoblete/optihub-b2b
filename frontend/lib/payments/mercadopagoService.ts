@@ -1,7 +1,8 @@
 // frontend/lib/payments/mercadopagoService.ts
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import { executeQuery, withTransaction } from '../db/postgres';
-import { PoolClient } from 'pg';
+import type { PoolClient } from 'pg';
+import { checkCheckoutPreferenceAllowed } from '../env/runtimeEnv';
 
 /**
  * Interface representing billing and customer details for payment preferences
@@ -80,11 +81,69 @@ function getPreferenceClient(): Preference {
  * Mercado Pago requires a public HTTPS URL for auto_return and webhooks.
  */
 function getSiteUrl(): string {
-  let siteUrl = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || '';
-  if (!siteUrl || siteUrl.includes('localhost') || siteUrl.includes('127.0.0.1')) {
-    siteUrl = 'https://optihub-b2b.vercel.app';
+  const candidate = (process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || '').trim();
+  if (!candidate) {
+    throw new Error('Falta la configuración de la URL base del sitio en las variables de entorno (SITE_URL o NEXT_PUBLIC_SITE_URL).');
   }
-  return siteUrl.replace(/\/+$/, '');
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('Protocolo de URL base inválido. Debe comenzar con http:// o https://.');
+    }
+    if (parsed.username || parsed.password) {
+      throw new Error('La URL base no debe contener credenciales ni parámetros de autenticación.');
+    }
+    if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
+      throw new Error('Mercado Pago auto_return requiere un dominio público accesible. No se admite localhost ni 127.0.0.1. Configure el dominio desplegado de OptiHub en SITE_URL.');
+    }
+    return candidate.replace(/\/+$/, '');
+  } catch (err: any) {
+    if (
+      err?.message?.includes('Mercado Pago') ||
+      err?.message?.includes('Protocolo') ||
+      err?.message?.includes('Falta') ||
+      err?.message?.includes('credenciales')
+    ) {
+      throw err;
+    }
+    throw new Error('La URL base configurada (SITE_URL) no tiene un formato de URL válido.');
+  }
+}
+
+/**
+ * Validates that custom return URLs do not point to untrusted arbitrary domains.
+ * Must belong strictly to the same origin as the application siteUrl.
+ */
+export function validateAndResolveBackUrl(
+  candidateUrl: string | undefined,
+  defaultUrl: string,
+  trustedSiteUrl: string
+): string {
+  if (!candidateUrl || typeof candidateUrl !== 'string' || !candidateUrl.trim()) {
+    return defaultUrl;
+  }
+  const clean = candidateUrl.trim();
+  try {
+    const parsedCandidate = new URL(clean);
+    const parsedTrusted = new URL(trustedSiteUrl);
+
+    if (parsedCandidate.username || parsedCandidate.password) {
+      throw new Error('Las URLs de retorno no deben contener credenciales.');
+    }
+
+    if (parsedCandidate.origin !== parsedTrusted.origin) {
+      throw new Error(
+        `Host no confiable en back_urls: "${parsedCandidate.origin}". Debe pertenecer al dominio configurado "${parsedTrusted.origin}".`
+      );
+    }
+
+    return clean;
+  } catch (err: any) {
+    if (err.message?.includes('Host no confiable') || err.message?.includes('credenciales')) {
+      throw err;
+    }
+    throw new Error(`Formato de URL inválido en back_urls: "${clean}".`);
+  }
 }
 
 /**
@@ -95,6 +154,17 @@ export async function createOrderPaymentPreference(
   options: CreatePreferenceOptions
 ): Promise<CreatePreferenceResult> {
   const { orderId, userId, items: providedItems, billingDetails, shippingAmount = 0, customBackUrls, customClient } = options;
+
+  // Aislamiento de checkout y validación de credenciales por entorno
+  const checkoutGuard = checkCheckoutPreferenceAllowed();
+  if (!checkoutGuard.allowed) {
+    const guardErr = new Error(
+      checkoutGuard.reason || 'Creación de preferencia de pago bloqueada por política de seguridad de entorno.'
+    );
+    (guardErr as any).status = 403;
+    (guardErr as any).code = checkoutGuard.code;
+    throw guardErr;
+  }
 
   if (!orderId || typeof orderId !== 'string' || !orderId.trim()) {
     throw new Error('El parámetro orderId es requerido.');
@@ -277,9 +347,21 @@ export async function createOrderPaymentPreference(
         address: shippingAddress ? { street_name: shippingAddress } : undefined,
       },
       back_urls: {
-        success: customBackUrls?.success || `${siteUrl}/checkout/resultado?status=approved`,
-        failure: customBackUrls?.failure || `${siteUrl}/checkout/resultado?status=rejected`,
-        pending: customBackUrls?.pending || `${siteUrl}/checkout/resultado?status=pending`,
+        success: validateAndResolveBackUrl(
+          customBackUrls?.success,
+          `${siteUrl}/checkout/resultado?status=approved`,
+          siteUrl
+        ),
+        failure: validateAndResolveBackUrl(
+          customBackUrls?.failure,
+          `${siteUrl}/checkout/resultado?status=rejected`,
+          siteUrl
+        ),
+        pending: validateAndResolveBackUrl(
+          customBackUrls?.pending,
+          `${siteUrl}/checkout/resultado?status=pending`,
+          siteUrl
+        ),
       },
       auto_return: 'approved' as const,
       external_reference: orderId,

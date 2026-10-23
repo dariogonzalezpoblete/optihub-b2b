@@ -1,10 +1,19 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { installRecoveryProof } from './auth/recoveryProof';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://yrdjnkbrvynmnzyrxlfx.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_X4iaZ7islKo9js4bvdpl3w_T_Ka3dVD';
+const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+const rawAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+const isConfigured = Boolean(rawUrl && rawAnonKey);
+
+// Fallback safely to a harmless dummy placeholder during build/SSR or when env vars are missing,
+// ensuring execution NEVER defaults or falls back to the production Supabase project (yrdjnkbrvynmnzyrxlfx).
+const supabaseUrl = isConfigured ? (rawUrl as string) : 'https://placeholder-unconfigured.supabase.co';
+const supabaseAnonKey = isConfigured ? (rawAnonKey as string) : 'placeholder-anon-key-unconfigured';
+
+export const isSupabaseConfigured = isConfigured;
+
+export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,

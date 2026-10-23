@@ -13,6 +13,7 @@ import {
   type PriorOrderReplacementSnapshot
 } from '@/lib/checkoutWebhookAndResult';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+import { checkCheckoutPreferenceAllowed, type CheckoutPreferenceGuardOptions } from '@/lib/env/runtimeEnv';
 
 export {
   classifyCheckoutRpcFailureForRecovery,
@@ -46,6 +47,12 @@ export function resolveAndValidateBaseUrl(providedUrl?: string): { valid: boolea
       return {
         valid: false,
         error: 'Protocolo de URL base inválido. Debe comenzar con http:// o https://.'
+      };
+    }
+    if (parsed.username || parsed.password) {
+      return {
+        valid: false,
+        error: 'La URL base no debe contener credenciales ni parámetros de autenticación.'
       };
     }
     if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
@@ -303,6 +310,19 @@ export async function createMpPreference({
   const mpAccessToken = process.env.MP_ACCESS_TOKEN || '';
   if (!mpAccessToken && !injectedPreferenceClient) {
     throw new Error('Falta configuración de Mercado Pago en el servidor.');
+  }
+
+  const checkoutGuard = checkCheckoutPreferenceAllowed({
+    injectedPreferenceClient,
+    allowInTest: Boolean(injectedPreferenceClient),
+  });
+  if (!checkoutGuard.allowed && !injectedPreferenceClient) {
+    const err = new Error(
+      checkoutGuard.reason || 'Creación de preferencia de Mercado Pago bloqueada por política de seguridad de entorno.'
+    );
+    (err as any).status = 403;
+    (err as any).code = checkoutGuard.code;
+    throw err;
   }
 
   const preference =
@@ -1943,25 +1963,54 @@ export async function validateCreatedOrderAfterCheckoutRpc({
   };
 }
 
-export async function POST(req: NextRequest) {
-  let verifiedUserId: string | null = null;
-  let leaseId: string | null = null;
+export interface CreatePreferenceRouteOptions {
+  customAuthClient?: any;
+  customAdminClient?: any;
+  injectedPreferenceClient?: any;
+  checkoutGuardOptions?: CheckoutPreferenceGuardOptions;
+}
+
+export async function handleCreatePreference(
+  req: NextRequest | Request,
+  options?: CreatePreferenceRouteOptions
+) {
+  let verifiedUserId = '';
+  let leaseId = '';
   let leaseAcquired = false;
   let supabaseAdmin: any = null;
 
   try {
+    // 0. CONTROL DE AISLAMIENTO DE CHECKOUT Y CREDENCIALES POR ENTORNO
+    const checkoutGuard = checkCheckoutPreferenceAllowed(options?.checkoutGuardOptions);
+    if (!checkoutGuard.allowed) {
+      console.warn(`[CreatePref] ${checkoutGuard.reason}`);
+      return (
+        checkoutGuard.response ||
+        NextResponse.json(
+          {
+            error: checkoutGuard.reason,
+            code: checkoutGuard.code || 'CHECKOUT_BLOCKED',
+            environment: checkoutGuard.environment,
+            statusCode: 403,
+            timestamp: new Date().toISOString(),
+          },
+          { status: 403 }
+        )
+      );
+    }
+
     // Ensure required Supabase server configuration is present
-    if (!supabaseUrl || !supabaseAnonKey || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!options?.customAdminClient && (!supabaseUrl || !supabaseAnonKey || !process.env.SUPABASE_SERVICE_ROLE_KEY)) {
       console.error('[CreatePref] Missing required Supabase server configuration');
       return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
-    supabaseAdmin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+    supabaseAdmin = options?.customAdminClient || createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!);
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       return NextResponse.json({ error: 'No autorizado: Falta token de autenticación.' }, { status: 401 });
     }
     const token = authHeader.replace('Bearer ', '');
-    const supabaseAuthClient = createClient(supabaseUrl, supabaseAnonKey, {
+    const supabaseAuthClient = options?.customAuthClient || createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: {
           Authorization: `Bearer ${token}`
@@ -2001,12 +2050,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'El RUT ingresado no es válido para compras B2B.' }, { status: 400 });
     }
 
-    // 4. VALIDAR Y CONFIGURAR URL BASE PARA MERCADO PAGO
-    let rawSiteUrl = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL;
-    if (!rawSiteUrl || rawSiteUrl.includes('localhost') || rawSiteUrl.includes('127.0.0.1')) {
-      rawSiteUrl = 'https://optihub-b2b.vercel.app';
-    }
-
+    // 4. VALIDAR Y CONFIGURAR URL BASE PARA MERCADO PAGO (Sin fallback silencioso a producción)
+    const rawSiteUrl = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL;
     const urlValidation = resolveAndValidateBaseUrl(rawSiteUrl);
     if (!urlValidation.valid || !urlValidation.url) {
       console.error('[CreatePref] Error en URL base:', urlValidation.error);
@@ -2679,4 +2724,8 @@ export async function POST(req: NextRequest) {
       await releaseUserCheckoutLease(supabaseAdmin, verifiedUserId, leaseId);
     }
   }
+}
+
+export async function POST(req: NextRequest) {
+  return handleCreatePreference(req);
 }

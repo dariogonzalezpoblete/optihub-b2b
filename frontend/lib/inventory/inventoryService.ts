@@ -1,8 +1,8 @@
 // frontend/lib/inventory/inventoryService.ts
-import { PoolClient } from 'pg';
+import type { PoolClient } from 'pg';
 import crypto from 'node:crypto';
 import { executeQuery, withTransaction } from '../db/postgres';
-import {
+import type {
   AdjustStockInput,
   AdjustStockResult,
   CreatePurchaseOrderInput,

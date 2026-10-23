@@ -7,9 +7,22 @@ import {
   isValidUuid,
   resolveCancelledOrderIncidentUpdateOutcome,
 } from '@/lib/checkoutWebhookAndResult';
+import { checkBusinessMutationAllowed } from '@/lib/env/runtimeEnv';
 
 export async function POST(req: NextRequest) {
   try {
+    const envGuard = checkBusinessMutationAllowed('mercadopago_webhook');
+    if (!envGuard.allowed) {
+      console.warn(`[Webhook] ${envGuard.reason}`);
+      return NextResponse.json(
+        {
+          error: envGuard.reason,
+          code: 'PREVIEW_MUTATION_BLOCKED',
+          environment: envGuard.environment,
+        },
+        { status: 403 }
+      );
+    }
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const mpAccessToken = process.env.MP_ACCESS_TOKEN;
