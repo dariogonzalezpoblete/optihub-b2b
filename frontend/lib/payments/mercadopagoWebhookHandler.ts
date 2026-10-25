@@ -15,8 +15,9 @@ import {
 import {
   createOrderEmailOutboxRecord,
   dispatchOrderEmailOutbox,
+  sanitizeEmailError,
 } from './orderEmailOutboxService';
-import type { sendOrderConfirmationEmails } from '../email';
+import { sendOrderConfirmationEmails, type OrderEmailPayload, type OrderItemEmail, type BillingEmailData } from '../email';
 import { checkBusinessMutationAllowed } from '../env/runtimeEnv';
 import {
   getMercadoPagoAccessToken,
@@ -150,6 +151,163 @@ function hasDirectPostgresConnectionConfigured(): boolean {
     process.env.SUPABASE_DB_URL ||
     process.env.PGHOST
   );
+}
+
+/**
+ * Ensures an `order_email_outbox` record exists for an approved order and dispatches
+ * the confirmation email via Resend using the Supabase Service Role client (when direct
+ * pg.Pool is not configured).
+ */
+export async function ensureOrderEmailOutboxViaSupabaseAdmin(
+  supabaseAdmin: any,
+  orderId: string,
+  paymentId: string
+): Promise<{ outboxCreated: boolean; sent: boolean; simulated?: boolean }> {
+  try {
+    const { data: existingOutbox } = await supabaseAdmin
+      .from('order_email_outbox')
+      .select('id, status, attempts, payload, idempotency_key')
+      .eq('order_id', orderId)
+      .maybeSingle();
+
+    if (existingOutbox && existingOutbox.status === 'SENT') {
+      return { outboxCreated: false, sent: true };
+    }
+
+    let outboxId = existingOutbox?.id;
+    let payload: OrderEmailPayload | null = existingOutbox?.payload || null;
+    let idempotencyKey = existingOutbox?.idempotency_key || `email_ord_${orderId}_mp_${paymentId}`;
+    let outboxCreated = false;
+
+    if (!existingOutbox) {
+      const { data: fullOrder } = await supabaseAdmin
+        .from('orders')
+        .select(
+          'id, subtotal_net, tax_amount, total_amount, currency, customer_name, customer_email, customer_phone, business_name, business_rut, billing_address, shipping_address, shipping_region, shipping_commune, notes'
+        )
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (!fullOrder) {
+        return { outboxCreated: false, sent: false };
+      }
+
+      const { data: rawItems } = await supabaseAdmin
+        .from('order_items')
+        .select('product_id, sku, product_name, brand_name, unit_price_net, quantity, subtotal_net')
+        .eq('order_id', orderId);
+
+      const items: OrderItemEmail[] = (rawItems || []).map((item: any) => ({
+        id_ext: item.product_id || item.sku || '',
+        marca: item.brand_name || 'Armazón',
+        modelo: item.product_name || item.sku || '',
+        cantidad: Number(item.quantity || 1),
+        precio_unitario_neto: Number(item.unit_price_net || 0),
+        subtotal_neto: Number(item.subtotal_net || 0),
+      }));
+
+      const totalUnits = items.reduce((sum, i) => sum + i.cantidad, 0);
+      const recipientEmail = (fullOrder.customer_email || 'contacto@optihub.cl').trim().toLowerCase();
+
+      const billing: BillingEmailData = {
+        razon_social: (fullOrder.business_name || fullOrder.customer_name || 'Óptica Cliente').trim(),
+        rut: (fullOrder.business_rut || 'Sin RUT').trim(),
+        giro: 'Comercialización de artículos ópticos',
+        contacto_nombre: (fullOrder.customer_name || 'Encargado de Óptica').trim(),
+        contacto_telefono: (fullOrder.customer_phone || '').trim(),
+        contacto_email: recipientEmail,
+        direccion: (fullOrder.billing_address || fullOrder.shipping_address || 'Dirección no especificada').trim(),
+        comuna: (fullOrder.shipping_commune || '').trim(),
+        region: (fullOrder.shipping_region || '').trim(),
+        instrucciones_entrega: fullOrder.notes || undefined,
+      };
+
+      payload = {
+        externalReference: fullOrder.id,
+        paymentId: String(paymentId),
+        items,
+        billing,
+        totals: {
+          totalUnits,
+          montoNeto: Math.round(Number(fullOrder.subtotal_net || 0)),
+          montoIva: Math.round(Number(fullOrder.tax_amount || 0)),
+          montoTotal: Math.round(Number(fullOrder.total_amount || 0)),
+        },
+      };
+
+      const { data: insertedOutbox } = await supabaseAdmin
+        .from('order_email_outbox')
+        .upsert(
+          {
+            order_id: fullOrder.id,
+            payment_id: String(paymentId),
+            recipient_email: recipientEmail,
+            status: 'PENDING',
+            idempotency_key: idempotencyKey,
+            payload,
+            next_retry_at: new Date().toISOString(),
+          },
+          { onConflict: 'order_id', ignoreDuplicates: true }
+        )
+        .select('id')
+        .maybeSingle();
+
+      outboxId = insertedOutbox?.id;
+      outboxCreated = Boolean(outboxId);
+    }
+
+    if (!payload) {
+      return { outboxCreated, sent: false };
+    }
+
+    const sendRes = await sendOrderConfirmationEmails(payload, { idempotencyKey });
+    const isSimulated = Boolean((sendRes as any)?.simulated);
+
+    if (outboxId) {
+      if (isSimulated) {
+        await supabaseAdmin
+          .from('order_email_outbox')
+          .update({
+            status: 'PENDING',
+            claim_token: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', outboxId);
+      } else if (sendRes?.success) {
+        await supabaseAdmin
+          .from('order_email_outbox')
+          .update({
+            status: 'SENT',
+            processed_at: new Date().toISOString(),
+            attempts: Number(existingOutbox?.attempts || 0) + 1,
+            last_error: null,
+            claim_token: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', outboxId);
+      } else {
+        await supabaseAdmin
+          .from('order_email_outbox')
+          .update({
+            status: 'FAILED',
+            attempts: Number(existingOutbox?.attempts || 0) + 1,
+            last_error: sanitizeEmailError(sendRes?.error),
+            claim_token: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', outboxId);
+      }
+    }
+
+    return {
+      outboxCreated,
+      sent: Boolean(sendRes?.success && !isSimulated),
+      simulated: isSimulated,
+    };
+  } catch (err) {
+    console.warn('[MP Supabase Reconcile] Error gestionando order_email_outbox:', err);
+    return { outboxCreated: false, sent: false };
+  }
 }
 
 /**
@@ -427,6 +585,12 @@ export async function reconcilePaymentViaSupabaseAdmin({
         }
       }
 
+      let outboxCreated = false;
+      if (stockStatus !== 'failed') {
+        const outboxRes = await ensureOrderEmailOutboxViaSupabaseAdmin(supabaseAdmin, order.id, dataId);
+        outboxCreated = outboxRes.outboxCreated;
+      }
+
       const auditAction = stockStatus === 'failed' ? 'approved_stock_failed' : 'approved';
       await recordWebhookAudit(order.id, auditAction, 'PROCESSED');
 
@@ -441,7 +605,7 @@ export async function reconcilePaymentViaSupabaseAdmin({
           orderId: order.id,
           paymentId: dataId,
           stockStatus,
-          outboxCreated: false,
+          outboxCreated,
         },
       };
     }
@@ -457,6 +621,12 @@ export async function reconcilePaymentViaSupabaseAdmin({
     const alreadyProcessed = Boolean(rpcRes?.already_processed);
     const auditAction = stockStatus === 'failed' ? 'approved_stock_failed' : 'approved';
 
+    let outboxCreated = false;
+    if (stockStatus !== 'failed') {
+      const outboxRes = await ensureOrderEmailOutboxViaSupabaseAdmin(supabaseAdmin, order.id, dataId);
+      outboxCreated = outboxRes.outboxCreated;
+    }
+
     await recordWebhookAudit(order.id, auditAction, alreadyProcessed ? 'DUPLICATE' : 'PROCESSED');
 
     return {
@@ -471,7 +641,7 @@ export async function reconcilePaymentViaSupabaseAdmin({
         orderId: order.id,
         paymentId: dataId,
         stockStatus,
-        outboxCreated: false,
+        outboxCreated,
       },
     };
   }

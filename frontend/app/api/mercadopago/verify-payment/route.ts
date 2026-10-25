@@ -7,6 +7,7 @@ import {
   fetchMercadoPagoPayment,
   searchMercadoPagoPaymentByOrder,
   reconcilePaymentViaSupabaseAdmin,
+  ensureOrderEmailOutboxViaSupabaseAdmin,
 } from '@/lib/payments/mercadopagoWebhookHandler';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -88,13 +89,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Si la orden ya está aprobada y en estado procesado activo, retornar de inmediato
+    // 2. Si la orden ya está aprobada y en estado procesado activo, asegurar outbox de notificación y retornar de inmediato
     const currentPayStatus = String(currentOrder.payment_status || '').toLowerCase();
     const currentOrderStatus = String(currentOrder.status || '').toLowerCase();
     if (
       currentPayStatus === 'approved' &&
       ['paid', 'preparing', 'shipped', 'delivered', 'requires_attention'].includes(currentOrderStatus)
     ) {
+      if (currentOrderStatus !== 'requires_attention' && currentOrder.payment_id) {
+        await ensureOrderEmailOutboxViaSupabaseAdmin(
+          supabaseAdmin,
+          currentOrder.id,
+          String(currentOrder.payment_id)
+        );
+      }
       return NextResponse.json({
         verified: true,
         alreadyProcessed: true,
