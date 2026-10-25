@@ -11,14 +11,13 @@ import {
   ArrowLeft, 
   ArrowRight, 
   ShieldCheck, 
-  Truck, 
   FileText, 
   AlertCircle, 
   CheckCircle2,
   Lock,
   X,
   Printer,
-  Share2
+  MessageCircle
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import DeliveryTimeline from '@/components/catalog/DeliveryTimeline';
@@ -52,8 +51,8 @@ export default function CarritoPage() {
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center py-20">
-        <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-[#F7F6F2] text-[#111111] flex items-center justify-center py-20">
+        <div className="w-8 h-8 border-2 border-[#B89768] border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -75,38 +74,50 @@ export default function CarritoPage() {
   const activeNotice = stockWarning || lastError;
 
   const generateWhatsAppOrderUrl = () => {
-    let text = `*SOLICITUD DE PEDIDO MAYORISTA - OPTIHUB B2B*\n\n`;
-    text += `📦 *Detalle (${totalUnits} armazones):*\n`;
+    const lines: string[] = [
+      '*SOLICITUD DE PEDIDO MAYORISTA - OPTIHUB B2B*',
+      '',
+      `*Detalle (${totalUnits} armazones):*`,
+    ];
     cart.forEach((it, idx) => {
-      text += `${idx + 1}. ${it.producto.marca} ${it.producto.modelo} (${it.producto.id_ext}) x ${it.cantidad} un. -> $${((it.producto.precio_neto_clp || 0) * it.cantidad).toLocaleString('es-CL')} CLP Neto\n`;
+      const subtotal = ((it.producto.precio_neto_clp || 0) * it.cantidad).toLocaleString('es-CL');
+      lines.push(
+        `${idx + 1}. ${it.producto.marca} ${it.producto.modelo} (${it.producto.id_ext}) x ${it.cantidad} un. - $${subtotal} CLP Neto`
+      );
     });
-    text += `\n💵 *Total Neto:* $${montoNeto.toLocaleString('es-CL')} CLP`;
-    text += `\n📑 *IVA (19%):* $${montoIva.toLocaleString('es-CL')} CLP`;
-    text += `\n💰 *Total Facturado:* $${montoTotal.toLocaleString('es-CL')} CLP`;
-    text += `\n\n_Solicito confirmación de disponibilidad para emitir Factura Electrónica y coordinar despacho a óptica._`;
-    return `https://wa.me/56987654321?text=${encodeURIComponent(text)}`;
+    lines.push('');
+    lines.push(`*Total Neto:* $${montoNeto.toLocaleString('es-CL')} CLP`);
+    lines.push(`*IVA (19%):* $${montoIva.toLocaleString('es-CL')} CLP`);
+    lines.push(`*Total Facturado:* $${montoTotal.toLocaleString('es-CL')} CLP`);
+    lines.push('');
+    lines.push('Solicito confirmacion de disponibilidad para emitir Factura Electronica y coordinar despacho a optica.');
+    const text = lines.join('\n');
+    return `https://wa.me/569989338537?text=${encodeURIComponent(text)}`;
   };
 
   if (cart.length === 0) {
     return (
-      <div className="min-h-[80vh] bg-slate-950 text-slate-100 flex items-center justify-center px-4 py-16">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center shadow-2xl">
-          <div className="w-20 h-20 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
-            <ShoppingBag className="w-10 h-10" />
+      <div className="min-h-[80vh] bg-[#F7F6F2] text-[#111111] flex items-center justify-center px-4 py-16">
+        <div className="max-w-md w-full bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-8 sm:p-10 text-center shadow-sm">
+          <div className="w-16 h-16 bg-[#FAF9F6] text-[#B89768] rounded-2xl flex items-center justify-center mx-auto mb-6 border border-[#E5E4DF]">
+            <ShoppingBag className="w-8 h-8 stroke-[1.6]" />
           </div>
-          <h1 className="text-2xl font-black text-white uppercase tracking-tight">
-            Tu Carrito B2B está vacío
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#B89768] mb-2">
+            Orden Mayorista B2B
+          </span>
+          <h1 className="font-editorial font-serif text-2xl sm:text-3xl font-semibold text-[#111111] tracking-tight">
+            Su Carro Mayorista está vacío
           </h1>
-          <p className="text-slate-400 text-sm mt-3 leading-relaxed">
-            Explora nuestro catálogo mayorista de armazones originales con stock sincronizado. Recuerda que el pedido mínimo es de <span className="text-emerald-400 font-bold">10 unidades combinables</span> entre cualquier marca.
+          <p className="text-[#575551] text-xs sm:text-sm mt-3 leading-relaxed">
+            Explore nuestro catálogo de armazones originales con inventario sincronizado en origen. El pedido mínimo mayorista es de <span className="text-[#111111] font-semibold">10 unidades combinables</span> entre cualquier marca y modelo.
           </p>
           <div className="mt-8">
             <Link
               href="/catalogo"
-              className="w-full inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 px-6 rounded-2xl transition shadow-lg shadow-emerald-500/20 text-sm uppercase tracking-wider"
+              className="w-full inline-flex items-center justify-center gap-2 bg-[#111111] hover:bg-[#222222] text-[#FFFFFF] font-semibold py-3.5 px-6 rounded-xl transition shadow-sm text-xs uppercase tracking-widest"
             >
-              Explorar Catálogo Mayorista
-              <ArrowRight className="w-4 h-4" />
+              <span>Explorar Catálogo Mayorista</span>
+              <ArrowRight className="w-4 h-4 text-[#B89768]" />
             </Link>
           </div>
         </div>
@@ -115,19 +126,19 @@ export default function CarritoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-24">
-      {/* Encabezado */}
-      <div className="border-b border-slate-800/80 bg-slate-900/40 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#F7F6F2] text-[#111111] pb-24">
+      {/* Encabezado Editorial */}
+      <div className="border-b border-[#E5E4DF] bg-[#FFFFFF] py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <div className="flex items-center gap-2 text-xs text-slate-400 mb-2">
-              <Link href="/" className="hover:text-emerald-400 transition">Inicio</Link>
+            <div className="flex items-center gap-2 text-xs text-[#82807A] mb-2">
+              <Link href="/" className="hover:text-[#111111] transition">Inicio</Link>
               <span>/</span>
-              <Link href="/catalogo" className="hover:text-emerald-400 transition">Catálogo</Link>
+              <Link href="/catalogo" className="hover:text-[#111111] transition">Catálogo</Link>
               <span>/</span>
-              <span className="text-emerald-400 font-medium">Carrito de Compras B2B</span>
+              <span className="text-[#B89768] font-medium">Carro Mayorista B2B</span>
             </div>
-            <h1 className="text-3xl font-black text-white tracking-tight uppercase">
+            <h1 className="font-editorial font-serif text-3xl sm:text-4xl font-semibold text-[#111111] tracking-tight">
               Orden Mayorista B2B
             </h1>
           </div>
@@ -135,21 +146,21 @@ export default function CarritoPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => {
-                if (confirm('¿Estás seguro de que deseas vaciar tu carrito?')) {
+                if (confirm('¿Está seguro de que desea vaciar su carro mayorista?')) {
                   clearCart();
                 }
               }}
-              className="text-xs text-slate-400 hover:text-rose-400 transition flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800"
+              className="text-xs text-[#575551] hover:text-red-700 transition flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#FAF9F6] border border-[#E5E4DF]"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              Vaciar Carrito
+              Vaciar Carro
             </button>
             <Link
               href="/catalogo"
-              className="text-xs font-bold text-slate-300 hover:text-white transition flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800/80 border border-slate-700"
+              className="text-xs font-semibold text-[#111111] hover:bg-[#FAF9F6] transition flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#FFFFFF] border border-[#E5E4DF]"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Seguir Comprando
+              <ArrowLeft className="w-3.5 h-3.5 text-[#B89768]" />
+              Seguir Seleccionando
             </Link>
           </div>
         </div>
@@ -159,9 +170,9 @@ export default function CarritoPage() {
         
         {/* Banner de Aviso de Stock */}
         {activeNotice && (
-          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-semibold flex items-center justify-between gap-3 animate-fade-in shadow-lg">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 shrink-0 text-amber-400" />
+          <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm font-medium flex items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
               <span>{activeNotice}</span>
             </div>
             <button 
@@ -169,7 +180,7 @@ export default function CarritoPage() {
                 setStockWarning('');
                 clearLastError();
               }}
-              className="text-amber-400/80 hover:text-amber-200 p-1"
+              className="text-amber-700 hover:text-amber-950 p-1"
               title="Cerrar aviso"
             >
               <X className="w-4 h-4" />
@@ -177,48 +188,44 @@ export default function CarritoPage() {
           </div>
         )}
 
-        {/* BARRA DE PROGRESO DE LA REGLA MOQ (10 UNIDADES) */}
-        <div className={`p-6 rounded-3xl border transition-all shadow-xl ${
-          moqValido 
-            ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-300' 
-            : 'bg-amber-950/20 border-amber-500/40 text-amber-200'
-        }`}>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-3">
-            <div className="flex items-center gap-3">
+        {/* BARRA DE PROGRESO DE LA REGLA MOQ (10 UNIDADES) - ESTILO MAISON EDITORIAL */}
+        <div className="bg-[#FFFFFF] border border-[#E5E4DF] p-6 rounded-2xl shadow-sm transition-all">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+            <div className="flex items-center gap-3.5">
               {moqValido ? (
-                <div className="p-2.5 bg-emerald-500/20 rounded-xl text-emerald-400">
-                  <CheckCircle2 className="w-6 h-6" />
+                <div className="p-2.5 bg-[#F7F3EB] border border-[#B89768]/40 rounded-xl text-[#9E7D4F]">
+                  <CheckCircle2 className="w-5 h-5" />
                 </div>
               ) : (
-                <div className="p-2.5 bg-amber-500/20 rounded-xl text-amber-400">
-                  <AlertCircle className="w-6 h-6" />
+                <div className="p-2.5 bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl text-[#B89768]">
+                  <ShoppingBag className="w-5 h-5" />
                 </div>
               )}
               <div>
-                <h3 className="font-extrabold text-white text-base sm:text-lg">
+                <h3 className="font-editorial font-serif text-lg sm:text-xl font-semibold text-[#111111]">
                   {moqValido 
-                    ? '¡Mínimo de compra B2B completado!' 
-                    : `Requisito Mínimo: ${totalUnits} de 10 unidades`}
+                    ? 'Mínimo Mayorista Completado (MOQ)' 
+                    : `Progreso hacia el Mínimo Mayorista: ${totalUnits} de 10 unidades`}
                 </h3>
-                <p className="text-xs text-slate-300 mt-0.5">
+                <p className="text-xs text-[#575551] mt-0.5">
                   {moqValido 
-                    ? `Has alcanzado ${totalUnits} unidades. Puedes proceder al pago y despacho mayorista.` 
-                    : `Te faltan ${unidadesFaltantes} unidades para desbloquear el pedido mayorista. Puedes combinarlas con cualquier modelo del catálogo.`}
+                    ? `Ha seleccionado ${totalUnits} unidades. Su orden está habilitada para facturación electrónica y despacho.` 
+                    : `Añada ${unidadesFaltantes} ${unidadesFaltantes === 1 ? 'unidad adicional' : 'unidades adicionales'} (combinables entre cualquier marca) para habilitar su pedido B2B.`}
                 </p>
               </div>
             </div>
 
-            <div className="text-right flex-shrink-0">
-              <span className="text-2xl font-black text-white">{totalUnits}</span>
-              <span className="text-xs text-slate-400 font-bold"> / 10 Unidades</span>
+            <div className="text-right flex-shrink-0 font-mono">
+              <span className="text-2xl font-bold text-[#111111]">{totalUnits}</span>
+              <span className="text-xs text-[#82807A] font-medium"> / 10 un.</span>
             </div>
           </div>
 
           {/* Barra visual de progreso */}
-          <div className="w-full bg-slate-900 rounded-full h-3 overflow-hidden border border-slate-800">
+          <div className="w-full bg-[#F7F6F2] rounded-full h-2.5 overflow-hidden border border-[#E5E4DF]">
             <div 
               className={`h-full transition-all duration-500 rounded-full ${
-                moqValido ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-amber-500 to-orange-400'
+                moqValido ? 'bg-[#111111]' : 'bg-[#B89768]'
               }`}
               style={{ width: `${porcentajeProgreso}%` }}
             />
@@ -229,16 +236,18 @@ export default function CarritoPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           
           {/* TABLA / LISTADO DE ITEMS */}
-          <div className="lg:col-span-2 space-y-4">
-            <div className="bg-slate-900/60 border border-slate-800/80 rounded-3xl overflow-hidden shadow-lg">
-              <div className="p-4 sm:p-6 border-b border-slate-800 flex justify-between items-center">
-                <h2 className="font-bold text-white text-lg">
-                  Armazones en tu Pedido ({cart.length} modelos)
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl overflow-hidden shadow-sm">
+              <div className="p-5 sm:p-6 border-b border-[#E5E4DF] bg-[#FAF9F6] flex justify-between items-center">
+                <h2 className="font-editorial font-serif font-semibold text-[#111111] text-lg sm:text-xl">
+                  Armazones Seleccionados ({cart.length} {cart.length === 1 ? 'modelo' : 'modelos'})
                 </h2>
-                <span className="text-xs text-slate-400">Precios Netos en CLP</span>
+                <span className="text-[11px] font-mono uppercase tracking-wider text-[#82807A]">
+                  Valores Netos CLP
+                </span>
               </div>
 
-              <div className="divide-y divide-slate-800/80">
+              <div className="divide-y divide-[#E5E4DF]">
                 {cart.map((item) => {
                   const targetId = getProductCartKey(item.producto);
                   const subtotalItem = (item.producto.precio_neto_clp || 0) * item.cantidad;
@@ -250,12 +259,12 @@ export default function CarritoPage() {
                   return (
                     <div 
                       key={targetId}
-                      className="p-4 sm:p-6 flex flex-col gap-3 hover:bg-slate-800/20 transition"
+                      className="p-5 sm:p-6 flex flex-col gap-3 hover:bg-[#FAF9F6]/60 transition"
                     >
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         {/* Imagen y Datos del Armazón */}
                         <div className="flex items-center gap-4 w-full sm:w-auto">
-                          <div className="w-20 h-20 sm:w-24 sm:h-24 bg-slate-950 border border-slate-800 rounded-2xl p-2 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                          <div className="w-20 h-20 sm:w-24 sm:h-24 bg-[#FFFFFF] border border-[#E5E4DF] rounded-xl p-2 flex-shrink-0 flex items-center justify-center overflow-hidden">
                             <img 
                               src={item.producto.imagen_principal || '/placeholder.png'} 
                               alt={item.producto.modelo}
@@ -267,38 +276,38 @@ export default function CarritoPage() {
                             />
                           </div>
                           <div className="space-y-1 flex-1">
-                            <span className="inline-block bg-slate-800 border border-slate-700/60 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
+                            <span className="inline-block bg-[#F7F3EB] border border-[#B89768]/30 text-[#9E7D4F] text-[10px] font-semibold px-2 py-0.5 rounded uppercase tracking-wider">
                               {item.producto.marca}
                             </span>
-                            <h3 className="font-bold text-white text-base leading-tight">
+                            <h3 className="font-editorial font-serif font-semibold text-[#111111] text-base sm:text-lg leading-tight">
                               {item.producto.modelo}
                             </h3>
-                            <div className="flex flex-wrap gap-2 text-xs text-slate-400 font-mono">
+                            <div className="flex flex-wrap gap-2 text-[11px] text-[#82807A] font-mono">
                               <span>SKU: {item.producto.id_ext}</span>
                               {item.producto.codigo_color && (
                                 <span>• Color: {item.producto.codigo_color}</span>
                               )}
                             </div>
                             <div className="flex items-center gap-2 pt-0.5">
-                              <p className="text-xs text-emerald-400 font-semibold">
+                              <p className="text-xs font-mono font-semibold text-[#111111]">
                                 ${(item.producto.precio_neto_clp || 0).toLocaleString('es-CL')} CLP Neto c/u
                               </p>
-                              <span className="text-slate-600">•</span>
+                              <span className="text-[#E5E4DF]">•</span>
                               {isOutOfStock ? (
-                                <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded">
+                                <span className="text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
                                   Sin stock
                                 </span>
                               ) : isExceeded ? (
-                                <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded">
+                                <span className="text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
                                   Supera stock ({item.cantidad}/{stockMax} un.)
                                 </span>
                               ) : isMaxReached ? (
-                                <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+                                <span className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
                                   Máx. disponible ({stockMax} un.)
                                 </span>
                               ) : (
-                                <span className="text-[10px] text-slate-500">
-                                  Stock: {stockMax} un.
+                                <span className="text-[10px] font-mono text-[#82807A]">
+                                  Stock origen: {stockMax} un.
                                 </span>
                               )}
                             </div>
@@ -306,21 +315,21 @@ export default function CarritoPage() {
                         </div>
 
                         {/* Controles de Cantidad y Subtotal */}
-                        <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
+                        <div className="flex items-center justify-between sm:justify-end gap-5 w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-[#E5E4DF]">
                           {/* Selector de cantidad */}
-                          <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl p-1">
+                          <div className="flex items-center gap-1.5 bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl p-1">
                             <button
                               onClick={() => {
                                 updateQuantity(targetId, item.cantidad - 1);
                                 setStockWarning('');
                               }}
-                              className="w-8 h-8 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition border border-slate-800"
+                              className="w-8 h-8 rounded-lg bg-[#FFFFFF] hover:bg-[#F7F6F2] text-[#111111] flex items-center justify-center transition border border-[#E5E4DF]"
                               title="Disminuir"
                             >
                               <Minus className="w-3.5 h-3.5" />
                             </button>
                             
-                            <span className="w-10 text-center font-bold text-white text-sm">
+                            <span className="w-10 text-center font-mono font-bold text-[#111111] text-sm">
                               {item.cantidad}
                             </span>
 
@@ -340,8 +349,8 @@ export default function CarritoPage() {
                               disabled={isMaxReached || isOutOfStock}
                               className={`w-8 h-8 rounded-lg flex items-center justify-center transition border ${
                                 isMaxReached || isOutOfStock
-                                  ? 'bg-slate-900/50 border-slate-800 text-slate-600 cursor-not-allowed'
-                                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800'
+                                  ? 'bg-[#F7F6F2] border-[#E5E4DF] text-[#C2C0B8] cursor-not-allowed'
+                                  : 'bg-[#FFFFFF] hover:bg-[#F7F6F2] text-[#111111] border-[#E5E4DF]'
                               }`}
                               title={
                                 isOutOfStock 
@@ -356,9 +365,9 @@ export default function CarritoPage() {
                           </div>
 
                           {/* Subtotal del item */}
-                          <div className="text-right min-w-[110px]">
-                            <span className="text-[10px] text-slate-400 block uppercase">Subtotal Neto</span>
-                            <span className="text-base font-black text-white">
+                          <div className="text-right min-w-[115px]">
+                            <span className="text-[10px] text-[#82807A] block uppercase tracking-wider">Subtotal Neto</span>
+                            <span className="text-sm sm:text-base font-mono font-bold text-[#111111]">
                               ${subtotalItem.toLocaleString('es-CL')} CLP
                             </span>
                           </div>
@@ -373,7 +382,7 @@ export default function CarritoPage() {
                                 cantidad: item.cantidad
                               });
                             }}
-                            className="text-slate-500 hover:text-rose-400 p-2 rounded-xl hover:bg-rose-500/10 transition"
+                            className="text-[#82807A] hover:text-red-600 p-2 rounded-xl hover:bg-red-50 transition"
                             title="Eliminar del pedido"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -383,9 +392,9 @@ export default function CarritoPage() {
 
                       {/* Alerta contextual si el item supera el stock */}
                       {isExceeded && (
-                        <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-xs font-semibold flex items-center justify-between gap-3 animate-fade-in">
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs font-medium flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                            <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
                             <span>Stock máximo disponible: {stockMax} {stockMax === 1 ? 'unidad' : 'unidades'}. Se requiere ajustar la cantidad.</span>
                           </div>
                           <button
@@ -393,7 +402,7 @@ export default function CarritoPage() {
                               updateQuantity(targetId, stockMax);
                               setStockWarning('');
                             }}
-                            className="px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-lg text-[10px] font-bold uppercase transition"
+                            className="px-3 py-1 bg-[#FFFFFF] hover:bg-red-100 text-red-800 border border-red-300 rounded-lg text-[10px] font-bold uppercase transition"
                           >
                             Ajustar a {stockMax}
                           </button>
@@ -407,56 +416,56 @@ export default function CarritoPage() {
 
             {/* Garantías B2B */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-slate-900/50 border border-slate-800/80 p-4 rounded-2xl flex items-start gap-3">
-                <FileText className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+              <div className="bg-[#FFFFFF] border border-[#E5E4DF] p-5 rounded-2xl flex items-start gap-3.5 shadow-sm">
+                <FileText className="w-5 h-5 text-[#B89768] flex-shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-xs font-bold text-white">Factura Electrónica B2B</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Emitimos factura con IVA recuperable por tu empresa.</p>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#111111]">Factura Electrónica SII</h4>
+                  <p className="text-xs text-[#575551] mt-1">Emisión directa con IVA (19%) recuperable como crédito fiscal para su óptica.</p>
                 </div>
               </div>
-              <div className="bg-slate-900/50 border border-slate-800/80 p-4 rounded-2xl flex items-start gap-3">
-                <ShieldCheck className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+              <div className="bg-[#FFFFFF] border border-[#E5E4DF] p-5 rounded-2xl flex items-start gap-3.5 shadow-sm">
+                <ShieldCheck className="w-5 h-5 text-[#B89768] flex-shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-xs font-bold text-white">Garantía Original</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Armazones 100% auténticos con estuche de fábrica.</p>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#111111]">Autenticidad de Origen</h4>
+                  <p className="text-xs text-[#575551] mt-1">Armazones 100% originales con estuche rígido y paño oficial de fábrica.</p>
                 </div>
               </div>
             </div>
           </div>
 
           {/* CARD LATERAL: RESUMEN DE ORDEN Y PAGO */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl sticky top-28">
-            <h2 className="text-xl font-black text-white uppercase tracking-tight pb-4 border-b border-slate-800">
-              Resumen Mayorista
+          <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm sticky top-28">
+            <h2 className="font-editorial font-serif text-2xl font-semibold text-[#111111] pb-4 border-b border-[#E5E4DF]">
+              Resumen de Orden
             </h2>
 
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between items-center text-slate-300">
+            <div className="space-y-3 text-xs sm:text-sm">
+              <div className="flex justify-between items-center text-[#575551]">
                 <span>Total de Armazones:</span>
-                <span className="font-bold text-white">{totalUnits} unidades</span>
+                <span className="font-mono font-bold text-[#111111]">{totalUnits} unidades</span>
               </div>
-              <div className="flex justify-between items-center text-slate-300">
+              <div className="flex justify-between items-center text-[#575551]">
                 <span>Subtotal Neto:</span>
-                <span className="font-bold text-white">${montoNeto.toLocaleString('es-CL')} CLP</span>
+                <span className="font-mono font-bold text-[#111111]">${montoNeto.toLocaleString('es-CL')} CLP</span>
               </div>
-              <div className="flex justify-between items-center text-slate-300">
+              <div className="flex justify-between items-center text-[#575551]">
                 <span className="flex items-center gap-1.5">
                   IVA (19%):
-                  <span className="text-[10px] text-slate-400 uppercase bg-slate-800 px-1.5 py-0.5 rounded">Chile</span>
+                  <span className="text-[10px] text-[#82807A] uppercase bg-[#F7F6F2] border border-[#E5E4DF] px-1.5 py-0.5 rounded">SII Chile</span>
                 </span>
-                <span className="font-bold text-emerald-400">${montoIva.toLocaleString('es-CL')} CLP</span>
+                <span className="font-mono font-semibold text-[#575551]">${montoIva.toLocaleString('es-CL')} CLP</span>
               </div>
 
-              <div className="pt-4 border-t border-slate-800 flex justify-between items-end">
+              <div className="pt-4 border-t border-[#E5E4DF] flex justify-between items-end">
                 <div>
-                  <span className="text-xs text-slate-400 block font-medium uppercase">Total Factura B2B</span>
-                  <span className="text-xs text-emerald-400 font-bold">Impuestos Incluidos</span>
+                  <span className="text-[11px] text-[#82807A] block font-semibold uppercase tracking-wider">Total Factura B2B</span>
+                  <span className="text-[11px] text-[#B89768] font-medium">IVA Incluido</span>
                 </div>
-                <div className="text-right">
-                  <span className="text-3xl font-black text-white tracking-tight">
+                <div className="text-right font-mono">
+                  <span className="text-2xl sm:text-3xl font-bold text-[#111111] tracking-tight">
                     ${montoTotal.toLocaleString('es-CL')}
                   </span>
-                  <span className="text-xs text-slate-400 block font-bold">CLP</span>
+                  <span className="text-[10px] text-[#82807A] block font-semibold">CLP</span>
                 </div>
               </div>
             </div>
@@ -467,35 +476,35 @@ export default function CarritoPage() {
                 <div className="space-y-3">
                   <button
                     disabled
-                    className="w-full bg-rose-950/40 text-rose-400 font-bold py-4 px-6 rounded-2xl cursor-not-allowed text-center uppercase tracking-wider text-sm border border-rose-800/50 flex items-center justify-center gap-2"
+                    className="w-full bg-red-50 text-red-700 font-semibold py-3.5 px-6 rounded-xl cursor-not-allowed text-center uppercase tracking-wider text-xs border border-red-200 flex items-center justify-center gap-2"
                   >
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     Stock Insuficiente en el Pedido
                   </button>
-                  <p className="text-[11px] text-center text-rose-400">
-                    Uno o más productos superan el stock disponible. Ajusta las cantidades antes de continuar.
+                  <p className="text-[11px] text-center text-red-700">
+                    Uno o más modelos superan el stock disponible. Ajuste las cantidades antes de continuar.
                   </p>
                 </div>
               ) : moqValido ? (
                 isLoggedIn ? (
                   <Link
                     href="/checkout"
-                    className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 px-6 rounded-2xl transition duration-200 shadow-lg shadow-emerald-500/20 text-center flex items-center justify-center gap-2 uppercase tracking-wider text-sm"
+                    className="w-full bg-[#111111] hover:bg-[#222222] text-[#FFFFFF] font-semibold py-4 px-6 rounded-xl transition duration-200 shadow-sm text-center flex items-center justify-center gap-2 uppercase tracking-widest text-xs"
                   >
-                    Continuar al Checkout B2B
-                    <ArrowRight className="w-5 h-5" />
+                    <span>Continuar al Checkout B2B</span>
+                    <ArrowRight className="w-4 h-4 text-[#B89768]" />
                   </Link>
                 ) : (
                   <div className="space-y-3">
                     <Link
                       href="/login?redirect=/checkout"
-                      className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 px-6 rounded-2xl transition duration-200 shadow-lg shadow-emerald-500/20 text-center flex items-center justify-center gap-2 uppercase tracking-wider text-sm"
+                      className="w-full bg-[#111111] hover:bg-[#222222] text-[#FFFFFF] font-semibold py-4 px-6 rounded-xl transition duration-200 shadow-sm text-center flex items-center justify-center gap-2 uppercase tracking-widest text-xs"
                     >
-                      <Lock className="w-4 h-4" />
-                      Iniciar Sesión para Pagar
+                      <Lock className="w-4 h-4 text-[#B89768]" />
+                      <span>Iniciar Sesión para Facturar</span>
                     </Link>
-                    <p className="text-[11px] text-center text-slate-400">
-                      Debes ingresar con tu cuenta de óptica para procesar la facturación electrónica y despacho.
+                    <p className="text-[11px] text-center text-[#82807A]">
+                      Ingrese con su cuenta de óptica para procesar la facturación electrónica y el despacho.
                     </p>
                   </div>
                 )
@@ -503,46 +512,46 @@ export default function CarritoPage() {
                 <div className="space-y-3">
                   <button
                     disabled
-                    className="w-full bg-slate-800 text-slate-500 font-bold py-4 px-6 rounded-2xl cursor-not-allowed text-center uppercase tracking-wider text-sm border border-slate-700/50"
+                    className="w-full bg-[#F7F6F2] text-[#82807A] font-semibold py-4 px-6 rounded-xl cursor-not-allowed text-center uppercase tracking-wider text-xs border border-[#E5E4DF]"
                   >
-                    Faltan {unidadesFaltantes} unidades para comprar
+                    Faltan {unidadesFaltantes} {unidadesFaltantes === 1 ? 'unidad' : 'unidades'} para el mínimo B2B
                   </button>
-                  <p className="text-[11px] text-center text-amber-400">
-                    Agrega al menos {unidadesFaltantes} {unidadesFaltantes === 1 ? 'armazón más' : 'armazones más'} de cualquier marca para habilitar la orden.
+                  <p className="text-[11px] text-center text-[#9E7D4F]">
+                    Agregue al menos {unidadesFaltantes} {unidadesFaltantes === 1 ? 'armazón más' : 'armazones más'} de cualquier marca para habilitar la compra mayorista.
                   </p>
                 </div>
               )}
             </div>
 
             {/* Opciones B2B: WhatsApp y Cotización Formal */}
-            <div className="pt-4 border-t border-slate-800 space-y-2">
+            <div className="pt-4 border-t border-[#E5E4DF] space-y-2.5">
               <a
                 href={generateWhatsAppOrderUrl()}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-bold py-2.5 px-4 rounded-xl transition text-xs border border-emerald-500/30 flex items-center justify-center gap-2 text-center"
+                className="w-full bg-[#FAF9F6] hover:bg-[#F4EFE6] text-[#111111] font-semibold py-3 px-4 rounded-xl transition text-xs border border-[#E5E4DF] hover:border-[#B89768] flex items-center justify-center gap-2 text-center"
               >
-                <span>💬</span>
+                <MessageCircle className="w-4 h-4 text-[#B89768]" />
                 <span>Enviar Pedido por WhatsApp</span>
               </a>
 
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="w-full bg-slate-950 hover:bg-slate-850 text-slate-300 font-semibold py-2.5 px-4 rounded-xl transition text-xs border border-slate-800 flex items-center justify-center gap-2 text-center"
+                className="w-full bg-[#FFFFFF] hover:bg-[#FAF9F6] text-[#575551] font-medium py-2.5 px-4 rounded-xl transition text-xs border border-[#E5E4DF] flex items-center justify-center gap-2 text-center"
               >
-                <Printer className="w-3.5 h-3.5 text-slate-400" />
+                <Printer className="w-3.5 h-3.5 text-[#82807A]" />
                 <span>Imprimir / Descargar Cotización</span>
               </button>
             </div>
 
             {/* Pasarela y Medios de Pago */}
-            <div className="pt-4 border-t border-slate-800 text-center space-y-2">
-              <span className="text-[11px] text-slate-400 block">
-                Pago protegido a través de
+            <div className="pt-4 border-t border-[#E5E4DF] text-center space-y-2">
+              <span className="text-[11px] text-[#82807A] block">
+                Transacción comercial protegida vía
               </span>
-              <div className="inline-flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-bold text-sky-400">
-                <span className="w-2 h-2 rounded-full bg-sky-400"></span>
+              <div className="inline-flex items-center gap-2 bg-[#FAF9F6] px-3.5 py-1.5 rounded-full border border-[#E5E4DF] text-[11px] font-semibold text-[#111111]">
+                <span className="w-2 h-2 rounded-full bg-[#B89768]"></span>
                 Mercado Pago • Webpay / Débito / Crédito
               </div>
             </div>
@@ -557,25 +566,27 @@ export default function CarritoPage() {
 
       {/* Modal de Confirmación para Eliminar Artículo */}
       {itemToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl relative space-y-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#111111]/40 backdrop-blur-xs animate-fade-in">
+          <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl max-w-md w-full p-6 sm:p-8 shadow-xl relative space-y-5">
             <div className="flex items-center justify-between">
-              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
-                <Trash2 className="w-6 h-6" />
+              <div className="w-11 h-11 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center text-red-600">
+                <Trash2 className="w-5 h-5" />
               </div>
               <button
                 type="button"
                 onClick={() => setItemToDelete(null)}
-                className="text-slate-500 hover:text-slate-300 p-2 rounded-xl transition"
+                className="text-[#82807A] hover:text-[#111111] p-2 rounded-xl transition"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-xl font-black text-white">¿Quitar armazón del pedido?</h3>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                Estás a punto de quitar <strong className="text-white font-semibold">{itemToDelete.marca} {itemToDelete.modelo}</strong> ({itemToDelete.cantidad} {itemToDelete.cantidad === 1 ? 'unidad' : 'unidades'}) de tu pedido.
+              <h3 className="font-editorial font-serif text-xl font-semibold text-[#111111]">
+                ¿Quitar armazón de su orden?
+              </h3>
+              <p className="text-[#575551] text-xs sm:text-sm leading-relaxed">
+                Está a punto de retirar <strong className="text-[#111111] font-semibold">{itemToDelete.marca} {itemToDelete.modelo}</strong> ({itemToDelete.cantidad} {itemToDelete.cantidad === 1 ? 'unidad' : 'unidades'}) de su pedido mayorista.
               </p>
             </div>
 
@@ -583,7 +594,7 @@ export default function CarritoPage() {
               <button
                 type="button"
                 onClick={() => setItemToDelete(null)}
-                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition"
+                className="px-5 py-2.5 rounded-xl bg-[#FAF9F6] hover:bg-[#F7F6F2] text-[#111111] border border-[#E5E4DF] font-semibold text-xs transition"
               >
                 Cancelar
               </button>
@@ -593,7 +604,7 @@ export default function CarritoPage() {
                   removeFromCart(itemToDelete.key);
                   setItemToDelete(null);
                 }}
-                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs uppercase tracking-wider transition shadow-lg shadow-rose-600/20"
+                className="px-5 py-2.5 rounded-xl bg-[#111111] hover:bg-red-700 text-[#FFFFFF] font-semibold text-xs uppercase tracking-wider transition"
               >
                 Sí, Quitar
               </button>
