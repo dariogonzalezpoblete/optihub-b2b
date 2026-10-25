@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Sparkles, ShieldCheck, ArrowRight, Eye } from 'lucide-react';
+import { Sparkles, ShieldCheck, ArrowRight } from 'lucide-react';
 
 const SPOTLIGHT_FRAMES = [
   {
@@ -45,28 +45,28 @@ export default function HeroSpotlight() {
   return (
     <div className="relative w-full h-full flex flex-col justify-between">
       
-      {/* Contenedor Glassmorphism de la montura */}
-      <div className="bg-gradient-to-b from-slate-900/90 via-slate-900/60 to-slate-950/90 border border-slate-800/80 rounded-3xl p-6 sm:p-8 flex flex-col justify-between h-full shadow-2xl relative overflow-hidden group">
+      {/* Contenedor Editorial de la montura */}
+      <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl p-6 sm:p-8 flex flex-col justify-between h-full shadow-xs relative overflow-hidden group">
         
-        {/* Glow de acento verde detrás del lente */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-emerald-500/15 blur-[90px] rounded-full pointer-events-none" />
+        {/* Glow sutil champagne detrás del lente */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[#B89768]/8 blur-[90px] rounded-full pointer-events-none" />
 
         {/* Encabezado del spotlight */}
         <div className="flex justify-between items-start relative z-10">
           <div>
-            <span className="badge-brand text-[10px] font-bold">
+            <span className="badge-brand">
               {current.marca}
             </span>
-            <h3 className="text-xl sm:text-2xl font-black text-white mt-1.5 tracking-tight">
+            <h3 className="font-editorial text-2xl font-semibold text-[#111111] mt-2 tracking-tight">
               {current.modelo}
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {current.color} • <span className="text-emerald-400">{current.calibre}</span>
+            <p className="text-xs text-[#575551] mt-0.5">
+              {current.color} • <span className="font-tech text-[#111111] font-semibold">{current.calibre}</span>
             </p>
           </div>
 
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold">
-            <Sparkles className="w-3 h-3" />
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F7F3EB] border border-[#B89768]/30 text-[#9E7D4F] text-[10px] font-bold uppercase tracking-wider">
+            <Sparkles className="w-3 h-3 text-[#B89768]" />
             <span>Trending B2B</span>
           </div>
         </div>
@@ -80,17 +80,17 @@ export default function HeroSpotlight() {
             alt={`${current.marca} ${current.modelo}`}
             fill
             sizes="(max-width: 768px) 100vw, 400px"
-            className="object-contain p-4 group-hover:scale-105 transition-transform duration-500 drop-shadow-[0_15px_25px_rgba(0,0,0,0.6)] animate-fade-in"
+            className="object-contain p-4 group-hover:scale-105 transition-transform duration-500 drop-shadow-[0_12px_20px_rgba(17,17,17,0.06)] animate-fade-in"
           />
         </div>
 
         {/* Selector interactivo de modelos en vitrina */}
-        <div className="relative z-10 pt-4 border-t border-slate-800/80">
+        <div className="relative z-10 pt-4 border-t border-[#E5E4DF]">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#82807A]">
               Explorar destacados:
             </span>
-            <span className="text-[11px] text-emerald-400 font-semibold">
+            <span className="text-[11px] text-[#B89768] font-semibold">
               {current.tipo}
             </span>
           </div>
@@ -103,31 +103,31 @@ export default function HeroSpotlight() {
                 onClick={() => setSelectedIndex(i)}
                 className={`py-2 px-2 rounded-xl text-left border transition-all text-xs flex flex-col justify-between ${
                   i === selectedIndex
-                    ? 'border-emerald-500 bg-emerald-500/10 shadow-sm shadow-emerald-500/20'
-                    : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:text-white'
+                    ? 'border-[#B89768] bg-[#F7F3EB] shadow-2xs'
+                    : 'border-[#E5E4DF] bg-[#FAF9F6] text-[#575551] hover:border-[#82807A] hover:bg-[#FFFFFF]'
                 }`}
               >
-                <span className="font-bold text-[11px] truncate block text-white">
+                <span className="font-editorial font-bold text-[12px] truncate block text-[#111111]">
                   {f.marca}
                 </span>
-                <span className="text-[9px] text-slate-400 truncate block">
+                <span className="text-[9px] font-tech text-[#82807A] truncate block">
                   {f.modelo.replace(f.marca, '').trim()}
                 </span>
               </button>
             ))}
           </div>
 
-          <div className="mt-4 pt-3 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Certificado con estuche de fábrica</span>
+          <div className="mt-4 pt-3 flex items-center justify-between border-t border-[#EFECE6]">
+            <div className="flex items-center gap-1.5 text-[11px] text-[#575551]">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#B89768]" />
+              <span>Estuche oficial de marca</span>
             </div>
 
             <Link
               href="/catalogo"
-              className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition"
+              className="text-xs font-bold text-[#111111] hover:text-[#B89768] flex items-center gap-1 transition tracking-wide uppercase"
             >
-              Ver en catálogo <ArrowRight className="w-3 h-3" />
+              Catálogo <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
         </div>

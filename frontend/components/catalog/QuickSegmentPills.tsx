@@ -31,10 +31,10 @@ export default function QuickSegmentPills({
         <button
           type="button"
           onClick={onClear}
-          className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 border ${
+          className={`px-4 py-2 rounded-full text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 border ${
             isAll
-              ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20'
-              : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
+              ? 'bg-[#111111] text-white border-[#111111] shadow-xs'
+              : 'bg-[#FFFFFF] text-[#575551] border-[#E5E4DF] hover:text-[#111111] hover:border-[#B89768]/60 hover:bg-[#FAF9F6]'
           }`}
         >
           <span>🌐</span>
@@ -49,10 +49,10 @@ export default function QuickSegmentPills({
               key={seg.id}
               type="button"
               onClick={() => onSelectSegment(seg.brands)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 border ${
+              className={`px-4 py-2 rounded-full text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 border ${
                 isActive
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm shadow-emerald-500/10'
-                  : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700 hover:bg-slate-850'
+                  ? 'bg-[#F7F3EB] text-[#9E7D4F] border-[#B89768] shadow-xs'
+                  : 'bg-[#FFFFFF] text-[#575551] border-[#E5E4DF] hover:text-[#111111] hover:border-[#B89768]/60 hover:bg-[#FAF9F6]'
               }`}
               title={seg.description}
             >

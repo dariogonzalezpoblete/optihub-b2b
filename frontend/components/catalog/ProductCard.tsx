@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Lock, TrendingUp, Sparkles } from 'lucide-react';
+import { Lock, TrendingUp } from 'lucide-react';
 import type { EnrichedMarco, FacetOption } from '@/lib/catalog/types';
 import { getValidStock } from '@/store/useCartStore';
 import { getRotationBadge, calculateRetailProjection } from '@/lib/catalog/brandCategories';
@@ -32,18 +32,18 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
 
   return (
     <div 
-      className="card-product group animate-slide-up flex flex-col justify-between"
+      className="card-product group animate-slide-up flex flex-col justify-between bg-[#FFFFFF] border border-[#E5E4DF] hover:border-[#B89768] transition-all duration-300"
       style={{ animationDelay: `${Math.min(idx, 8) * 30}ms` }}
     >
-      {/* ZONA DE IMAGEN Y BADGES */}
+      {/* ZONA DE IMAGEN Y BADGES EDITORIALES */}
       <div 
-        className="relative h-56 bg-slate-950 flex items-center justify-center p-4 overflow-hidden cursor-pointer"
+        className="relative h-60 bg-[#FFFFFF] flex items-center justify-center p-6 overflow-hidden cursor-pointer"
         onClick={() => onOpen(active)}
       >
         {/* Skeleton Loader mientras carga la foto */}
         {!imgLoaded && (
-          <div className="absolute inset-4 bg-slate-900 rounded-2xl animate-pulse flex items-center justify-center">
-            <span className="text-[10px] text-slate-700 font-mono tracking-wider">CARGANDO FOTO...</span>
+          <div className="absolute inset-4 bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl animate-pulse flex items-center justify-center">
+            <span className="text-[10px] text-[#82807A] font-tech tracking-wider uppercase">Cargando Armazón...</span>
           </div>
         )}
 
@@ -54,63 +54,68 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
           alt={`${active.marca} ${active.modelo} ${active.color}`}
           fill
           sizes="(max-width: 768px) 100vw, 33vw"
-          className={`object-contain p-4 group-hover:scale-105 transition-all duration-500 ${
+          className={`object-contain p-4 group-hover:scale-105 transition-all duration-500 ease-out ${
             imgLoaded ? 'opacity-100' : 'opacity-0'
           }`}
           onLoad={() => setImgLoaded(true)}
         />
         
-        {/* Badges Superiores: Marca y Calibre */}
-        <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5 items-start">
-          <span className="badge-brand shadow-md">
+        {/* Badges Superiores: Marca con Tipografía Editorial y Rotación */}
+        <div className="absolute top-3.5 left-3.5 z-10 flex flex-col gap-1.5 items-start">
+          <span className="badge-brand">
             {active.marca}
           </span>
 
           {/* Badge de Rotación B2B */}
           {rotationBadge && (
-            <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border shadow-sm backdrop-blur-md ${rotationBadge.bg} ${rotationBadge.text}`}>
+            <span className="inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full border border-[#E5E4DF] bg-[#FFFFFF]/90 text-[#575551] shadow-xs backdrop-blur-sm">
               <span>{rotationBadge.icon}</span>
               <span>{rotationBadge.label}</span>
             </span>
           )}
         </div>
         
+        {/* Calibre Técnico Monospaciado */}
         {active._dims && (
-          <span className="absolute top-3 right-3 z-10 text-[10px] font-mono text-slate-300 bg-slate-900/90 border border-slate-700/80 px-2 py-1 rounded-md shadow-md backdrop-blur-sm">
+          <span className="absolute top-3.5 right-3.5 z-10 text-[10px] font-tech text-[#575551] bg-[#FFFFFF]/95 border border-[#E5E4DF] px-2 py-0.5 rounded-md shadow-xs backdrop-blur-sm">
             {active._dims.calibre}{active._dims.puente ? `□${active._dims.puente}` : ' mm'}
           </span>
         )}
 
-        {/* Overlay sutil al hover */}
-        <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/5 transition duration-300 rounded-t-2xl pointer-events-none" />
+        {/* Halo sutil al hover */}
+        <div className="absolute inset-0 bg-[#B89768]/0 group-hover:bg-[#B89768]/[0.02] transition duration-300 pointer-events-none" />
       </div>
 
-      {/* ZONA DE INFORMACIÓN Y CONTROLES */}
-      <div className="p-4 space-y-3 flex-1 flex flex-col justify-between bg-slate-900 z-10 relative border-t border-slate-800/50">
+      {/* ZONA DE INFORMACIÓN Y FICHA TÉCNICA */}
+      <div className="p-5 space-y-3.5 flex-1 flex flex-col justify-between bg-[#FFFFFF] z-10 relative border-t border-[#E5E4DF]">
         <div>
           <div className="flex justify-between items-start gap-2">
             <h3 
-              className="font-bold text-white text-base leading-tight hover:text-emerald-400 transition-colors line-clamp-2 cursor-pointer"
+              className="font-editorial text-xl font-semibold text-[#111111] leading-snug hover:text-[#B89768] transition-colors line-clamp-2 cursor-pointer tracking-tight"
               onClick={() => onOpen(active)}
             >
               {active.modelo}
             </h3>
-            <span className="text-[10px] text-slate-400 font-mono flex-shrink-0 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
-              {active.codigo_color}
+            <span className="text-[10px] text-[#575551] font-tech flex-shrink-0 bg-[#FAF9F6] px-2 py-0.5 rounded border border-[#E5E4DF]">
+              COL {active.codigo_color || 'N/A'}
             </span>
           </div>
           
-          <div className="flex justify-between items-center mt-1.5">
-            <p className="text-[11px] text-slate-500 font-mono">SKU: <span className="text-slate-400">{active.id_ext}</span></p>
+          <div className="flex justify-between items-center mt-2">
+            <p className="text-[11px] text-[#82807A] font-tech">
+              SKU: <span className="text-[#111111] font-medium">{active.id_ext}</span>
+            </p>
             {active.material && (
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider">{materialLabel}</p>
+              <p className="text-[10px] text-[#575551] uppercase tracking-wider font-medium">{materialLabel}</p>
             )}
           </div>
 
-          {/* SELECTOR RÁPIDO DE VARIANTES (SWATCHES) */}
+          {/* SELECTOR RÁPIDO DE VARIANTES (SWATCHES EDITORIALES) */}
           {variants.length > 1 && (
-            <div className="mt-3">
-              <p className="text-[10px] text-slate-500 mb-1.5 font-medium">{variants.length} colores disponibles:</p>
+            <div className="mt-3.5 pt-3 border-t border-[#EFECE6]">
+              <p className="text-[10px] text-[#82807A] mb-2 font-medium tracking-wide uppercase">
+                {variants.length} Acabados Disponibles:
+              </p>
               <div className="flex flex-wrap gap-2">
                 {variants.map((v, i) => (
                   <button
@@ -121,17 +126,17 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
                       setSelectedIndex(i); 
                       setImgLoaded(false);
                     }}
-                    className={`relative w-9 h-9 rounded-lg border overflow-hidden bg-slate-950 transition-all ${
+                    className={`relative w-8 h-8 rounded-lg border overflow-hidden bg-[#FFFFFF] transition-all ${
                       i === selectedIndex 
-                        ? 'border-emerald-500 ring-1 ring-emerald-500/50 shadow-sm shadow-emerald-500/20' 
-                        : 'border-slate-700 opacity-60 hover:opacity-100 hover:border-slate-500 hover:scale-105'
+                        ? 'border-[#B89768] ring-1 ring-[#B89768] shadow-xs scale-105' 
+                        : 'border-[#E5E4DF] opacity-70 hover:opacity-100 hover:border-[#82807A]'
                     }`}
                     title={`${v.color || v.codigo_color} (SKU: ${v.id_ext})`}
                   >
                     <Image 
                       unoptimized 
                       src={v.imagen_principal || "/placeholder.png"} 
-                      className="object-cover p-1" 
+                      className="object-cover p-0.5" 
                       alt={v.codigo_color || "Color"} 
                       fill
                       sizes="32px"
@@ -145,41 +150,43 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
 
         {/* CALCULADORA DE MARGEN RETAIL PARA ÓPTICAS LOGUEADAS */}
         {isLoggedIn && retail.pvpSugerido > 0 && (
-          <div className="bg-slate-950/70 rounded-xl p-2.5 border border-slate-800/90 space-y-1 my-1">
-            <div className="flex justify-between items-center text-[10px]">
-              <span className="text-slate-400">PVP Sugerido en Óptica:</span>
-              <span className="font-bold text-slate-200 font-mono">${retail.pvpSugerido.toLocaleString('es-CL')}</span>
+          <div className="bg-[#FAF9F6] rounded-xl p-3 border border-[#E5E4DF] space-y-1 my-1">
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="text-[#575551]">PVP Sugerido en Óptica:</span>
+              <span className="font-bold text-[#111111] font-tech">${retail.pvpSugerido.toLocaleString('es-CL')}</span>
             </div>
-            <div className="flex justify-between items-center text-[10px] font-bold text-emerald-400">
+            <div className="flex justify-between items-center text-[11px] font-semibold text-[#9E7D4F]">
               <span className="flex items-center gap-1">
-                <TrendingUp className="w-3 h-3 text-emerald-400" />
+                <TrendingUp className="w-3.5 h-3.5 text-[#B89768]" />
                 Margen ~{retail.margenPorcentaje}%
               </span>
-              <span>Ganas +${retail.gananciaPorUnidad.toLocaleString('es-CL')}/un</span>
+              <span className="font-tech text-xs text-[#111111]">Ganas +${retail.gananciaPorUnidad.toLocaleString('es-CL')}/un</span>
             </div>
           </div>
         )}
 
-        {/* PIE DE TARJETA: PRECIO Y STOCK B2B */}
-        <div className="pt-3 border-t border-slate-800/80 flex justify-between items-end">
+        {/* PIE DE TARJETA: PRECIO NETO Y STOCK B2B */}
+        <div className="pt-3 border-t border-[#E5E4DF] flex justify-between items-end">
           {isLoggedIn ? (
             <div>
-              <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-widest mb-0.5">Neto B2B (+IVA)</span>
-              <span className="text-emerald-400 font-black text-lg leading-none font-mono">
-                ${active.precio_neto_clp?.toLocaleString('es-CL')} <span className="text-xs font-medium text-emerald-400/60">CLP</span>
+              <span className="text-[9px] text-[#82807A] block uppercase font-bold tracking-widest mb-0.5">
+                Precio Neto B2B (+IVA)
+              </span>
+              <span className="text-[#111111] font-bold text-xl leading-none font-tech">
+                ${active.precio_neto_clp?.toLocaleString('es-CL')} <span className="text-xs font-normal text-[#82807A]">CLP</span>
               </span>
             </div>
           ) : (
             <span className="badge-b2b-locked mb-1">
-              <Lock className="w-3 h-3" />
-              Precio B2B
+              <Lock className="w-3 h-3 text-[#B89768]" />
+              Precio B2B Reservado
             </span>
           )}
 
           {isLoggedIn && (
             <div className="text-right">
-              <span className="text-[9px] text-slate-500 block uppercase font-bold tracking-wider mb-0.5">
-                Stock en origen
+              <span className="text-[9px] text-[#82807A] block uppercase font-bold tracking-wider mb-0.5">
+                Stock Origen
               </span>
               <span className="badge-stock">
                 {activeStock >= 50 ? '50+ un.' : `${activeStock} un.`}

@@ -43,9 +43,9 @@ export default function ActiveFilterChips({
         <button
           type="button"
           onClick={onClearQuery}
-          className="group inline-flex items-center gap-1.5 bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs font-semibold pl-3 pr-2 py-1.5 rounded-full hover:border-sky-400/60 transition"
+          className="group inline-flex items-center gap-1.5 bg-[#F7F3EB] border border-[#B89768]/50 text-[#9E7D4F] text-xs font-semibold pl-3 pr-2 py-1.5 rounded-full hover:border-[#B89768] transition"
         >
-          <span className="text-sky-400/70">Búsqueda:</span> “{state.q.trim()}”
+          <span className="text-[#B89768]">Búsqueda:</span> “{state.q.trim()}”
           <X className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
         </button>
       )}
@@ -55,17 +55,17 @@ export default function ActiveFilterChips({
           key={`${c.facet}-${c.key}`}
           type="button"
           onClick={() => onRemove(c.facet, c.key)}
-          className="group inline-flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold pl-3 pr-2 py-1.5 rounded-full hover:border-emerald-400/60 transition"
+          className="group inline-flex items-center gap-1.5 bg-[#FFFFFF] border border-[#E5E4DF] text-[#111111] text-xs font-medium pl-3 pr-2 py-1.5 rounded-full hover:border-[#B89768] hover:bg-[#FAF9F6] transition shadow-2xs"
         >
-          <span className="text-emerald-400/60">{FACET_TITLES[c.facet]}:</span> {c.label}
-          <X className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+          <span className="text-[#82807A] text-[11px] uppercase tracking-wider">{FACET_TITLES[c.facet]}:</span> {c.label}
+          <X className="w-3.5 h-3.5 text-[#82807A] group-hover:text-[#111111]" />
         </button>
       ))}
 
       <button
         type="button"
         onClick={onClearAll}
-        className="text-xs font-bold text-slate-400 hover:text-rose-400 px-2 py-1.5 transition"
+        className="text-xs font-bold text-[#82807A] hover:text-[#C0392B] px-2 py-1.5 transition tracking-wider uppercase"
       >
         Limpiar todo
       </button>
