@@ -39,7 +39,10 @@ export function getMercadoPagoPublicKey(customPublicKey?: string): string {
  * - The public key starts with 'TEST-'
  */
 export function isMercadoPagoSandboxMode(customToken?: string, customPublicKey?: string): boolean {
-  if (process.env.MP_SANDBOX_MODE === 'true') {
+  if (
+    process.env.MP_SANDBOX_MODE === 'true' ||
+    process.env.NEXT_PUBLIC_MP_SANDBOX_MODE === 'true'
+  ) {
     return true;
   }
   const token = getMercadoPagoAccessToken(customToken);
