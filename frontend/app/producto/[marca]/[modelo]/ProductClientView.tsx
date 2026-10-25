@@ -5,9 +5,13 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabaseClient';
 import { useCartStore, getValidStock, getProductCartKey } from '@/store/useCartStore';
 import { useRecentStore } from '@/store/useRecentStore';
-import type { EnrichedMarco } from '@/lib/catalog/types';
+import {
+  MARCOS_B2B_COMMERCIAL_OVERLAY_COLUMNS,
+  type EnrichedMarco,
+} from '@/lib/catalog/types';
 import { 
   ArrowLeft, Lock, ShoppingBag, Ruler, CheckCircle2, Package, ShieldCheck, AlertCircle, Check
 } from 'lucide-react';
@@ -24,12 +28,53 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
   const addToCart = useCartStore((state) => state.addToCart);
   const addRecentItem = useRecentStore((state) => state.addRecentItem);
 
+  const [b2bVariants, setB2bVariants] = useState<EnrichedMarco[]>(variants);
   const [activeVariant, setActiveVariant] = useState<EnrichedMarco>(baseProduct);
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [isAdding, setIsAdding] = useState(false);
   const [stockWarning, setStockWarning] = useState<string>('');
   const [successMsg, setSuccessMsg] = useState<string>('');
+
+  useEffect(() => {
+    setB2bVariants(variants);
+    setActiveVariant(baseProduct);
+
+    if (!isLoggedIn || !variants || variants.length === 0) {
+      return;
+    }
+
+    const ids = Array.from(new Set(variants.map((v) => v.id_ext).filter(Boolean)));
+    if (ids.length === 0) return;
+
+    let cancelled = false;
+    supabase
+      .from('marcos')
+      .select(MARCOS_B2B_COMMERCIAL_OVERLAY_COLUMNS)
+      .in('id_ext', ids)
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return;
+        const b2bMap = new Map(
+          (data as unknown as Array<{ id_ext: string; precio_neto_clp?: number; precio_bruto_clp?: number; stock?: number }>).map(
+            (row) => [row.id_ext, row]
+          )
+        );
+        setB2bVariants((prev) =>
+          prev.map((v) => {
+            const b2b = b2bMap.get(v.id_ext);
+            return b2b ? { ...v, ...b2b } : v;
+          })
+        );
+        setActiveVariant((prev) => {
+          const b2b = b2bMap.get(prev.id_ext);
+          return b2b ? { ...prev, ...b2b } : prev;
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [variants, baseProduct, isLoggedIn]);
 
   const currentImages = [activeVariant.imagen_principal].filter(Boolean) as string[];
   if (activeVariant.imagenes_secundarias) {
@@ -69,7 +114,7 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
 
     Object.entries(quantities).forEach(([id_ext, qty]) => {
       if (qty > 0) {
-        const variant = variants.find(v => v.id_ext === id_ext);
+        const variant = b2bVariants.find(v => v.id_ext === id_ext);
         if (variant) {
           // Remover atributos enriquecidos antes de enviar al store
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -227,7 +272,7 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                   </div>
                   
                   <div className="space-y-3 mb-8">
-                    {variants.map((v) => {
+                    {b2bVariants.map((v) => {
                       const maxStock = getValidStock(v.stock);
                       const inCart = cart.find(item => getProductCartKey(item.producto) === v.id_ext)?.cantidad || 0;
                       const remainingStock = Math.max(0, maxStock - inCart);

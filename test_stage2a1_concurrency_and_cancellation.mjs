@@ -2027,6 +2027,10 @@ test('Caso 9.13 (MEDIO-01): Protección contra persistencia tardía de preferenc
           context
         );
       }
+      if (specifier.startsWith('@/')) {
+        // Alias genérico @/... (p. ej. @/lib/env/runtimeEnv, importado por route.ts desde la Fase 25)
+        return nextResolve(new URL(`${specifier.slice(2)}.ts`, frontendRootUrl).href, context);
+      }
       return nextResolve(specifier, context);
     },
   });
@@ -2620,6 +2624,10 @@ test('Caso 9.14 (MEDIO-02): Secuencia segura de invalidación diferida y recuper
           new URL('node_modules/@supabase/supabase-js/dist/index.mjs', frontendRootUrl).href,
           context
         );
+      }
+      if (specifier.startsWith('@/')) {
+        // Alias genérico @/... (p. ej. @/lib/env/runtimeEnv, importado por route.ts desde la Fase 25)
+        return nextResolve(new URL(`${specifier.slice(2)}.ts`, frontendRootUrl).href, context);
       }
       return nextResolve(specifier, context);
     },
@@ -4570,6 +4578,10 @@ test('Caso 9.15 (MEDIO-02): Pruebas aisladas de compensación e invalidación de
           context
         );
       }
+      if (specifier.startsWith('@/')) {
+        // Alias genérico @/... (p. ej. @/lib/env/runtimeEnv, importado por route.ts desde la Fase 25)
+        return nextResolve(new URL(`${specifier.slice(2)}.ts`, frontendRootUrl).href, context);
+      }
       return nextResolve(specifier, context);
     },
   });
@@ -4971,4 +4983,67 @@ test('Caso 9.15 (MEDIO-02): Pruebas aisladas de compensación e invalidación de
     ['pref-incoherent-rpc-07'],
     'Debe invalidar la preferencia creada si la RPC devuelve datos incompletos o corruptos'
   );
+
+  // ---------------------------------------------------------------------------
+  // 8. MEDIO-03 (Fase 28.6): Si la RPC persist_order_preference_with_lease falta en BD (PGRST202 / 42883),
+  //    JAMÁS degrada a un UPDATE directo en orders sin verificar el lease; falla en cerrado (fail-closed)
+  //    e invalida la preferencia recién creada en Mercado Pago.
+  // ---------------------------------------------------------------------------
+  for (const missingCode of ['PGRST202', '42883']) {
+    const invalidatedCalls8 = [];
+    let directOrdersUpdateCalls = 0;
+    const supabaseMissingRpc = {
+      rpc: async (fnName) => {
+        assert.equal(fnName, 'persist_order_preference_with_lease');
+        return {
+          data: null,
+          error: {
+            code: missingCode,
+            message: 'Could not find the function public.persist_order_preference_with_lease in the schema cache',
+          },
+        };
+      },
+      from: () => ({
+        update: () => {
+          directOrdersUpdateCalls++;
+          throw new Error('Should NEVER execute unlocked .from("orders").update() fallback when RPC fails or is missing');
+        },
+      }),
+    };
+
+    console.error = () => {};
+    try {
+      await assert.rejects(
+        async () => {
+          await persistPreferenceAtomic(
+            supabaseMissingRpc,
+            testOrderId,
+            `pref-missing-rpc-${missingCode}`,
+            'https://mp.cl/init-08',
+            {
+              userId: testUserId,
+              leaseId: testLeaseId,
+              invalidatePreference: async (prefId) => {
+                invalidatedCalls8.push(prefId);
+                return { success: true };
+              },
+            }
+          );
+        },
+        (err) => {
+          assert.match(err.message, /Error interno al persistir la Preference/i);
+          return true;
+        }
+      );
+    } finally {
+      console.error = originalConsoleError;
+    }
+
+    assert.equal(directOrdersUpdateCalls, 0, `No debe ejecutar UPDATE sin lease ante error ${missingCode}`);
+    assert.deepEqual(
+      invalidatedCalls8,
+      [`pref-missing-rpc-${missingCode}`],
+      `Debe invalidar la preferencia creada en MP cuando falta la RPC (${missingCode})`
+    );
+  }
 });

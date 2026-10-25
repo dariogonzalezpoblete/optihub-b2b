@@ -26,6 +26,12 @@ function resolveAndValidateBaseUrl(providedUrl) {
         error: 'Protocolo de URL base inválido. Debe comenzar con http:// o https://.'
       };
     }
+    if (parsed.username || parsed.password) {
+      return {
+        valid: false,
+        error: 'La URL base no debe contener credenciales ni parámetros de autenticación.'
+      };
+    }
     if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
       return {
         valid: false,
@@ -44,15 +50,16 @@ function resolveAndValidateBaseUrl(providedUrl) {
   }
 }
 
-// Helper to construct preference payload
+// Helper to construct preference payload matching route.ts createMpPreference
 function buildPreferencePayload({ siteUrl, orderId, items, customer }) {
   const urlValidation = resolveAndValidateBaseUrl(siteUrl);
   if (!urlValidation.valid) {
     throw new Error(urlValidation.error);
   }
   const cleanBase = urlValidation.url;
+  const isHttps = cleanBase.startsWith('https://');
 
-  return {
+  const payload = {
     items,
     external_reference: orderId,
     payer: {
@@ -64,8 +71,15 @@ function buildPreferencePayload({ siteUrl, orderId, items, customer }) {
       failure: `${cleanBase}/checkout/resultado?status=failure&ref=${orderId}`,
       pending: `${cleanBase}/checkout/resultado?status=pending&ref=${orderId}`,
     },
-    auto_return: 'approved',
+    expires: true,
   };
+
+  if (isHttps) {
+    payload.auto_return = 'approved';
+    payload.notification_url = `${cleanBase}/api/webhooks/mercadopago`;
+  }
+
+  return payload;
 }
 
 // Sanitized error handler matching route.ts
@@ -82,10 +96,10 @@ function sanitizeMercadoPagoError(mpError) {
 }
 
 // ==============================================================================
-// TEST 1: Configuración correcta de las tres back_urls y auto_return
+// TEST 1: Configuración correcta de las tres back_urls, notification_url y auto_return
 // ==============================================================================
 
-test('1. Preference payload configures all three back_urls and auto_return: "approved"', () => {
+test('1. Preference payload configures all three back_urls, notification_url, and auto_return: "approved"', () => {
   const orderId = 'order-b2b-uuid-12345';
   const siteUrl = 'https://optihub-b2b.vercel.app';
   const dummyItems = [
@@ -104,7 +118,7 @@ test('1. Preference payload configures all three back_urls and auto_return: "app
   assert.ok(payload.back_urls.failure, 'back_urls.failure must be defined');
   assert.ok(payload.back_urls.pending, 'back_urls.pending must be defined');
 
-  // 3. URLs must point to /checkout/resultado with valid status query parameter matching resultado/page.tsx
+  // 3. URLs must point to /checkout/resultado with valid status query parameter
   assert.equal(
     payload.back_urls.success,
     `https://optihub-b2b.vercel.app/checkout/resultado?status=approved&ref=${orderId}`
@@ -118,7 +132,13 @@ test('1. Preference payload configures all three back_urls and auto_return: "app
     `https://optihub-b2b.vercel.app/checkout/resultado?status=pending&ref=${orderId}`
   );
 
-  // 4. external_reference must match orderId
+  // 4. notification_url must be generated using clean origin
+  assert.equal(
+    payload.notification_url,
+    'https://optihub-b2b.vercel.app/api/webhooks/mercadopago'
+  );
+
+  // 5. external_reference must match orderId
   assert.equal(payload.external_reference, orderId);
 });
 
@@ -133,7 +153,6 @@ test('2. Base URL validation detects missing, invalid, or localhost URLs', () =>
   assert.ok(emptyRes.error.includes('Falta la configuración de la URL base'));
 
   const undefinedRes = resolveAndValidateBaseUrl(undefined);
-  // If env vars not set during this test call:
   if (!process.env.SITE_URL && !process.env.NEXT_PUBLIC_SITE_URL) {
     assert.equal(undefinedRes.valid, false);
   }
@@ -156,7 +175,12 @@ test('2. Base URL validation detects missing, invalid, or localhost URLs', () =>
   assert.equal(badProtocol.valid, false);
   assert.ok(badProtocol.error.includes('Protocolo de URL base inválido'));
 
-  // Case D: Valid deployed domain (with and without trailing slash)
+  // Case D: Credentials in URL (prevent credential leaking)
+  const credsUrl = resolveAndValidateBaseUrl('https://admin:secret123@optihub-staging.vercel.app');
+  assert.equal(credsUrl.valid, false);
+  assert.ok(credsUrl.error.includes('no debe contener credenciales'));
+
+  // Case E: Valid deployed domain (with and without trailing slash)
   const valid1 = resolveAndValidateBaseUrl('https://optihub-b2b.vercel.app');
   assert.equal(valid1.valid, true);
   assert.equal(valid1.url, 'https://optihub-b2b.vercel.app');
@@ -203,61 +227,74 @@ test('3. Provider error handling sanitizes MP error responses and hides credenti
 });
 
 // ==============================================================================
-// TEST 4: Creación real de una preferencia en Mercado Pago Sandbox
+// TEST 4: Verificación estricta de aislamiento de Staging y Prevención de Fallback
 // ==============================================================================
 
-test('4. Live Sandbox integration test: creates real preference with deployed domain and auto_return', async () => {
-  let token = process.env.MP_ACCESS_TOKEN;
-  if (!token && fs.existsSync('frontend/.env.local')) {
-    const envContent = fs.readFileSync('frontend/.env.local', 'utf8');
-    const tokenMatch = envContent.match(/MP_ACCESS_TOKEN=(.*)/);
-    if (tokenMatch) token = tokenMatch[1].trim();
-  }
+test('4. Staging isolation: explicit staging URL generates staging notification_url without leaking to production', () => {
+  const stagingUrl = 'https://optihub-staging.vercel.app';
+  const orderId = 'order-staging-uuid-999';
+  const dummyItems = [
+    { id: 'FRAME-01', title: 'Marco Staging', quantity: 10, unit_price: 35000, currency_id: 'CLP' },
+  ];
+  const dummyCustomer = { name: 'Optica Staging', email: 'test@optihub-staging.cl' };
 
-  assert.ok(token, 'MP_ACCESS_TOKEN must be configured in environment or .env.local');
+  // 1. Resolve with staging URL
+  const stagingValidation = resolveAndValidateBaseUrl(stagingUrl);
+  assert.equal(stagingValidation.valid, true);
+  assert.equal(stagingValidation.url, 'https://optihub-staging.vercel.app');
 
-  // Import dynamically from frontend node_modules
-  const { MercadoPagoConfig, Preference } = await import('./frontend/node_modules/mercadopago/dist/index.js');
-
-  const client = new MercadoPagoConfig({ accessToken: token });
-  const preference = new Preference(client);
-
-  const testOrderId = `order-test-sandbox-${Date.now()}`;
-  const deployedDomain = 'https://optihub-b2b.vercel.app';
-
+  // 2. Build payload with staging URL
   const payload = buildPreferencePayload({
-    siteUrl: deployedDomain,
-    orderId: testOrderId,
-    items: [
-      { id: 'TEST-SKU-1', title: 'Marco Óptico B2B Prueba', quantity: 10, unit_price: 25000, currency_id: 'CLP' },
-      { id: 'IVA', title: 'IVA (19%)', quantity: 1, unit_price: 47500, currency_id: 'CLP' },
-    ],
-    customer: {
-      name: 'Óptica Demo SpA',
-      email: 'test_demo_b2b@optihub.cl',
-    },
+    siteUrl: stagingValidation.url,
+    orderId,
+    items: dummyItems,
+    customer: dummyCustomer
   });
 
-  const response = await preference.create({ body: payload });
+  // 3. Confirm all back_urls and notification_url strictly use staging domain
+  assert.equal(
+    payload.back_urls.success,
+    `https://optihub-staging.vercel.app/checkout/resultado?status=approved&ref=${orderId}`
+  );
+  assert.equal(
+    payload.notification_url,
+    'https://optihub-staging.vercel.app/api/webhooks/mercadopago'
+  );
 
-  // Assertions on real Mercado Pago Sandbox response
-  assert.ok(response.id, 'Preference ID must be returned by Mercado Pago');
-  assert.ok(response.init_point || response.sandbox_init_point, 'Init point must be returned');
-  assert.equal(response.external_reference, testOrderId, 'External reference must match order ID');
-  assert.equal(response.auto_return, 'approved', 'auto_return must be approved');
+  // 4. Critical: Ensure PRODUCTION domain is NEVER used when staging domain is configured
+  assert.equal(payload.notification_url.includes('optihub-b2b.vercel.app'), false);
+  assert.equal(payload.back_urls.success.includes('optihub-b2b.vercel.app'), false);
+});
+
+test('5. Static source code check: no silent production fallback in create-preference and mercadopagoService', () => {
+  const routeSource = fs.readFileSync(
+    new URL('./frontend/app/api/mercadopago/create-preference/route.ts', import.meta.url),
+    'utf8'
+  );
+  const serviceSource = fs.readFileSync(
+    new URL('./frontend/lib/payments/mercadopagoService.ts', import.meta.url),
+    'utf8'
+  );
+
+  // Assert neither file contains the dangerous silent fallback
   assert.equal(
-    response.back_urls.success,
-    `${deployedDomain}/checkout/resultado?status=approved&ref=${testOrderId}`,
-    'back_urls.success must match exact configured URL'
+    routeSource.includes("rawSiteUrl = 'https://optihub-b2b.vercel.app'"),
+    false,
+    'create-preference/route.ts must not contain silent fallback to production domain'
   );
   assert.equal(
-    response.back_urls.failure,
-    `${deployedDomain}/checkout/resultado?status=failure&ref=${testOrderId}`,
-    'back_urls.failure must match exact configured URL'
+    serviceSource.includes("siteUrl = 'https://optihub-b2b.vercel.app'"),
+    false,
+    'mercadopagoService.ts must not contain silent fallback to production domain'
   );
-  assert.equal(
-    response.back_urls.pending,
-    `${deployedDomain}/checkout/resultado?status=pending&ref=${testOrderId}`,
-    'back_urls.pending must match exact configured URL'
+
+  // Assert route.ts resolves environment variable explicitly
+  assert.ok(
+    routeSource.includes('const rawSiteUrl = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL;'),
+    'route.ts must assign rawSiteUrl directly from environment'
+  );
+  assert.ok(
+    routeSource.includes('const urlValidation = resolveAndValidateBaseUrl(rawSiteUrl);'),
+    'route.ts must validate rawSiteUrl without mutating it to production'
   );
 });

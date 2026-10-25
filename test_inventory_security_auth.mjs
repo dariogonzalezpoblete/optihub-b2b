@@ -382,17 +382,17 @@ test('11. SEC-05: /api/inventory/orders rejects request missing Authorization he
   assert.equal(invService.calls.createOrder.length, 0);
 });
 
-test('12. SEC-05: /api/inventory/orders with spoofed userId: strictly overrides with authenticated auth.user.id', async () => {
+test('12. SEC-05 / CRÍTICO-01: /api/inventory/orders returns 403 Forbidden when called by regular client (prevents direct stock depletion and bypass of checkout lease)', async () => {
   const authClient = createMockAuthClient();
   const invService = createMockInventoryService();
 
-  // Client attempts to impersonate VICTIM_USER_ID in body
+  // Regular client attempts to invoke /api/inventory/orders directly
   const req = createMockRequest({
     url: 'http://localhost:3000/api/inventory/orders',
     headers: { authorization: 'Bearer valid_client_token' },
     body: {
-      userId: VICTIM_USER_ID, // Malicious spoofed ID
-      items: [{ productId: 'PROD-1', quantity: 2 }],
+      userId: VICTIM_USER_ID,
+      items: [{ productId: 'PROD-1', quantity: 2, unitPriceNet: 0 }],
       customerName: 'Cliente Spoof',
     },
   });
@@ -402,11 +402,11 @@ test('12. SEC-05: /api/inventory/orders with spoofed userId: strictly overrides 
     customInventoryService: invService,
   });
 
-  assert.equal(res.status, 201);
-  assert.equal(invService.calls.createOrder.length, 1);
-  // CRITICAL CHECK: The order must be created under the verified CLIENT_ID, NOT the spoofed VICTIM_USER_ID!
-  assert.equal(invService.calls.createOrder[0].userId, CLIENT_ID);
-  assert.notEqual(invService.calls.createOrder[0].userId, VICTIM_USER_ID);
+  assert.equal(res.status, 403);
+  const json = await res.json();
+  assert.equal(json.code, 'FORBIDDEN');
+  // CRITICAL CHECK: Core logic NEVER reached -> zero orders created, zero stock deducted
+  assert.equal(invService.calls.createOrder.length, 0);
 });
 
 test('13. SEC-05: /api/inventory/orders rejects empty or invalid items array (400)', async () => {
@@ -415,7 +415,7 @@ test('13. SEC-05: /api/inventory/orders rejects empty or invalid items array (40
 
   const req = createMockRequest({
     url: 'http://localhost:3000/api/inventory/orders',
-    headers: { authorization: 'Bearer valid_client_token' },
+    headers: { authorization: 'Bearer valid_admin_token' },
     body: { items: [] },
   });
 
@@ -428,7 +428,7 @@ test('13. SEC-05: /api/inventory/orders rejects empty or invalid items array (40
   assert.equal(invService.calls.createOrder.length, 0);
 });
 
-test('14. SEC-05: /api/inventory/orders allows authorized admin to specify another userId', async () => {
+test('14. SEC-05 / CRÍTICO-01: /api/inventory/orders allows authorized admin and strips any client-supplied unitPriceNet', async () => {
   const authClient = createMockAuthClient();
   const invService = createMockInventoryService();
 
@@ -437,7 +437,7 @@ test('14. SEC-05: /api/inventory/orders allows authorized admin to specify anoth
     headers: { authorization: 'Bearer valid_admin_token' },
     body: {
       userId: VICTIM_USER_ID, // Admin creating on behalf of a client
-      items: [{ productId: 'PROD-1', quantity: 2 }],
+      items: [{ productId: 'PROD-1', quantity: 2, unitPriceNet: 0 }],
     },
   });
 
@@ -449,6 +449,11 @@ test('14. SEC-05: /api/inventory/orders allows authorized admin to specify anoth
   assert.equal(res.status, 201);
   assert.equal(invService.calls.createOrder.length, 1);
   assert.equal(invService.calls.createOrder[0].userId, VICTIM_USER_ID);
+  assert.equal(
+    'unitPriceNet' in invService.calls.createOrder[0].items[0],
+    false,
+    'Client-supplied unitPriceNet must be stripped by route handler'
+  );
 });
 
 // ===========================================================================

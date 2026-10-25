@@ -13,7 +13,11 @@ import {
   type PriorOrderReplacementSnapshot
 } from '@/lib/checkoutWebhookAndResult';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
-import { checkCheckoutPreferenceAllowed, type CheckoutPreferenceGuardOptions } from '@/lib/env/runtimeEnv';
+import {
+  checkCheckoutPreferenceAllowed,
+  getRuntimeEnvironment,
+  type CheckoutPreferenceGuardOptions
+} from '@/lib/env/runtimeEnv';
 
 export {
   classifyCheckoutRpcFailureForRecovery,
@@ -566,21 +570,6 @@ export async function persistPreferenceAtomic(
     }
   }
 
-  const isRpcMissing = (err: any): boolean => {
-    if (!err) return false;
-    const code = String(err.code || '').trim();
-    const msg = String(err.message || '').toLowerCase();
-    const details = String(err.details || '').toLowerCase();
-    return (
-      code === 'PGRST202' ||
-      code === '42883' ||
-      msg.includes('schema cache') ||
-      msg.includes('does not exist') ||
-      details.includes('schema cache') ||
-      details.includes('does not exist')
-    );
-  };
-
   if (rpcError) {
     console.error('[CreatePref] Error RPC persist_order_preference_with_lease:', {
       code: rpcError.code,
@@ -593,13 +582,26 @@ export async function persistPreferenceAtomic(
     });
   }
 
-  // Fallback si la RPC persist_order_preference_with_lease no existe en la base de datos
-  if (
-    (!rpcExecuted || isRpcMissing(rpcError)) &&
-    supabaseAdmin &&
-    typeof supabaseAdmin.from === 'function'
-  ) {
-    console.warn('[CreatePref] RPC persist_order_preference_with_lease no disponible en schema cache. Aplicando fallback de persistencia atómica en orders.', {
+  // MEDIO-03 (Fase 28.6): En producción (o siempre que el cliente soporte .rpc), NUNCA degradar
+  // a un UPDATE directo sobre orders sin verificar atómicamente el lease en PostgreSQL.
+  // Si la RPC persist_order_preference_with_lease falta (PGRST202 / 42883) o falla, se falla en cerrado (fail-closed)
+  // invalidando la preferencia recién creada en Mercado Pago.
+  // El fallback sobre .from('orders') queda estrictamente acotado a mocks de pruebas unitarias sin .rpc en entorno 'test'.
+  const isUnitTestMockWithoutRpc =
+    !rpcExecuted &&
+    getRuntimeEnvironment() === 'test' &&
+    Boolean(supabaseAdmin) &&
+    typeof supabaseAdmin.from === 'function';
+
+  if (!rpcExecuted && !isUnitTestMockWithoutRpc) {
+    await safeInvalidateCreatedPreference('rpc_unavailable_fail_closed');
+    throw new Error(
+      'Error interno al persistir la Preference [RPC_UNAVAILABLE]: Se requiere soporte RPC para verificar el lease atómicamente.'
+    );
+  }
+
+  if (isUnitTestMockWithoutRpc) {
+    console.warn('[CreatePref] Mock de test sin método .rpc detectado en entorno test. Aplicando fallback acotado a pruebas.', {
       orderId: cleanOrderId,
       prefId: cleanPrefId
     });

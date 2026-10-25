@@ -14,9 +14,10 @@ export async function GET(req: NextRequest) {
     const cleanQ = q.trim();
 
     // Consultamos marcos usando ilike sobre modelo, marca o id_ext
+    // (solo columnas públicas no sensibles; RLS marcos_select_anon_public filtra stock > 0 para anon)
     const { data, count, error } = await supabase
       .from('marcos')
-      .select('id_ext, marca, modelo, color, imagen_principal, stock', { count: 'exact' })
+      .select('id_ext, marca, modelo, color, codigo_color, imagen_principal', { count: 'exact' })
       .or(`modelo.ilike.%${cleanQ}%,marca.ilike.%${cleanQ}%,id_ext.ilike.%${cleanQ}%`)
       .limit(limit);
 

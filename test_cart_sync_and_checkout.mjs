@@ -16,6 +16,7 @@ if (typeof globalThis.localStorage === 'undefined') {
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { useCartStore } from './frontend/store/useCartStore.ts';
+import { resolveVerifiedCheckoutResult } from './frontend/lib/checkoutWebhookAndResult.ts';
 
 // Helper to reset store
 function resetStore() {
@@ -407,4 +408,245 @@ test('6. getOrCreateActiveCart prevents duplicate active carts and handles concu
 
   const activeCartsCount = mockDatabase.carts.filter(c => c.user_id === userId && c.status === 'active').length;
   assert.equal(activeCartsCount, 1, 'There must NEVER be more than 1 active cart per user');
+});
+
+// ==============================================================================
+// TEST SUITE 7: Controlled Cart Clearing on Verified Checkout Result (FASE 17)
+// ==============================================================================
+
+/**
+ * Simulates the controlled cart clearing hook logic from ResultadoContent
+ * in frontend/app/checkout/resultado/page.tsx.
+ */
+function simulateResultadoContentCartClearing({
+  urlStatus,
+  urlRef,
+  orderFromDb,
+  verificationComplete,
+  clearedRefTracker,
+}) {
+  const { displayState, verifiedOrderId } = resolveVerifiedCheckoutResult({
+    urlStatus,
+    urlRef,
+    orderFromDb,
+    verificationComplete,
+  });
+
+  const isApproved = displayState === 'approved';
+
+  if (isApproved && verifiedOrderId && clearedRefTracker.current !== verifiedOrderId) {
+    clearedRefTracker.current = verifiedOrderId;
+    useCartStore.getState().clearCart();
+    useCartStore.getState().setCartId(null);
+  }
+
+  return { isApproved, displayState, verifiedOrderId };
+}
+
+test('7.1 Pago Aprobado verificado en BD: limpia el carrito y resetea cartId', () => {
+  resetStore();
+  const validOrderId = '3fa85f64-5717-4562-b3fc-2c963f66afa6';
+  const cartItems = [
+    { producto: { id_ext: 'RB-2140', stock: 20, precio_neto_clp: 45000 }, cantidad: 10 },
+  ];
+  useCartStore.getState().setCart(cartItems);
+  useCartStore.getState().setCartId('cart-active-123');
+
+  assert.equal(useCartStore.getState().cart.length, 1);
+  assert.equal(useCartStore.getState().cartId, 'cart-active-123');
+
+  const tracker = { current: null };
+  const res = simulateResultadoContentCartClearing({
+    urlStatus: 'approved',
+    urlRef: validOrderId,
+    orderFromDb: {
+      id: validOrderId,
+      status: 'paid',
+      payment_status: 'approved',
+      payment_id: 'mp-pay-999',
+    },
+    verificationComplete: true,
+    clearedRefTracker: tracker,
+  });
+
+  assert.equal(res.isApproved, true);
+  assert.equal(res.displayState, 'approved');
+  assert.equal(tracker.current, validOrderId);
+  assert.equal(useCartStore.getState().cart.length, 0, 'Carrito debe quedar vacío tras pago aprobado verificado');
+  assert.equal(useCartStore.getState().cartId, null, 'cartId debe quedar reseteado');
+});
+
+test('7.2 Pago Pendiente (en URL o BD): Carrito permanece INTACTO', () => {
+  resetStore();
+  const validOrderId = '3fa85f64-5717-4562-b3fc-2c963f66afa6';
+  const cartItems = [
+    { producto: { id_ext: 'RB-2140', stock: 20, precio_neto_clp: 45000 }, cantidad: 10 },
+  ];
+  useCartStore.getState().setCart(cartItems);
+  useCartStore.getState().setCartId('cart-active-123');
+
+  const tracker = { current: null };
+  const res = simulateResultadoContentCartClearing({
+    urlStatus: 'pending',
+    urlRef: validOrderId,
+    orderFromDb: {
+      id: validOrderId,
+      status: 'pending',
+      payment_status: 'pending',
+      payment_id: null,
+    },
+    verificationComplete: true,
+    clearedRefTracker: tracker,
+  });
+
+  assert.equal(res.isApproved, false);
+  assert.equal(res.displayState, 'pending');
+  assert.equal(tracker.current, null, 'Tracker no debe marcar orden como limpiada');
+  assert.equal(useCartStore.getState().cart.length, 1, 'Carrito debe permanecer intacto');
+  assert.equal(useCartStore.getState().cart[0].cantidad, 10);
+  assert.equal(useCartStore.getState().cartId, 'cart-active-123');
+});
+
+test('7.3 Pago Rechazado o Cancelado: Carrito permanece INTACTO para reintento', () => {
+  resetStore();
+  const validOrderId = '3fa85f64-5717-4562-b3fc-2c963f66afa6';
+  const cartItems = [
+    { producto: { id_ext: 'RB-2140', stock: 20, precio_neto_clp: 45000 }, cantidad: 12 },
+  ];
+  useCartStore.getState().setCart(cartItems);
+  useCartStore.getState().setCartId('cart-active-123');
+
+  const tracker = { current: null };
+  const res = simulateResultadoContentCartClearing({
+    urlStatus: 'failure',
+    urlRef: validOrderId,
+    orderFromDb: {
+      id: validOrderId,
+      status: 'cancelled',
+      payment_status: 'rejected',
+      payment_id: null,
+    },
+    verificationComplete: true,
+    clearedRefTracker: tracker,
+  });
+
+  assert.equal(res.isApproved, false);
+  assert.equal(res.displayState, 'rejected');
+  assert.equal(tracker.current, null);
+  assert.equal(useCartStore.getState().cart.length, 1, 'Carrito debe conservarse para que el usuario reintente');
+  assert.equal(useCartStore.getState().cart[0].cantidad, 12);
+});
+
+test('7.4 Error de Verificación (orden ausente en BD / fallo de red): Carrito permanece INTACTO', () => {
+  resetStore();
+  const validOrderId = '3fa85f64-5717-4562-b3fc-2c963f66afa6';
+  const cartItems = [
+    { producto: { id_ext: 'TF-501', stock: 15, precio_neto_clp: 95000 }, cantidad: 10 },
+  ];
+  useCartStore.getState().setCart(cartItems);
+  useCartStore.getState().setCartId('cart-active-456');
+
+  const tracker = { current: null };
+  // Caso: BD no retorna la orden (null) tras completar reintentos
+  const res = simulateResultadoContentCartClearing({
+    urlStatus: 'approved',
+    urlRef: validOrderId,
+    orderFromDb: null,
+    verificationComplete: true,
+    clearedRefTracker: tracker,
+  });
+
+  assert.equal(res.isApproved, false);
+  assert.equal(res.displayState, 'rejected');
+  assert.equal(tracker.current, null);
+  assert.equal(useCartStore.getState().cart.length, 1, 'Carrito no debe borrarse si la BD no confirma la orden');
+});
+
+test('7.5 Spoofing de URL (?status=approved manipulado sin confirmación en BD): Carrito permanece INTACTO', () => {
+  resetStore();
+  const validOrderId = '3fa85f64-5717-4562-b3fc-2c963f66afa6';
+  const cartItems = [
+    { producto: { id_ext: 'TF-501', stock: 15, precio_neto_clp: 95000 }, cantidad: 10 },
+  ];
+  useCartStore.getState().setCart(cartItems);
+  useCartStore.getState().setCartId('cart-active-456');
+
+  const tracker = { current: null };
+  // Atacante manipula URL con ?status=approved pero la BD reporta payment_status = pending
+  const res = simulateResultadoContentCartClearing({
+    urlStatus: 'approved',
+    urlRef: validOrderId,
+    orderFromDb: {
+      id: validOrderId,
+      status: 'pending',
+      payment_status: 'pending',
+      payment_id: null,
+    },
+    verificationComplete: true,
+    clearedRefTracker: tracker,
+  });
+
+  assert.equal(res.isApproved, false);
+  assert.equal(res.displayState, 'pending');
+  assert.equal(tracker.current, null);
+  assert.equal(useCartStore.getState().cart.length, 1, 'Carrito no debe limpiarse ante query params no verificados');
+});
+
+test('7.6 Incidencia de inventario (requires_attention): Carrito permanece INTACTO', () => {
+  resetStore();
+  const validOrderId = '3fa85f64-5717-4562-b3fc-2c963f66afa6';
+  const cartItems = [
+    { producto: { id_ext: 'RB-2140', stock: 20, precio_neto_clp: 45000 }, cantidad: 10 },
+  ];
+  useCartStore.getState().setCart(cartItems);
+  useCartStore.getState().setCartId('cart-active-123');
+
+  const tracker = { current: null };
+  const res = simulateResultadoContentCartClearing({
+    urlStatus: 'approved',
+    urlRef: validOrderId,
+    orderFromDb: {
+      id: validOrderId,
+      status: 'requires_attention',
+      payment_status: 'approved',
+      payment_id: 'mp-pay-late-001',
+    },
+    verificationComplete: true,
+    clearedRefTracker: tracker,
+  });
+
+  assert.equal(res.isApproved, false);
+  assert.equal(res.displayState, 'pending');
+  assert.equal(tracker.current, null);
+  assert.equal(useCartStore.getState().cart.length, 1, 'Carrito permanece intacto si el pedido está en conciliación manual');
+});
+
+test('7.7 Idempotencia: Múltiples re-renders o recargas no provocan comportamientos anómalos', () => {
+  resetStore();
+  const validOrderId = '3fa85f64-5717-4562-b3fc-2c963f66afa6';
+  const tracker = { current: null };
+
+  // Primer render / confirmación:
+  useCartStore.getState().setCart([{ producto: { id_ext: 'RB-2140' }, cantidad: 10 }]);
+  simulateResultadoContentCartClearing({
+    urlStatus: 'approved',
+    urlRef: validOrderId,
+    orderFromDb: { id: validOrderId, status: 'paid', payment_status: 'approved' },
+    verificationComplete: true,
+    clearedRefTracker: tracker,
+  });
+  assert.equal(tracker.current, validOrderId);
+  assert.equal(useCartStore.getState().cart.length, 0);
+
+  // Segundo render (Strict Mode o cambio de estado interno):
+  simulateResultadoContentCartClearing({
+    urlStatus: 'approved',
+    urlRef: validOrderId,
+    orderFromDb: { id: validOrderId, status: 'paid', payment_status: 'approved' },
+    verificationComplete: true,
+    clearedRefTracker: tracker,
+  });
+  // Tracker mantiene la referencia sin re-ejecutar mutaciones redundantes
+  assert.equal(tracker.current, validOrderId);
+  assert.equal(useCartStore.getState().cart.length, 0);
 });

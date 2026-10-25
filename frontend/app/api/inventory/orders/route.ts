@@ -28,6 +28,21 @@ export async function handleCreateInventoryOrder(
       return envGuard.response;
     }
 
+    // 3. Control de autorización estricto (CRÍTICO-01):
+    // Solo un administrador autenticado puede crear órdenes directas con deducción inmediata de stock.
+    // Los clientes B2B regulares deben utilizar el flujo canónico de checkout + lease + webhook.
+    if (!auth.isAdmin) {
+      return NextResponse.json(
+        {
+          error: 'Acceso denegado. Se requieren permisos de administrador para crear órdenes directas de inventario.',
+          code: 'FORBIDDEN',
+          statusCode: 403,
+          timestamp: new Date().toISOString(),
+        },
+        { status: 403 }
+      );
+    }
+
     let body: CreatePurchaseOrderInput;
     try {
       body = await req.json();
@@ -77,9 +92,21 @@ export async function handleCreateInventoryOrder(
       effectiveUserId = body.userId.trim();
     }
 
+    // 4. Neutralización de manipulación de precios (CRÍTICO-01):
+    // Nunca confiar ni propagar unitPriceNet provisto por el cliente.
+    const sanitizedItems = body.items.map((item) => {
+      if (!item || typeof item !== 'object') {
+        return item;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { unitPriceNet: _ignoredUnitPriceNet, ...restItem } = item;
+      return restItem;
+    });
+
     const sanitizedPayload: CreatePurchaseOrderInput = {
       ...body,
       userId: effectiveUserId,
+      items: sanitizedItems,
     };
 
     const createOrderFn =

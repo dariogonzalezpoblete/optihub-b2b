@@ -24,9 +24,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   try {
     // 2. Query distinct brand + model combinations from Supabase marcos
+    // (solo columnas públicas no sensibles; RLS marcos_select_anon_public filtra stock > 0 para anon)
     const { data, error } = await supabase
       .from('marcos')
-      .select('marca, modelo, updated_at');
+      .select('marca, modelo');
 
     if (error || !data) {
       return staticRoutes;
@@ -42,15 +43,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       uniqueBrandsSet.add(cleanBrand);
 
       const key = `${cleanBrand}:::${cleanModel}`;
-      const itemDate = item.updated_at ? new Date(item.updated_at) : new Date();
+      const itemDate = new Date();
 
       if (!uniqueModelsMap.has(key)) {
         uniqueModelsMap.set(key, { marca: cleanBrand, modelo: cleanModel, updatedAt: itemDate });
-      } else {
-        const existing = uniqueModelsMap.get(key)!;
-        if (itemDate > existing.updatedAt) {
-          existing.updatedAt = itemDate;
-        }
       }
     }
 

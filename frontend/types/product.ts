@@ -12,8 +12,7 @@ export interface Producto {
   upc?: string;
   origen?: string;
   stock?: number;
-  precio_usd?: number;
-  precio_neto_clp: number;
+  precio_neto_clp?: number;
   precio_bruto_clp?: number;
   imagen_principal?: string;
   imagenes_secundarias?: string;

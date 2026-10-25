@@ -1,7 +1,11 @@
 // frontend/lib/payments/mercadopagoWebhookHandler.ts
 import { MercadoPagoConfig, Payment, WebhookSignatureValidator } from 'mercadopago';
 import type { PoolClient } from 'pg';
-import { withTransaction, executeQuery } from '../db/postgres';
+import {
+  withTransaction,
+  isPoolConnectionError,
+  isTransientConcurrencyError,
+} from '../db/postgres';
 import { deductStockForOrderAtomic } from '../inventory/inventoryService';
 import { isValidUuid } from '../checkoutWebhookAndResult';
 import {
@@ -70,9 +74,11 @@ async function fetchMercadoPagoPayment(paymentId: string, accessToken: string) {
 }
 
 /**
- * Ensures the processed_webhooks audit table exists in PostgreSQL
+ * Utility for test/development fixtures to initialize the processed_webhooks table.
+ * In production, schema DDL is managed exclusively via SQL migrations (supabase_migration_003 / 011)
+ * and is never executed inside the transactional webhook hot-path (MEDIO-01).
  */
-async function ensureAuditTableExists(client: PoolClient): Promise<void> {
+export async function ensureAuditTableExists(client: PoolClient): Promise<void> {
   const ddl = `
     CREATE TABLE IF NOT EXISTS public.processed_webhooks (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -108,6 +114,7 @@ export async function processMercadoPagoWebhookEvent(
   options?: {
     bypassSignature?: boolean;
     customClient?: PoolClient;
+    customPaymentFetcher?: (paymentId: string) => Promise<any>;
     emailSender?: typeof sendOrderConfirmationEmails;
     allowInTest?: boolean;
   }
@@ -180,7 +187,7 @@ export async function processMercadoPagoWebhookEvent(
   }
 
   // 3. Fetch verified payment data from Mercado Pago API
-  if (!mpAccessToken) {
+  if (!options?.customPaymentFetcher && !mpAccessToken) {
     console.error('[MP Webhook] MP_ACCESS_TOKEN is not configured on the server');
     return {
       statusCode: 500,
@@ -190,7 +197,9 @@ export async function processMercadoPagoWebhookEvent(
 
   let paymentData: any;
   try {
-    paymentData = await fetchMercadoPagoPayment(dataId, mpAccessToken);
+    paymentData = options?.customPaymentFetcher
+      ? await options.customPaymentFetcher(dataId)
+      : await fetchMercadoPagoPayment(dataId, mpAccessToken!);
   } catch (fetchErr: unknown) {
     console.error(`[MP Webhook] Error fetching payment ${dataId} from Mercado Pago:`, fetchErr);
     // Return 502 so Mercado Pago will retry delivery
@@ -216,8 +225,6 @@ export async function processMercadoPagoWebhookEvent(
 
   // 4. PostgreSQL Transactional Idempotent Processing
   const runTransaction = async (client: PoolClient): Promise<WebhookProcessingResult> => {
-    await ensureAuditTableExists(client);
-
     // 4.1 Check if this exact payment event was already recorded in processed_webhooks
     const auditCheck = await client.query(
       `SELECT id, status, action FROM processed_webhooks WHERE payment_id = $1 AND event_id = $2`,
@@ -225,14 +232,18 @@ export async function processMercadoPagoWebhookEvent(
     );
 
     if (auditCheck.rows.length > 0) {
+      const priorAudit = auditCheck.rows[0];
       console.info(`[MP Webhook] Event ${eventId} for payment ${dataId} was already processed previously (audit log hit).`);
       return {
         statusCode: 200,
         body: {
           message: 'ACK. Webhook event already processed.',
           alreadyProcessed: true,
+          action: priorAudit.action || 'already_processed_duplicate',
           orderId: externalReference,
           paymentId: String(dataId),
+          stockStatus: priorAudit.action === 'approved_stock_failed' ? 'failed' : 'skipped',
+          outboxCreated: false,
         },
       };
     }
@@ -251,8 +262,17 @@ export async function processMercadoPagoWebhookEvent(
       // Record in audit table as IGNORED
       await client.query(
         `INSERT INTO processed_webhooks (event_id, payment_id, order_id, event_type, action, payload, status)
-         VALUES ($1, $2, NULL, $3, 'order_not_found', $4, 'IGNORED')`,
-        [eventId, String(dataId), type || 'payment', JSON.stringify(bodyPayload || paymentData)]
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (payment_id, event_id) DO NOTHING`,
+        [
+          eventId,
+          String(dataId),
+          null,
+          type || 'payment',
+          'order_not_found',
+          JSON.stringify(bodyPayload || paymentData),
+          'IGNORED',
+        ]
       );
       return {
         statusCode: 200,
@@ -282,8 +302,95 @@ export async function processMercadoPagoWebhookEvent(
       };
     }
 
+    // 4.3b Payment ID Conflict Safeguard (ALTO-01):
+    // If the order is already associated with a different payment_id, never overwrite payment_id,
+    // never deduct stock a second time, and never enqueue another confirmation email.
+    const existingPaymentId = order.payment_id ? String(order.payment_id).trim() : '';
+    if (existingPaymentId !== '' && existingPaymentId !== String(dataId).trim()) {
+      console.warn(
+        `[MP Webhook] Payment ID conflict on order ${order.id}: existing payment_id=${existingPaymentId}, incoming dataId=${dataId}. Ignoring mutation.`
+      );
+      await client.query(
+        `INSERT INTO processed_webhooks (event_id, payment_id, order_id, event_type, action, payload, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (payment_id, event_id) DO NOTHING`,
+        [
+          eventId,
+          String(dataId),
+          order.id,
+          type || 'payment',
+          'payment_conflict',
+          JSON.stringify(bodyPayload || paymentData),
+          'IGNORED',
+        ]
+      );
+      return {
+        statusCode: 200,
+        body: {
+          message: `ACK. Order already associated with payment ${existingPaymentId}; conflicting payment ${dataId} recorded for audit.`,
+          action: 'payment_conflict',
+          code: 'payment_conflict',
+          alreadyProcessed: true,
+          orderId: order.id,
+          paymentId: String(dataId),
+          stockStatus: 'skipped',
+          outboxCreated: false,
+        },
+      };
+    }
+
     // 4.4 Process Status Transitions
     if (paymentStatus === 'approved') {
+      // Guard A0 (ALTO-01): Order is already in requires_attention (from a prior incident or stock failure).
+      // Never fall through to Guard C ('paid'), never deduct stock, and never create an email outbox record.
+      if (order.status === 'requires_attention') {
+        const alreadyApproved = order.payment_status === 'approved';
+        if (!alreadyApproved) {
+          const incidentNote = `[INCIDENCIA]: Pago aprobado ${dataId} recibido sobre orden en estado requires_attention. Stock NO descontado. Requiere conciliación manual.`;
+          const combinedNotes = order.notes ? `${order.notes}\n${incidentNote}` : incidentNote;
+
+          await client.query(
+            `UPDATE orders
+             SET payment_id = $1,
+                 payment_status = 'approved',
+                 status = 'requires_attention',
+                 stock_decremented = false,
+                 notes = $2,
+                 updated_at = NOW()
+             WHERE id = $3`,
+            [String(dataId), combinedNotes, order.id]
+          );
+        }
+
+        await client.query(
+          `INSERT INTO processed_webhooks (event_id, payment_id, order_id, event_type, action, payload, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (payment_id, event_id) DO NOTHING`,
+          [
+            eventId,
+            String(dataId),
+            order.id,
+            type || 'payment',
+            'incident_pending',
+            JSON.stringify(bodyPayload || paymentData),
+            alreadyApproved ? 'DUPLICATE' : 'PROCESSED',
+          ]
+        );
+
+        return {
+          statusCode: 200,
+          body: {
+            message: 'ACK. Order is in requires_attention state; stock deduction and email outbox skipped.',
+            action: 'incident_pending',
+            alreadyProcessed: alreadyApproved,
+            orderId: order.id,
+            paymentId: String(dataId),
+            stockStatus: order.stock_error ? 'failed' : 'skipped',
+            outboxCreated: false,
+          },
+        };
+      }
+
       // Guard A: Late approved payment on cancelled or replaced order
       if (order.status === 'cancelled') {
         const incidentNote = `[INCIDENCIA]: Pago aprobado ${dataId} recibido sobre orden cancelada/reemplazada. Stock NO descontado. Requiere conciliación manual o reembolso.`;
@@ -304,8 +411,17 @@ export async function processMercadoPagoWebhookEvent(
 
         await client.query(
           `INSERT INTO processed_webhooks (event_id, payment_id, order_id, event_type, action, payload, status)
-           VALUES ($1, $2, $3, $4, 'cancelled_order_paid_incident', $5, 'PROCESSED')`,
-          [eventId, String(dataId), order.id, type || 'payment', JSON.stringify(bodyPayload || paymentData)]
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (payment_id, event_id) DO NOTHING`,
+          [
+            eventId,
+            String(dataId),
+            order.id,
+            type || 'payment',
+            'cancelled_order_paid_incident',
+            JSON.stringify(bodyPayload || paymentData),
+            'PROCESSED',
+          ]
         );
 
         return {
@@ -316,26 +432,42 @@ export async function processMercadoPagoWebhookEvent(
             orderId: order.id,
             paymentId: String(dataId),
             stockStatus: 'skipped',
+            outboxCreated: false,
           },
         };
       }
 
-      // Guard B: Already processed order (Idempotency)
-      if (order.stock_decremented === true || order.status === 'paid' || order.status === 'preparing') {
+      // Guard B: Already processed or terminal post-payment order (Idempotency & Terminal State Protection)
+      if (
+        order.stock_decremented === true ||
+        order.payment_status === 'refunded' ||
+        ['paid', 'preparing', 'shipped', 'delivered', 'refunded'].includes(order.status)
+      ) {
         await client.query(
           `INSERT INTO processed_webhooks (event_id, payment_id, order_id, event_type, action, payload, status)
-           VALUES ($1, $2, $3, $4, 'already_processed_duplicate', $5, 'DUPLICATE')
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
            ON CONFLICT (payment_id, event_id) DO NOTHING`,
-          [eventId, String(dataId), order.id, type || 'payment', JSON.stringify(bodyPayload || paymentData)]
+          [
+            eventId,
+            String(dataId),
+            order.id,
+            type || 'payment',
+            'already_processed_duplicate',
+            JSON.stringify(bodyPayload || paymentData),
+            'DUPLICATE',
+          ]
         );
 
         return {
           statusCode: 200,
           body: {
-            message: 'ACK. Order already paid and stock already decremented.',
+            message: 'ACK. Order already processed or in terminal post-payment state.',
+            action: 'already_processed_duplicate',
             alreadyProcessed: true,
             orderId: order.id,
             paymentId: String(dataId),
+            stockStatus: 'skipped',
+            outboxCreated: false,
           },
         };
       }
@@ -357,10 +489,22 @@ export async function processMercadoPagoWebhookEvent(
       let stockStatus = 'skipped';
       if (!order.stock_decremented) {
         try {
+          await client.query('SAVEPOINT sp_webhook_stock_deduction');
           await deductStockForOrderAtomic(order.id, client);
+          await client.query('RELEASE SAVEPOINT sp_webhook_stock_deduction');
           stockStatus = 'decremented';
         } catch (stockErr: unknown) {
-          console.error(`[MP Webhook] Stock deduction failed for order ${order.id}:`, stockErr);
+          await client.query('ROLLBACK TO SAVEPOINT sp_webhook_stock_deduction');
+          await client.query('RELEASE SAVEPOINT sp_webhook_stock_deduction');
+
+          // MEDIO-02: Transient concurrency/locking errors (40P01, 40001, 55P03) or pool/connection
+          // failures must NOT permanently degrade the order to requires_attention or commit processed_webhooks.
+          // Rethrow to roll back the entire outer transaction so Mercado Pago retries the webhook.
+          if (isTransientConcurrencyError(stockErr) || isPoolConnectionError(stockErr)) {
+            throw stockErr;
+          }
+
+          console.error(`[MP Webhook] Deterministic stock deduction failure for order ${order.id}:`, stockErr);
           stockStatus = 'failed';
           const errMsg = stockErr instanceof Error ? stockErr.message : String(stockErr);
           await client.query(
@@ -383,18 +527,33 @@ export async function processMercadoPagoWebhookEvent(
         outboxCreated = outboxRes.created;
       }
 
-      // Record successful event in processed_webhooks audit table
+      // BAJO-02: Distinguish normal approval from approval with stock failure in audit log and response
+      const auditAction = stockStatus === 'failed' ? 'approved_stock_failed' : 'approved';
+      const responseMessage =
+        stockStatus === 'failed'
+          ? 'ACK. Payment approved, but stock deduction failed; order moved to requires_attention.'
+          : 'ACK. Payment approved, order updated, stock decremented, audit recorded.';
+
       await client.query(
         `INSERT INTO processed_webhooks (event_id, payment_id, order_id, event_type, action, payload, status)
-         VALUES ($1, $2, $3, $4, 'approved', $5, 'PROCESSED')`,
-        [eventId, String(dataId), order.id, type || 'payment', JSON.stringify(bodyPayload || paymentData)]
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (payment_id, event_id) DO NOTHING`,
+        [
+          eventId,
+          String(dataId),
+          order.id,
+          type || 'payment',
+          auditAction,
+          JSON.stringify(bodyPayload || paymentData),
+          'PROCESSED',
+        ]
       );
 
       return {
         statusCode: 200,
         body: {
-          message: 'ACK. Payment approved, order updated, stock decremented, audit recorded.',
-          action: 'approved',
+          message: responseMessage,
+          action: auditAction,
           orderId: order.id,
           paymentId: String(dataId),
           stockStatus,
@@ -411,10 +570,17 @@ export async function processMercadoPagoWebhookEvent(
       newPaymentStatus = 'rejected';
     } else if (paymentStatus === 'refunded' || paymentStatus === 'charged_back') {
       newPaymentStatus = 'refunded';
-      newOrderStatus = 'refunded';
+      newOrderStatus = order.status === 'requires_attention' ? 'requires_attention' : 'refunded';
     }
 
-    if (order.payment_status !== 'approved') {
+    const isRefundTransition = newPaymentStatus === 'refunded';
+    const canApplyNonApprovedUpdate =
+      isRefundTransition ||
+      (order.status === 'pending' &&
+        order.payment_status !== 'approved' &&
+        order.payment_status !== 'refunded');
+
+    if (canApplyNonApprovedUpdate) {
       await client.query(
         `UPDATE orders
          SET payment_status = $1,
@@ -428,8 +594,17 @@ export async function processMercadoPagoWebhookEvent(
 
     await client.query(
       `INSERT INTO processed_webhooks (event_id, payment_id, order_id, event_type, action, payload, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'PROCESSED')`,
-      [eventId, String(dataId), order.id, type || 'payment', paymentStatus, JSON.stringify(bodyPayload || paymentData)]
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (payment_id, event_id) DO NOTHING`,
+      [
+        eventId,
+        String(dataId),
+        order.id,
+        type || 'payment',
+        paymentStatus,
+        JSON.stringify(bodyPayload || paymentData),
+        'PROCESSED',
+      ]
     );
 
     return {
@@ -444,19 +619,64 @@ export async function processMercadoPagoWebhookEvent(
   };
 
   let result: WebhookProcessingResult;
-  if (options?.customClient) {
-    result = await runTransaction(options.customClient);
-  } else {
-    result = await withTransaction(runTransaction);
+  try {
+    if (options?.customClient) {
+      await options.customClient.query('BEGIN');
+      try {
+        result = await runTransaction(options.customClient);
+        await options.customClient.query('COMMIT');
+      } catch (txErr) {
+        await options.customClient.query('ROLLBACK');
+        throw txErr;
+      }
+    } else {
+      result = await withTransaction(runTransaction);
+    }
+  } catch (txError: unknown) {
+    console.error(`[MP Webhook] Transaction failed for payment ${dataId} (order ${externalReference}):`, txError);
+    if (isPoolConnectionError(txError)) {
+      return {
+        statusCode: 503,
+        body: {
+          error: 'Service Unavailable: Database connection pool error. Retry later.',
+          code: 'DATABASE_POOL_UNAVAILABLE',
+        },
+      };
+    }
+    if (isTransientConcurrencyError(txError)) {
+      return {
+        statusCode: 503,
+        body: {
+          error: 'Service Unavailable: Transient database concurrency conflict. Retry later.',
+          code: 'TRANSIENT_CONCURRENCY_CONFLICT',
+        },
+      };
+    }
+    return {
+      statusCode: 500,
+      body: {
+        error: 'Internal Server Error: Transactional webhook processing failed.',
+        code: 'WEBHOOK_TRANSACTION_ERROR',
+      },
+    };
   }
 
   // 5. Post-commit immediate dispatch optimization (best effort, non-blocking)
   // Completely isolated from transaction: failures or network timeouts here
   // CANNOT revert the committed payment, inventory deduction, or outbox record.
-  if (
-    (result.body?.action === 'approved' || result.body?.alreadyProcessed) &&
-    result.body?.orderId
-  ) {
+  // BAJO-02: Only attempt immediate outbox dispatch when an outbox record was created or on
+  // duplicate delivery of an already-paid order, and NEVER when stock deduction failed or an incident is pending.
+  const shouldDispatchOutbox =
+    result.statusCode === 200 &&
+    Boolean(result.body?.orderId) &&
+    result.body?.stockStatus !== 'failed' &&
+    (result.body?.outboxCreated === true ||
+      (result.body?.alreadyProcessed === true &&
+        result.body?.action !== 'incident_pending' &&
+        result.body?.action !== 'payment_conflict' &&
+        result.body?.action !== 'approved_stock_failed'));
+
+  if (shouldDispatchOutbox && result.body?.orderId) {
     try {
       await dispatchOrderEmailOutbox({
         orderId: result.body.orderId,

@@ -32,8 +32,8 @@ interface MarcoDestacado {
   marca: string;
   modelo: string;
   codigo_color?: string;
-  precio_neto_clp: number;
-  stock: number;
+  precio_neto_clp?: number;
+  stock?: number;
   imagen_principal?: string;
   material?: string;
   forma?: string;
@@ -46,26 +46,41 @@ export default function Home() {
   const [activeFilter, setActiveFilter] = useState<string>('todos');
 
   useEffect(() => {
+    let cancelled = false;
     async function loadFeatured() {
       try {
-        const { data, error } = await supabase
-          .from('marcos')
-          .select('id_ext, marca, modelo, codigo_color, precio_neto_clp, stock, imagen_principal, material, forma')
-          .not('imagen_principal', 'is', null)
-          .limit(16);
+        const columns = isLoggedIn
+          ? 'id_ext, marca, modelo, codigo_color, precio_neto_clp, stock, imagen_principal, material, forma'
+          : 'id_ext, marca, modelo, codigo_color, imagen_principal, material, forma';
 
-        if (!error && data) {
-          setDestacados(data);
+        let query = supabase
+          .from('marcos')
+          .select(columns)
+          .not('imagen_principal', 'is', null);
+
+        if (isLoggedIn) {
+          query = query.gt('stock', 0);
+        }
+
+        const { data, error } = await query.limit(16);
+
+        if (!cancelled && !error && data) {
+          setDestacados(data as unknown as MarcoDestacado[]);
         }
       } catch (err) {
         console.error('Error cargando destacados:', err);
       } finally {
-        setLoadingDestacados(false);
+        if (!cancelled) {
+          setLoadingDestacados(false);
+        }
       }
     }
 
     loadFeatured();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn]);
 
   const filteredDestacados = useMemo(() => {
     if (activeFilter === 'todos') return destacados.slice(0, 8);
@@ -374,7 +389,7 @@ export default function Home() {
                       </div>
                     )}
 
-                    {isLoggedIn && (
+                    {isLoggedIn && typeof marco.stock === 'number' && (
                       <span className="text-xs bg-slate-800 px-2 py-0.5 rounded-md text-slate-300 font-medium">
                         Stock en origen: {marco.stock >= 50 ? '50+ un.' : `${marco.stock} un.`}
                       </span>

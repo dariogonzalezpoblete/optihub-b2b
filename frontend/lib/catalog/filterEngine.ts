@@ -89,7 +89,7 @@ export function applyFilters(
   const tokens = queryTokens(state.q);
   const filtered = list.filter((m) => matchesQuery(m, tokens) && matchesFacets(m, state));
 
-  const sort = !canSeePrices && state.sort.startsWith('precio') ? 'relevancia' : state.sort;
+  const sort = !canSeePrices && (state.sort.startsWith('precio') || state.sort === 'stock') ? 'relevancia' : state.sort;
   const sorted = [...filtered];
 
   switch (sort) {

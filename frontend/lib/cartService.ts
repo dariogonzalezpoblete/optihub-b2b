@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
+import { MARCOS_B2B_COLUMNS } from '@/lib/catalog/types';
 import { CartItem as LocalCartItem, Producto } from '@/types/product';
 import { getValidStock, useCartStore } from '@/store/useCartStore';
 
@@ -261,7 +262,7 @@ export async function pushCartToSupabase(
 
         const { data: catalogProducts, error: catalogError } = await supabase
           .from('marcos')
-          .select('*')
+          .select(MARCOS_B2B_COLUMNS)
           .in('id_ext', allProductIds);
 
         if (catalogError) throw catalogError;
@@ -335,7 +336,7 @@ export async function mergeAndSyncCart(
       if (allProductIds.length > 0) {
         const { data: marcosDb, error: marcosError } = await supabase
           .from('marcos')
-          .select('*')
+          .select(MARCOS_B2B_COLUMNS)
           .in('id_ext', allProductIds);
 
         if (marcosError) throw marcosError;

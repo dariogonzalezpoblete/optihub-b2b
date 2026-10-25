@@ -1,20 +1,23 @@
 // frontend/test/inventoryConcurrency.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
+import { register } from 'node:module';
+import { pathToFileURL } from 'node:url';
+
+register('./test_alias_loader.mjs', pathToFileURL('./'));
+
+const {
   createPurchaseOrderWithAtomicStockDeduction,
   deductStockForOrderAtomic,
   adjustOrReplenishStockAtomic,
-  checkStockAvailability,
-} from '../lib/inventory/inventoryService.ts';
-import {
+} = await import('../lib/inventory/inventoryService.ts');
+const {
   InsufficientStockError,
   InvalidQuantityError,
   ProductNotFoundError,
-  OrderNotFoundError,
   formatInventoryErrorResponse,
-} from '../lib/inventory/errors.ts';
-import { isPoolConnectionError, isTransientConcurrencyError } from '../lib/db/postgres.ts';
+} = await import('../lib/inventory/errors.ts');
+const { isPoolConnectionError, isTransientConcurrencyError } = await import('../lib/db/postgres.ts');
 
 /**
  * In-memory simulated PostgreSQL Client supporting:
@@ -207,6 +210,28 @@ class MockPgClient {
       return { rows: [], rowCount: 1 };
     }
 
+    // DELETE FROM marcos WHERE id_ext = $1
+    // Enforces PostgreSQL FOREIGN KEY (product_id) REFERENCES marcos(id_ext) ON DELETE RESTRICT
+    if (normalized.startsWith('DELETE FROM marcos WHERE id_ext = $1')) {
+      const pid = params[0];
+      const hasMovements = this.db.inventoryMovements.some((m) => m.product_id === pid);
+      if (hasMovements) {
+        const fkErr = new Error(
+          `update or delete on table "marcos" violates foreign key constraint "inventory_movements_product_id_fkey" on table "inventory_movements" (id_ext=${pid})`
+        );
+        fkErr.code = '23503';
+        throw fkErr;
+      }
+      const marco = this.db.marcos.get(pid);
+      if (marco) {
+        this.db.marcos.delete(pid);
+        this.rollbackActions.push(() => {
+          this.db.marcos.set(pid, marco);
+        });
+      }
+      return { rows: [], rowCount: marco ? 1 : 0 };
+    }
+
     // UPDATE marcos SET stock = $1 WHERE id_ext = $2
     if (normalized.includes('UPDATE marcos SET stock = $1 WHERE id_ext = $2')) {
       const newStock = params[0];
@@ -223,10 +248,19 @@ class MockPgClient {
     }
 
     // INSERT INTO inventory_movements
+    // Enforces PostgreSQL FOREIGN KEY (product_id) REFERENCES marcos(id_ext) ON DELETE RESTRICT
     if (normalized.includes('INSERT INTO inventory_movements')) {
+      const productId = params[0];
+      if (!this.db.marcos.has(productId)) {
+        const fkErr = new Error(
+          `insert or update on table "inventory_movements" violates foreign key constraint "inventory_movements_product_id_fkey" (product_id=${productId} not present in table "marcos")`
+        );
+        fkErr.code = '23503';
+        throw fkErr;
+      }
       const movement = {
         id: 'mov-' + Math.random().toString(36).substring(2, 9),
-        product_id: params[0],
+        product_id: productId,
         order_id: params[1],
         quantity: params[2],
         type: params[3],
@@ -442,12 +476,12 @@ test('5. Idempotency: deductStockForOrderAtomic avoids double deductions', async
 
 test('6. Concurrency Simulation: 10 concurrent buyers competing for 3 units with row locks', async () => {
   const db = new MockPgDatabase();
-  // Set initial stock of RB-2140 to exactly 3
-  db.marcos.set('RB-2140', {
-    id_ext: 'RB-2140',
+  // Set initial stock of LIMITED-3 to exactly 3
+  db.marcos.set('LIMITED-3', {
+    id_ext: 'LIMITED-3',
     stock: 3,
     marca: 'Ray-Ban',
-    modelo: 'Wayfarer',
+    modelo: 'Wayfarer Limited',
     precio_neto_clp: 45000,
   });
 
@@ -463,7 +497,7 @@ test('6. Concurrency Simulation: 10 concurrent buyers competing for 3 units with
       await createPurchaseOrderWithAtomicStockDeduction(
         {
           userId: `concurrent-buyer-${idx}`,
-          items: [{ productId: 'RB-2140', quantity: 1 }],
+          items: [{ productId: 'LIMITED-3', quantity: 1 }],
         },
         client
       );
@@ -471,6 +505,8 @@ test('6. Concurrency Simulation: 10 concurrent buyers competing for 3 units with
       successfulOrders++;
     } catch (err) {
       await client.query('ROLLBACK');
+      // Cuando el stock llega a 0 el servicio actualiza stock = 0 (sin DELETE FROM marcos),
+      // por lo que todos los compradores posteriores reciben estrictamente InsufficientStockError.
       if (err instanceof InsufficientStockError) {
         rejectedOrders++;
       } else {
@@ -481,11 +517,38 @@ test('6. Concurrency Simulation: 10 concurrent buyers competing for 3 units with
 
   await Promise.all(promises);
 
-  // Exactly 3 succeed, exactly 7 fail, final stock is exactly 0 (NO OVERSELLING)
+  // Exactly 3 succeed, exactly 7 fail with InsufficientStockError, stock is 0 (NO OVERSELLING, NO DELETE)
   assert.equal(successfulOrders, 3, 'Exactly 3 orders should succeed');
-  assert.equal(rejectedOrders, 7, 'Exactly 7 orders should be rejected due to insufficient stock');
-  assert.equal(db.marcos.get('RB-2140').stock, 0, 'Final stock must be exactly 0, never negative');
+  assert.equal(rejectedOrders, 7, 'Exactly 7 orders should be rejected with InsufficientStockError');
+  const finalMarco = db.marcos.get('LIMITED-3');
+  assert.ok(finalMarco !== undefined, 'LIMITED-3 must still exist in marcos table');
+  assert.equal(finalMarco.stock, 0, 'Final stock must be exactly 0, never negative');
   assert.equal(db.orders.size, 3, 'Exactly 3 orders recorded in database');
+  assert.equal(db.inventoryMovements.length, 3, 'Exactly 3 ledger movements recorded');
+  assert.ok(
+    db.inventoryMovements.every((m) => m.type === 'SALE' && m.product_id === 'LIMITED-3' && m.quantity === -1),
+    'All 3 movements must be SALE of -1 for LIMITED-3'
+  );
+
+  // Verify a subsequent return/replenishment on depleted LIMITED-3 restores stock = 5 without FK error
+  const replenishClient = db.createClient();
+  await replenishClient.query('BEGIN');
+  const returnResult = await adjustOrReplenishStockAtomic(
+    {
+      productId: 'LIMITED-3',
+      quantityDelta: 5,
+      type: 'RETURN',
+      notes: 'Restitución por devolución',
+    },
+    replenishClient
+  );
+  await replenishClient.query('COMMIT');
+
+  assert.equal(returnResult.success, true);
+  assert.equal(returnResult.previousStock, 0);
+  assert.equal(returnResult.newStock, 5);
+  assert.equal(db.marcos.get('LIMITED-3').stock, 5, 'Stock of LIMITED-3 must be restored to 5');
+  assert.equal(db.inventoryMovements.length, 4, 'RETURN movement must be appended to inventory_movements');
 });
 
 test('7. Inventory Adjustment / Restock', async () => {
@@ -534,4 +597,32 @@ test('8. Error Formatting and Connection Pool resilience', () => {
 
   const deadlockResponse = formatInventoryErrorResponse(deadlockErr);
   assert.equal(deadlockResponse.status, 409, 'Deadlock conflict should map to HTTP 409 Conflict');
+});
+
+test('9. CRÍTICO-01 Price Integrity: createPurchaseOrderWithAtomicStockDeduction ignores client-supplied unitPriceNet and enforces catalog price', async () => {
+  const db = new MockPgDatabase();
+  const client = db.createClient();
+
+  await client.query('BEGIN');
+  const result = await createPurchaseOrderWithAtomicStockDeduction(
+    {
+      userId: 'usr-admin-test',
+      customerName: 'Óptica Validación Precio',
+      customerEmail: 'admin@optihub.cl',
+      items: [
+        // Attempt to tamper price to 0 or 1 CLP when catalog price of RB-2140 is 45,000 CLP
+        { productId: 'RB-2140', quantity: 2, unitPriceNet: 0 },
+        { productId: 'TF-501', quantity: 1, unitPriceNet: 1 },
+      ],
+    },
+    client
+  );
+  await client.query('COMMIT');
+
+  // RB-2140 (45000 * 2 = 90000) + TF-501 (95000 * 1 = 95000) = 185000
+  assert.equal(result.order.subtotal_net, 185000, 'Must strictly use catalog precio_neto_clp, ignoring unitPriceNet');
+  assert.equal(result.order.tax_amount, Math.round(185000 * 0.19));
+  assert.equal(result.order.total_amount, 185000 + Math.round(185000 * 0.19));
+  assert.equal(result.orderItems[0].unit_price_net, 45000);
+  assert.equal(result.orderItems[1].unit_price_net, 95000);
 });

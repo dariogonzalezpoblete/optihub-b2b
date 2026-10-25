@@ -21,7 +21,6 @@ export interface DatabasePoolConfig {
 
 // Global reference to ensure a singleton pool across Next.js hot reloads in development
 declare global {
-  // eslint-disable-next-line no-var
   var __optihubPgPool: Pool | undefined;
 }
 
@@ -114,13 +113,13 @@ export function isPoolConnectionError(error: unknown): boolean {
 }
 
 /**
- * Checks whether an error is a PostgreSQL deadlock or serialization conflict.
+ * Checks whether an error is a PostgreSQL deadlock, serialization conflict, or lock timeout.
  */
 export function isTransientConcurrencyError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const code = (error as { code?: string }).code;
-  // 40P01 = deadlock_detected, 40001 = serialization_failure
-  return code === '40P01' || code === '40001';
+  // 40P01 = deadlock_detected, 40001 = serialization_failure, 55P03 = lock_not_available
+  return code === '40P01' || code === '40001' || code === '55P03';
 }
 
 /**
