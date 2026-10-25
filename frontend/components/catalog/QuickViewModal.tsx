@@ -109,23 +109,23 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       <div 
-        className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+        className="absolute inset-0 bg-[#111111]/70 backdrop-blur-xs"
         onClick={onClose}
       />
       
-      <div className="relative bg-slate-900 border border-slate-800 shadow-2xl rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row animate-slide-up">
+      <div className="relative bg-[#FFFFFF] border border-[#E5E4DF] shadow-2xl rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row animate-slide-up text-[#111111]">
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 w-10 h-10 bg-slate-800/80 hover:bg-slate-700 rounded-full flex items-center justify-center text-slate-300 transition"
+          className="absolute top-4 right-4 z-10 w-9 h-9 bg-[#FAF9F6] hover:bg-[#FFFFFF] border border-[#E5E4DF] rounded-full flex items-center justify-center text-[#575551] transition"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
         {/* Galería Rápida */}
-        <div className="w-full md:w-5/12 bg-slate-950 p-6 flex flex-col justify-between border-r border-slate-800/80">
+        <div className="w-full md:w-5/12 bg-[#FAF9F6] p-6 flex flex-col justify-between border-b md:border-b-0 md:border-r border-[#E5E4DF]">
           <div className="flex flex-col items-center w-full">
             {/* Imagen Principal */}
-            <div className="aspect-[4/3] w-full flex items-center justify-center mb-6 relative group">
+            <div className="aspect-[4/3] w-full flex items-center justify-center mb-6 relative group bg-[#FFFFFF] rounded-2xl border border-[#E5E4DF] p-4">
               {currentImageUrl ? (
                 <Image unoptimized src={currentImageUrl} 
                   alt="Product" 
@@ -134,7 +134,7 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
                   className="object-contain p-4 transition-transform duration-300 group-hover:scale-105"
                 />
               ) : (
-                <div className="text-slate-600 text-sm">Sin imagen</div>
+                <div className="text-[#82807A] text-sm">Sin imagen</div>
               )}
             </div>
 
@@ -146,27 +146,27 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
                     key={idx}
                     type="button"
                     onClick={() => setActiveImageIndex(idx)}
-                    className={`relative w-14 h-14 rounded-xl border overflow-hidden flex-shrink-0 transition-all ${
+                    className={`relative w-14 h-14 rounded-xl border overflow-hidden flex-shrink-0 transition-all bg-[#FFFFFF] ${
                       idx === activeImageIndex 
-                        ? 'border-emerald-500 ring-2 ring-emerald-500/20' 
-                        : 'border-slate-800 opacity-60 hover:opacity-100'
+                        ? 'border-[#B89768] ring-2 ring-[#B89768]/20 shadow-xs' 
+                        : 'border-[#E5E4DF] opacity-60 hover:opacity-100'
                     }`}
                   >
-                    <Image unoptimized src={img} alt="Thumbnail" fill sizes="56px" className="object-cover" />
+                    <Image unoptimized src={img} alt="Thumbnail" fill sizes="56px" className="object-cover p-1" />
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          <div className="mt-4 pt-4 border-t border-slate-800/80 space-y-2.5">
-            <div className="flex items-center gap-2 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl">
-              <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-400" />
+          <div className="mt-4 pt-4 border-t border-[#E5E4DF] space-y-2.5">
+            <div className="flex items-center gap-2 text-[11px] text-[#9E7D4F] font-medium bg-[#F7F3EB] border border-[#B89768]/30 p-2.5 rounded-xl">
+              <ShieldCheck className="w-4 h-4 shrink-0 text-[#B89768]" />
               <span>100% Original: Con estuche de marca, paño y Factura SII</span>
             </div>
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span className="flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-slate-500" /> Entrega: 10 a 15 días hábiles</span>
-              <Link href={`/producto/${encodeURIComponent(baseProduct.marca)}/${encodeURIComponent(baseProduct.modelo)}`} className="text-emerald-400 hover:underline font-bold">
+            <div className="flex items-center justify-between text-xs text-[#575551]">
+              <span className="flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-[#82807A]" /> Entrega: 10 a 15 días hábiles</span>
+              <Link href={`/producto/${encodeURIComponent(baseProduct.marca)}/${encodeURIComponent(baseProduct.modelo)}`} className="text-[#111111] hover:text-[#B89768] hover:underline font-bold">
                 Ficha completa →
               </Link>
             </div>
@@ -174,40 +174,40 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
         </div>
 
         {/* Información y Compra */}
-        <div className="w-full md:w-7/12 flex flex-col max-h-[90vh] overflow-y-auto">
-          <div className="p-6 md:p-8 border-b border-slate-800">
+        <div className="w-full md:w-7/12 flex flex-col max-h-[90vh] overflow-y-auto bg-[#FFFFFF]">
+          <div className="p-6 md:p-8 border-b border-[#E5E4DF]">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className="text-xs uppercase tracking-wider font-extrabold text-emerald-400">
+              <span className="badge-brand">
                 {baseProduct.marca}
               </span>
               {getRotationBadge(baseProduct.marca) && (
-                <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border ${getRotationBadge(baseProduct.marca)?.bg} ${getRotationBadge(baseProduct.marca)?.text}`}>
+                <span className="inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full border border-[#E5E4DF] bg-[#FAF9F6] text-[#575551]">
                   <span>{getRotationBadge(baseProduct.marca)?.icon}</span>
                   <span>{getRotationBadge(baseProduct.marca)?.label}</span>
                 </span>
               )}
             </div>
 
-            <h2 className="text-2xl font-black text-white">{baseProduct.modelo}</h2>
-            <p className="text-slate-400 text-xs mt-1">Material: {baseProduct.material || 'Estándar'} • Género: {baseProduct.genero || 'Unisex'}</p>
+            <h2 className="font-editorial text-3xl font-semibold text-[#111111] mt-2">{baseProduct.modelo}</h2>
+            <p className="text-[#575551] text-xs mt-1">Material: {baseProduct.material || 'Estándar'} • Género: {baseProduct.genero || 'Unisex'}</p>
 
             {/* Calculadora de Margen Retail en Modal */}
             {isLoggedIn && activeVariant.precio_neto_clp && (
-              <div className="mt-3 bg-slate-950/80 rounded-2xl p-3 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="mt-4 bg-[#FAF9F6] rounded-2xl p-3.5 border border-[#E5E4DF] flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase font-bold">Costo Mayorista</span>
-                  <span className="text-emerald-400 font-black text-sm font-mono">
+                  <span className="text-[#82807A] block text-[10px] uppercase font-bold tracking-wider">Costo Mayorista</span>
+                  <span className="text-[#111111] font-bold text-base font-tech">
                     ${activeVariant.precio_neto_clp.toLocaleString('es-CL')} CLP Neto
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase font-bold">PVP Sugerido Óptica</span>
-                  <span className="text-slate-200 font-bold font-mono">
+                  <span className="text-[#82807A] block text-[10px] uppercase font-bold tracking-wider">PVP Sugerido Óptica</span>
+                  <span className="text-[#111111] font-bold font-tech">
                     ${calculateRetailProjection(activeVariant.precio_neto_clp).pvpSugerido.toLocaleString('es-CL')} CLP
                   </span>
                 </div>
-                <div className="bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-xl text-emerald-400 font-bold text-[11px] flex items-center gap-1.5">
-                  <TrendingUp className="w-3.5 h-3.5" />
+                <div className="bg-[#F7F3EB] border border-[#B89768]/30 px-3 py-1.5 rounded-xl text-[#9E7D4F] font-bold text-[11px] flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-[#B89768]" />
                   <span>Margen ~{calculateRetailProjection(activeVariant.precio_neto_clp).margenPorcentaje}% (+${calculateRetailProjection(activeVariant.precio_neto_clp).gananciaPorUnidad.toLocaleString('es-CL')}/un)</span>
                 </div>
               </div>
@@ -215,30 +215,30 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
 
             {/* Dimensiones */}
             {dims && (
-              <div className="flex items-center gap-4 mt-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs">
-                <Ruler className="w-4 h-4 text-slate-500" />
-                <span className="text-slate-400">Calibre: <strong className="text-slate-200">{dims.calibre} mm</strong></span>
-                <span className="text-slate-400">Puente: <strong className="text-slate-200">{dims.puente} mm</strong></span>
-                <span className="text-slate-400">Varilla: <strong className="text-slate-200">{dims.varilla} mm</strong></span>
+              <div className="flex items-center gap-4 mt-3 bg-[#FAF9F6] p-2.5 rounded-xl border border-[#E5E4DF] text-xs">
+                <Ruler className="w-4 h-4 text-[#82807A]" />
+                <span className="text-[#575551]">Calibre: <strong className="text-[#111111] font-tech">{dims.calibre} mm</strong></span>
+                <span className="text-[#575551]">Puente: <strong className="text-[#111111] font-tech">{dims.puente} mm</strong></span>
+                <span className="text-[#575551]">Varilla: <strong className="text-[#111111] font-tech">{dims.varilla} mm</strong></span>
               </div>
             )}
           </div>
 
-          <div className="p-6 md:p-8 flex-1 bg-slate-900/50 flex flex-col">
-            <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-              <ShoppingBag className="w-4 h-4 text-emerald-400" />
+          <div className="p-6 md:p-8 flex-1 bg-[#FFFFFF] flex flex-col">
+            <h3 className="font-editorial text-lg font-semibold text-[#111111] mb-4 flex items-center gap-2">
+              <ShoppingBag className="w-4 h-4 text-[#B89768]" />
               Pedido Mayorista B2B (Stock en Origen)
             </h3>
 
             {!isLoggedIn ? (
-               <div className="bg-slate-950 p-6 rounded-2xl border border-amber-500/30 text-center">
-                 <Lock className="w-8 h-8 text-amber-500 mx-auto mb-3" />
-                 <p className="text-sm text-slate-300 mb-4">Inicia sesión para ver precios netos y disponibilidad en origen en tiempo real.</p>
-                 <Link href="/login" className="bg-emerald-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm">Iniciar Sesión</Link>
+               <div className="bg-[#FAF9F6] p-6 rounded-2xl border border-[#E5E4DF] text-center">
+                 <Lock className="w-8 h-8 text-[#B89768] mx-auto mb-3" />
+                 <p className="text-sm text-[#575551] mb-4">Inicia sesión para ver precios netos y disponibilidad en origen en tiempo real.</p>
+                 <Link href="/login" className="btn-primary text-xs">Iniciar Sesión</Link>
                </div>
             ) : (
               <div className="flex flex-col flex-1">
-                <div className="space-y-2 mb-6 max-h-[30vh] overflow-y-auto custom-scrollbar pr-2">
+                <div className="space-y-2 mb-6 max-h-[30vh] overflow-y-auto scrollbar-thin pr-2">
                   {variants.map(v => {
                     const maxStock = getValidStock(v.stock);
                     const inCart = cart.find(item => getProductCartKey(item.producto) === v.id_ext)?.cantidad || 0;
@@ -247,21 +247,21 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
                     const isMaxInCart = !isOut && remainingStock <= 0;
 
                     return (
-                      <div key={v.id_ext} className={`flex items-center justify-between p-3 bg-slate-950 rounded-xl border ${isOut ? 'border-slate-800 opacity-50' : isMaxInCart ? 'border-amber-500/30' : 'border-slate-700'}`}>
+                      <div key={v.id_ext} className={`flex items-center justify-between p-3 bg-[#FAF9F6] rounded-xl border ${isOut ? 'border-[#E5E4DF] opacity-50' : isMaxInCart ? 'border-[#B89768]/50' : 'border-[#E5E4DF]'}`}>
                         <div className="flex-1">
-                          <p className="font-bold text-slate-200 text-sm">{v.color || v.codigo_color}</p>
-                          <p className="text-[10px] text-slate-500">SKU: {v.id_ext}</p>
+                          <p className="font-bold text-[#111111] text-sm">{v.color || v.codigo_color}</p>
+                          <p className="text-[10px] text-[#82807A] font-tech">SKU: {v.id_ext}</p>
                         </div>
                         <div className="text-right mr-4 w-28">
-                          <p className="font-black text-emerald-400">${v.precio_neto_clp?.toLocaleString('es-CL')}</p>
+                          <p className="font-bold text-[#111111] font-tech">${v.precio_neto_clp?.toLocaleString('es-CL')}</p>
                           {isOut ? (
-                            <p className="text-[10px] text-rose-400 font-bold">Agotado en origen</p>
+                            <p className="text-[10px] text-[#A83232] font-semibold">Agotado en origen</p>
                           ) : isMaxInCart ? (
-                            <p className="text-[10px] text-amber-400 font-bold">Máx. en carrito ({maxStock})</p>
+                            <p className="text-[10px] text-[#9E7D4F] font-semibold">Máx. en carrito ({maxStock})</p>
                           ) : inCart > 0 ? (
-                            <p className="text-[10px] text-slate-400">Disp: {remainingStock} ({inCart} en carrito)</p>
+                            <p className="text-[10px] text-[#575551] font-tech">Disp: {remainingStock} ({inCart} en carrito)</p>
                           ) : (
-                            <p className="text-[10px] text-slate-500">Stock en origen: {maxStock >= 50 ? '50+' : maxStock}</p>
+                            <p className="text-[10px] text-[#82807A] font-tech">Stock: {maxStock >= 50 ? '50+' : maxStock}</p>
                           )}
                         </div>
                         <div>
@@ -273,7 +273,7 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
                             value={quantities[v.id_ext] || ''} 
                             placeholder="0"
                             onChange={(e) => handleQuantityChange(v.id_ext, e.target.value, maxStock, remainingStock)}
-                            className="w-16 bg-slate-900 border border-slate-600 rounded-lg py-1.5 text-center text-white font-bold text-sm focus:border-emerald-500 outline-none disabled:opacity-50"
+                            className="w-16 bg-[#FFFFFF] border border-[#E5E4DF] rounded-lg py-1.5 text-center text-[#111111] font-bold text-sm focus:border-[#B89768] outline-none disabled:opacity-50 shadow-2xs"
                           />
                         </div>
                       </div>
@@ -282,21 +282,21 @@ export default function QuickViewModal({ variants, isOpen, onClose }: Props) {
                 </div>
 
                 {stockWarning && (
-                  <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 text-xs font-semibold flex items-center gap-2 animate-fade-in">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                  <div className="mb-4 p-3 bg-[#FBF8F1] border border-[#EADBBE] rounded-xl text-[#8C6A2E] text-xs font-semibold flex items-center gap-2 animate-fade-in">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-[#B89768]" />
                     <span>{stockWarning}</span>
                   </div>
                 )}
 
-                <div className="mt-auto flex items-center justify-between border-t border-slate-800 pt-4">
+                <div className="mt-auto flex items-center justify-between border-t border-[#E5E4DF] pt-4">
                   <div>
-                    <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Total Unidades</span>
-                    <span className="text-xl font-black text-white">{getTotalSelected()}</span>
+                    <span className="text-[10px] text-[#82807A] uppercase tracking-wider block font-bold">Total Unidades</span>
+                    <span className="text-xl font-bold text-[#111111] font-tech">{getTotalSelected()}</span>
                   </div>
                   <button 
                     onClick={handleAddAllToCart}
                     disabled={getTotalSelected() === 0 || isAdding}
-                    className="bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-black px-6 py-3 rounded-xl transition flex items-center gap-2"
+                    className="btn-primary"
                   >
                     {isAdding ? 'Agregando...' : 'Añadir al Pedido'}
                   </button>

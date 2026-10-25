@@ -1,8 +1,7 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
-import { Package, Plane, CheckCircle2, Building, ShieldCheck, ArrowRight, Clock } from 'lucide-react';
+import { Package, Plane, Building, ShieldCheck, Clock } from 'lucide-react';
 
 const STEPS = [
   {
@@ -41,16 +40,16 @@ const STEPS = [
 
 export default function ImportSteps() {
   return (
-    <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-      <div className="text-center max-w-3xl mx-auto mb-14">
-        <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest block mb-2">
+    <section className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <div className="text-center max-w-3xl mx-auto mb-12">
+        <span className="text-xs font-bold text-[#B89768] uppercase tracking-widest block mb-2 font-mono">
           Cadena Logística Internacional
         </span>
-        <h2 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-tight">
+        <h2 className="font-editorial text-3xl sm:text-4xl font-normal text-[#111111] tracking-tight">
           ¿Cómo Funciona la Importación para tu Óptica?
         </h2>
-        <p className="text-slate-400 text-sm mt-3 leading-relaxed">
-          Sin intermediarios ni sorpresas de aduana. Un proceso transparente y automatizado desde Miami hasta tu vitrina.
+        <p className="text-[#575551] text-sm mt-3 leading-relaxed">
+          Sin intermediarios ni contingencias arancelarias. Un proceso transparente y consolidado desde Miami hasta tu vitrina.
         </p>
       </div>
 
@@ -60,36 +59,36 @@ export default function ImportSteps() {
           return (
             <div
               key={s.step}
-              className="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between hover:border-emerald-500/40 hover:bg-slate-900 transition-all duration-300 shadow-xl group relative overflow-hidden"
+              className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl p-6 flex flex-col justify-between hover:border-[#B89768] transition-all duration-300 shadow-xs group relative overflow-hidden"
             >
               {/* Marca de agua de paso */}
-              <span className="absolute top-4 right-4 text-4xl font-black text-slate-800/40 group-hover:text-emerald-500/10 transition-colors font-mono pointer-events-none">
+              <span className="absolute top-4 right-4 text-4xl font-black text-[#E5E4DF]/60 group-hover:text-[#B89768]/20 transition-colors font-tech pointer-events-none">
                 {s.step}
               </span>
 
               <div>
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center mb-5 group-hover:bg-emerald-500 group-hover:text-slate-950 transition-colors">
-                  <Icon className="w-6 h-6" />
+                <div className="w-12 h-12 rounded-2xl bg-[#FAF9F6] text-[#B89768] border border-[#E5E4DF] flex items-center justify-center mb-5 group-hover:bg-[#111111] group-hover:text-white transition-colors shadow-2xs">
+                  <Icon className="w-6 h-6 stroke-[1.8]" />
                 </div>
 
-                <span className="inline-block px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-emerald-300 text-[10px] font-bold uppercase tracking-wider mb-2">
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#F7F3EB] border border-[#B89768]/30 text-[#9E7D4F] text-[10px] font-semibold uppercase tracking-wider mb-2">
                   {s.badge}
                 </span>
 
-                <h3 className="text-lg font-black text-white uppercase tracking-tight mt-1">
+                <h3 className="font-editorial text-xl font-semibold text-[#111111] tracking-tight mt-1">
                   {s.title}
                 </h3>
-                <span className="text-xs text-slate-400 font-semibold block mb-2">
+                <span className="text-xs text-[#82807A] font-semibold block mb-2 font-tech">
                   {s.subtitle}
                 </span>
 
-                <p className="text-slate-400 text-xs leading-relaxed">
+                <p className="text-[#575551] text-xs leading-relaxed">
                   {s.desc}
                 </p>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-800/70 flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
-                <Clock className="w-3.5 h-3.5 text-emerald-400" />
+              <div className="mt-6 pt-4 border-t border-[#E5E4DF] flex items-center gap-1.5 text-[11px] text-[#82807A] font-medium font-tech">
+                <Clock className="w-3.5 h-3.5 text-[#B89768]" />
                 <span>Paso {idx + 1} de 4</span>
               </div>
             </div>

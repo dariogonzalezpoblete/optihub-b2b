@@ -23,7 +23,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
     <>
       {parts.map((part, i) =>
         i % 2 === 1 ? (
-          <mark key={i} className="bg-emerald-500/20 text-emerald-300 rounded px-0.5">
+          <mark key={i} className="bg-[#F7F3EB] text-[#9E7D4F] font-semibold rounded px-0.5">
             {part}
           </mark>
         ) : (
@@ -58,25 +58,27 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
 
   // Filtrar la grilla 300 ms después de dejar de escribir
   useEffect(() => {
-    if (input.trim() === lastCommitted.current) return;
-    const t = setTimeout(() => commit(input), 300);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (input === lastCommitted.current) return;
+    const timer = setTimeout(() => {
+      commit(input);
+    }, 300);
+    return () => clearTimeout(timer);
   }, [input]);
 
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+  // Autocompletado rápido
+  const [suggestions, setSuggestions] = useState<EnrichedMarco[]>([]);
   const [total, setTotal] = useState(0);
-  
+
   useEffect(() => {
-    if (input.trim().length < 2) {
+    let isMounted = true;
+    if (!input.trim()) {
       setSuggestions([]);
       setTotal(0);
       return;
     }
-    let isMounted = true;
     const fetchSearch = async () => {
       try {
-        const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(input.trim())}&limit=6`);
+        const res = await fetch(`/api/search?q=${encodeURIComponent(input.trim())}&limit=6`);
         const data = await res.json();
         if (isMounted && data.items) {
           setSuggestions(data.items);
@@ -149,7 +151,7 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
   return (
     <div ref={wrapRef} className="relative w-full">
       <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#82807A] pointer-events-none" />
         <input
           ref={inputRef}
           type="text"
@@ -168,20 +170,20 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
-          className="w-full bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl pl-11 pr-20 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition"
+          className="w-full bg-[#FFFFFF] border border-[#E5E4DF] hover:border-[#82807A] rounded-xl pl-11 pr-20 py-3 text-sm text-[#111111] placeholder-[#82807A] focus:outline-none focus:border-[#B89768] focus:ring-3 focus:ring-[#B89768]/15 transition shadow-2xs"
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
           {input ? (
             <button
               type="button"
               onClick={clear}
-              className="w-6 h-6 rounded-md text-slate-500 hover:text-white hover:bg-slate-800 flex items-center justify-center transition"
+              className="w-6 h-6 rounded-md text-[#82807A] hover:text-[#111111] hover:bg-[#FAF9F6] flex items-center justify-center transition"
               aria-label="Limpiar búsqueda"
             >
               <X className="w-4 h-4" />
             </button>
           ) : (
-            <kbd className="hidden sm:inline-flex items-center justify-center h-6 min-w-6 px-1.5 rounded-md border border-slate-700 bg-slate-800/60 text-[11px] font-mono text-slate-400">
+            <kbd className="hidden sm:inline-flex items-center justify-center h-6 min-w-6 px-1.5 rounded-md border border-[#E5E4DF] bg-[#FAF9F6] text-[11px] font-tech text-[#82807A]">
               /
             </kbd>
           )}
@@ -189,10 +191,10 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
       </div>
 
       {showDropdown && (
-        <div className="absolute z-50 mt-2 w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden animate-slide-down">
+        <div className="absolute z-50 mt-2 w-full bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl shadow-xl overflow-hidden animate-slide-down">
           {suggestions.length === 0 ? (
-            <div className="px-4 py-6 text-center text-sm text-slate-400">
-              Sin coincidencias para <span className="text-white font-semibold">“{input.trim()}”</span>
+            <div className="px-4 py-6 text-center text-sm text-[#82807A]">
+              Sin coincidencias para <span className="text-[#111111] font-semibold">“{input.trim()}”</span>
             </div>
           ) : (
             <>
@@ -203,29 +205,29 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
                       type="button"
                       onMouseEnter={() => setActive(i)}
                       onClick={() => choose(m)}
-                      className={`w-full flex items-center gap-3 px-3 py-2 text-left transition ${
-                        i === active ? 'bg-slate-800/80' : 'hover:bg-slate-800/50'
+                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition ${
+                        i === active ? 'bg-[#FAF9F6]' : 'hover:bg-[#FAF9F6]'
                       }`}
                     >
-                      <span className="w-14 h-10 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center overflow-hidden flex-shrink-0">
+                      <span className="w-14 h-10 rounded-lg bg-[#FFFFFF] border border-[#E5E4DF] flex items-center justify-center overflow-hidden flex-shrink-0">
                         {m.imagen_principal && (
                           <img src={m.imagen_principal} alt="" className="max-w-full max-h-full object-contain" />
                         )}
                       </span>
                       <span className="flex-1 min-w-0">
-                        <span className="block text-sm font-semibold text-white truncate">
-                          <span className="text-emerald-400/80 text-[10px] font-bold uppercase tracking-wider mr-1.5">
+                        <span className="block text-sm font-semibold text-[#111111] truncate">
+                          <span className="text-[#B89768] text-[10px] font-bold uppercase tracking-wider mr-1.5 font-editorial">
                             {m.marca}
                           </span>
                           <Highlight text={m.modelo} query={input} />
                         </span>
-                        <span className="block text-[11px] font-mono text-slate-500 truncate">
+                        <span className="block text-[11px] font-tech text-[#82807A] truncate">
                           SKU <Highlight text={m.id_ext} query={input} />
                           {m.color && <span className="font-sans"> · {m.color}</span>}
                         </span>
                       </span>
                       {typeof m.stock === 'number' && (
-                        <span className="text-[10px] text-slate-500 tabular-nums flex-shrink-0">{m.stock} un.</span>
+                        <span className="text-[10px] font-tech text-[#575551] flex-shrink-0">{m.stock} un.</span>
                       )}
                     </button>
                   </li>
@@ -237,12 +239,12 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
                   commit(input);
                   setOpen(false);
                 }}
-                className="w-full flex items-center justify-between px-4 py-3 border-t border-slate-800 bg-slate-950/50 text-xs font-bold text-emerald-400 hover:text-emerald-300 hover:bg-slate-950 transition"
+                className="w-full flex items-center justify-between px-4 py-3 border-t border-[#E5E4DF] bg-[#FAF9F6] text-xs font-bold text-[#111111] hover:text-[#B89768] transition"
               >
                 <span>
                   Ver los {total} {total === 1 ? 'resultado' : 'resultados'} para “{input.trim()}”
                 </span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4 text-[#B89768]" />
               </button>
             </>
           )}

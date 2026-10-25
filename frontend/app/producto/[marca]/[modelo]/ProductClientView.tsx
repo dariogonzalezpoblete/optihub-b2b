@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -13,7 +13,7 @@ import {
   type EnrichedMarco,
 } from '@/lib/catalog/types';
 import { 
-  ArrowLeft, Lock, ShoppingBag, Ruler, CheckCircle2, Package, ShieldCheck, AlertCircle, Check
+  ArrowLeft, Lock, ShoppingBag, AlertCircle, Check, ShieldCheck, Truck, Sparkles
 } from 'lucide-react';
 
 interface Props {
@@ -35,6 +35,10 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
   const [isAdding, setIsAdding] = useState(false);
   const [stockWarning, setStockWarning] = useState<string>('');
   const [successMsg, setSuccessMsg] = useState<string>('');
+
+  const variantIdsKey = useMemo(() => {
+    return (variants || []).map((v) => v.id_ext).filter(Boolean).sort().join(',');
+  }, [variants]);
 
   useEffect(() => {
     setB2bVariants(variants);
@@ -74,18 +78,23 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [variants, baseProduct, isLoggedIn]);
+  }, [variantIdsKey, isLoggedIn]);
 
-  const currentImages = [activeVariant.imagen_principal].filter(Boolean) as string[];
-  if (activeVariant.imagenes_secundarias) {
-    currentImages.push(activeVariant.imagenes_secundarias);
-  }
+  const currentImages = useMemo(() => {
+    const list = [activeVariant.imagen_principal].filter(Boolean) as string[];
+    if (activeVariant.imagenes_secundarias) {
+      list.push(activeVariant.imagenes_secundarias);
+    }
+    return list;
+  }, [activeVariant.imagen_principal, activeVariant.imagenes_secundarias]);
+
   const currentImageUrl = currentImages[activeImageIndex] || currentImages[0];
 
   useEffect(() => {
-    // Agregar al historial de "Vistos Recientemente"
-    addRecentItem(baseProduct);
-  }, [baseProduct, addRecentItem]);
+    if (baseProduct) {
+      addRecentItem(baseProduct);
+    }
+  }, [baseProduct?.id_ext, addRecentItem]);
 
   const handleQuantityChange = (id_ext: string, val: string, maxStock: number, remainingStock: number) => {
     let num = parseInt(val, 10);
@@ -116,7 +125,6 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
       if (qty > 0) {
         const variant = b2bVariants.find(v => v.id_ext === id_ext);
         if (variant) {
-          // Remover atributos enriquecidos antes de enviar al store
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { _k, _search, _dims, ...base } = variant;
           const res = addToCart(base, qty);
@@ -131,249 +139,295 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
     if (warningMsg) {
       setStockWarning(warningMsg);
     } else if (addedCount > 0) {
-      setSuccessMsg(`✓ ${addedCount} unidades añadidas a tu carrito mayorista.`);
+      setSuccessMsg(`✓ ${addedCount} unidades añadidas a su pedido mayorista.`);
       setTimeout(() => setSuccessMsg(''), 4000);
     }
 
     setTimeout(() => {
       setIsAdding(false);
-      setQuantities({}); // Resetear inputs
+      setQuantities({});
     }, 600);
   };
 
   const dims = baseProduct._dims;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-24">
-      {/* Barra de navegación superior simple */}
-      <div className="border-b border-slate-800 bg-slate-900/40 py-4 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <button 
-            onClick={() => router.back()}
-            className="flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white transition"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Volver al catálogo
-          </button>
-          <div className="text-xs text-slate-500 font-mono">
-            {baseProduct.marca} / {baseProduct.modelo}
-          </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Barra de navegación superior sutil */}
+      <div className="flex items-center justify-between pb-6 mb-8 border-b border-[#E5E4DF]">
+        <button 
+          onClick={() => router.back()}
+          className="inline-flex items-center gap-2 text-xs font-semibold text-[#888888] hover:text-[#111111] transition uppercase tracking-wider"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Volver al catálogo
+        </button>
+        <div className="text-xs text-[#888888] font-mono tracking-wider">
+          {baseProduct.marca} • {baseProduct.modelo}
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-          
-          {/* Columna Izquierda: Galería de Imágenes */}
-          <div className="lg:col-span-7 flex flex-col gap-4">
-            <div className="aspect-[4/3] bg-slate-900/60 rounded-3xl border border-slate-800 flex items-center justify-center p-8 relative overflow-hidden group shadow-2xl">
-              {currentImageUrl ? (
-                <Image unoptimized
-                  src={currentImageUrl} 
-                  alt={`${activeVariant.marca} ${activeVariant.modelo}`}
-                  fill
-                  sizes="(max-width: 1024px) 100vw, 60vw"
-                  className="object-contain p-8 transition-transform duration-500 group-hover:scale-105"
-                  priority
-                />
-              ) : (
-                <div className="text-slate-600 text-sm">Sin imagen disponible</div>
-              )}
-              
-              <div className="absolute top-4 left-4 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-bold text-slate-300">
-                {activeVariant.color || 'Color Único'}
-              </div>
-            </div>
-
-            {/* Thumbnails */}
-            {currentImages.length > 1 && (
-              <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
-                {currentImages.map((img, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setActiveImageIndex(idx)}
-                    className={`relative w-20 h-20 bg-slate-900/60 rounded-2xl border overflow-hidden flex-shrink-0 transition-all ${
-                      idx === activeImageIndex 
-                        ? 'border-emerald-500 ring-2 ring-emerald-500/20' 
-                        : 'border-slate-800 opacity-60 hover:opacity-100'
-                    }`}
-                  >
-                    <Image unoptimized src={img} alt="Thumbnail" fill sizes="80px" className="object-cover p-2" />
-                  </button>
-                ))}
-              </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
+        
+        {/* Columna Izquierda: Galería de Imágenes & Ficha Técnica */}
+        <div className="lg:col-span-7 flex flex-col gap-6">
+          <div className="aspect-[4/3] bg-[#FFFFFF] rounded-2xl border border-[#E5E4DF] flex items-center justify-center p-8 sm:p-12 relative overflow-hidden group shadow-sm">
+            {currentImageUrl ? (
+              <Image 
+                unoptimized
+                src={currentImageUrl} 
+                alt={`${activeVariant.marca} ${activeVariant.modelo}`}
+                fill
+                sizes="(max-width: 1024px) 100vw, 60vw"
+                className="object-contain p-6 sm:p-10 transition-transform duration-500 group-hover:scale-105"
+                priority
+              />
+            ) : (
+              <div className="text-[#888888] text-xs">Sin fotografía disponible</div>
             )}
-
-            {/* Ficha Técnica y Dimensiones */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
-              <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800/50 text-center">
-                <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Calibre</span>
-                <span className="text-lg font-black text-slate-200">{dims?.calibre || '-'} <span className="text-xs text-slate-500">mm</span></span>
-              </div>
-              <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800/50 text-center">
-                <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Puente</span>
-                <span className="text-lg font-black text-slate-200">{dims?.puente || '-'} <span className="text-xs text-slate-500">mm</span></span>
-              </div>
-              <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800/50 text-center">
-                <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Varilla</span>
-                <span className="text-lg font-black text-slate-200">{dims?.varilla || '-'} <span className="text-xs text-slate-500">mm</span></span>
-              </div>
-              <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800/50 text-center">
-                <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Material</span>
-                <span className="text-sm font-black text-slate-200 truncate" title={baseProduct.material}>{baseProduct.material || 'Estándar'}</span>
-              </div>
+            
+            <div className="absolute top-4 left-4 bg-[#F7F6F2] border border-[#E5E4DF] px-3 py-1 rounded-full text-[11px] font-medium text-[#111111]">
+              {activeVariant.color || 'Color Único'}
             </div>
           </div>
 
-          {/* Columna Derecha: Información B2B & Grilla de Variantes */}
-          <div className="lg:col-span-5 flex flex-col gap-6">
-            <div>
-              <span className="inline-block bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-3">
-                {baseProduct.marca}
-              </span>
-              <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">{baseProduct.modelo}</h1>
-              <p className="text-slate-400 text-sm mt-2 leading-relaxed">
-                Armazón óptico mayorista original importado. Disponible para despachos inmediatos a ópticas y distribuidores registrados.
-              </p>
+          {/* Thumbnails si existen varias tomas */}
+          {currentImages.length > 1 && (
+            <div className="flex gap-3 overflow-x-auto pb-1">
+              {currentImages.map((img, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveImageIndex(idx)}
+                  className={`relative w-20 h-20 bg-[#FFFFFF] rounded-xl border overflow-hidden flex-shrink-0 transition-all ${
+                    idx === activeImageIndex 
+                      ? 'border-[#B89768] ring-2 ring-[#B89768]/20' 
+                      : 'border-[#E5E4DF] opacity-70 hover:opacity-100'
+                  }`}
+                >
+                  <Image unoptimized src={img} alt="Vista" fill sizes="80px" className="object-contain p-2" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Ficha Técnica: Calibres y Dimensiones en Monospace */}
+          <div className="bg-[#FFFFFF] rounded-2xl border border-[#E5E4DF] p-6 shadow-sm">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-[#B89768] mb-4">
+              Especificaciones de Calibre y Montura
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="bg-[#F7F6F2] rounded-xl p-3 text-center border border-[#E5E4DF]/60">
+                <span className="text-[10px] uppercase tracking-wider text-[#888888] font-semibold block mb-1">Calibre</span>
+                <span className="font-mono text-base font-bold text-[#111111]">{dims?.calibre || '-'} <span className="text-xs font-normal text-[#888888]">mm</span></span>
+              </div>
+              <div className="bg-[#F7F6F2] rounded-xl p-3 text-center border border-[#E5E4DF]/60">
+                <span className="text-[10px] uppercase tracking-wider text-[#888888] font-semibold block mb-1">Puente</span>
+                <span className="font-mono text-base font-bold text-[#111111]">{dims?.puente || '-'} <span className="text-xs font-normal text-[#888888]">mm</span></span>
+              </div>
+              <div className="bg-[#F7F6F2] rounded-xl p-3 text-center border border-[#E5E4DF]/60">
+                <span className="text-[10px] uppercase tracking-wider text-[#888888] font-semibold block mb-1">Varilla</span>
+                <span className="font-mono text-base font-bold text-[#111111]">{dims?.varilla || '-'} <span className="text-xs font-normal text-[#888888]">mm</span></span>
+              </div>
+              <div className="bg-[#F7F6F2] rounded-xl p-3 text-center border border-[#E5E4DF]/60">
+                <span className="text-[10px] uppercase tracking-wider text-[#888888] font-semibold block mb-1">Material</span>
+                <span className="text-xs font-semibold text-[#111111] truncate block" title={baseProduct.material}>{baseProduct.material || 'Acetato / Metal'}</span>
+              </div>
             </div>
 
-            {/* Grilla B2B de Variantes */}
-            <div className="bg-slate-900/60 rounded-3xl border border-emerald-500/20 overflow-hidden flex-1 flex flex-col">
-              <div className="bg-emerald-500/10 px-6 py-4 border-b border-emerald-500/20">
-                <h3 className="font-bold text-white flex items-center gap-2">
-                  <ShoppingBag className="w-4 h-4 text-emerald-400" />
-                  Grilla de Compra Mayorista (Variantes)
-                </h3>
+            {/* Garantías de importación */}
+            <div className="mt-6 pt-5 border-t border-[#E5E4DF] grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-[#666666]">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-[#B89768] shrink-0" />
+                <span>100% Original Garantizado</span>
               </div>
-              
-              {!isLoggedIn ? (
-                <div className="p-8 text-center flex-1 flex flex-col justify-center items-center">
-                  <Lock className="w-12 h-12 text-slate-600 mb-4" />
-                  <h4 className="text-lg font-bold text-white mb-2">Inicia sesión para cotizar</h4>
-                  <p className="text-sm text-slate-400 max-w-md mb-6">
-                    Los precios mayoristas netos y el stock en tiempo real son exclusivos para ópticas registradas.
-                  </p>
-                  <div className="flex gap-3">
-                    <Link href="/login" className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-6 py-3 rounded-xl transition">
-                      Iniciar Sesión
-                    </Link>
-                    <Link href="/registro" className="bg-slate-800 hover:bg-slate-700 text-white font-bold px-6 py-3 rounded-xl border border-slate-700 transition">
-                      Registrar Óptica
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-6 flex flex-col flex-1">
-                  <div className="hidden sm:grid grid-cols-12 gap-4 text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 px-2">
-                    <div className="col-span-5">Color / SKU</div>
-                    <div className="col-span-3 text-center">Precio Neto</div>
-                    <div className="col-span-2 text-center">Stock en Origen</div>
-                    <div className="col-span-2 text-center">Cant.</div>
-                  </div>
-                  
-                  <div className="space-y-3 mb-8">
-                    {b2bVariants.map((v) => {
-                      const maxStock = getValidStock(v.stock);
-                      const inCart = cart.find(item => getProductCartKey(item.producto) === v.id_ext)?.cantidad || 0;
-                      const remainingStock = Math.max(0, maxStock - inCart);
-                      const outOfStock = maxStock <= 0;
-                      const isMaxInCart = !outOfStock && remainingStock <= 0;
+              <div className="flex items-center gap-2">
+                <Truck className="w-4 h-4 text-[#B89768] shrink-0" />
+                <span>Despacho 10-15 Días Hábiles</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#B89768] shrink-0" />
+                <span>Facturación Electrónica SII</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
-                      return (
-                        <div key={v.id_ext} className={`grid grid-cols-1 sm:grid-cols-12 gap-4 items-center bg-slate-950 p-3 rounded-2xl border ${outOfStock ? 'border-slate-800/40 opacity-60' : isMaxInCart ? 'border-amber-500/30' : 'border-slate-800'}`}>
-                          <div className="col-span-1 sm:col-span-5 flex items-center gap-3">
-                            {v.codigo_color && (
-                              <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-400">
-                                {v.codigo_color}
-                              </div>
-                            )}
-                            <div>
-                              <p className="font-bold text-slate-200 text-sm">{v.color || 'Estándar'}</p>
-                              <p className="text-[10px] text-slate-500 font-mono">SKU: {v.id_ext}</p>
+        {/* Columna Derecha: Información B2B & Matriz de Variantes */}
+        <div className="lg:col-span-5 flex flex-col gap-6">
+          <div className="bg-[#FFFFFF] rounded-2xl border border-[#E5E4DF] p-6 sm:p-8 shadow-sm">
+            <span className="inline-block bg-[#F7F3EB] border border-[#B89768]/40 text-[#9E7D4F] text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-widest mb-3">
+              {baseProduct.marca}
+            </span>
+            <h1 className="font-editorial font-serif text-3xl sm:text-4xl text-[#111111] font-semibold tracking-tight">
+              {baseProduct.modelo}
+            </h1>
+            <p className="text-[#666666] text-xs sm:text-sm mt-3 leading-relaxed">
+              Armazón óptico original importado directamente desde distribuidor oficial en EE.UU. para ópticas autorizadas en Chile.
+            </p>
+          </div>
+
+          {/* Grilla B2B de Variantes */}
+          <div className="bg-[#FFFFFF] rounded-2xl border border-[#E5E4DF] overflow-hidden shadow-sm flex flex-col">
+            <div className="bg-[#FDFBF7] px-6 py-4 border-b border-[#E5E4DF] flex items-center justify-between">
+              <h3 className="font-semibold text-xs tracking-wider uppercase text-[#111111] flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4 text-[#B89768]" />
+                Variantes y Stock Mayorista
+              </h3>
+              <span className="text-[11px] text-[#888888] font-mono">
+                {variants.length} {variants.length === 1 ? 'color' : 'colores'}
+              </span>
+            </div>
+            
+            {!isLoggedIn ? (
+              <div className="p-8 sm:p-10 text-center flex-1 flex flex-col justify-center items-center">
+                <div className="w-12 h-12 rounded-full bg-[#F7F6F2] border border-[#E5E4DF] flex items-center justify-center mb-4">
+                  <Lock className="w-5 h-5 text-[#888888]" />
+                </div>
+                <h4 className="font-editorial font-serif text-xl text-[#111111] mb-2">
+                  Precios y Stock B2B Reservados
+                </h4>
+                <p className="text-xs text-[#666666] max-w-sm mb-6 leading-relaxed">
+                  Para visualizar precios netos por volumen y disponibilidad de importación en origen, inicie sesión con su cuenta de óptica registrada.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+                  <Link 
+                    href="/login" 
+                    className="flex-1 bg-[#111111] hover:bg-[#222222] text-[#FFFFFF] text-xs font-semibold py-3 px-4 rounded-xl transition text-center tracking-wide"
+                  >
+                    Iniciar Sesión
+                  </Link>
+                  <Link 
+                    href="/registro" 
+                    className="flex-1 bg-[#FFFFFF] hover:bg-[#F7F6F2] text-[#111111] text-xs font-semibold py-3 px-4 rounded-xl border border-[#E5E4DF] transition text-center tracking-wide"
+                  >
+                    Registrar Óptica
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="p-5 sm:p-6 flex flex-col flex-1">
+                <div className="hidden sm:grid grid-cols-12 gap-3 text-[11px] font-semibold text-[#888888] uppercase tracking-wider mb-3 px-2">
+                  <div className="col-span-5">Color / Acabado</div>
+                  <div className="col-span-3 text-center">Precio Neto</div>
+                  <div className="col-span-2 text-center">Stock</div>
+                  <div className="col-span-2 text-center">Cantidad</div>
+                </div>
+                
+                <div className="space-y-2.5 mb-6">
+                  {b2bVariants.map((v) => {
+                    const maxStock = getValidStock(v.stock);
+                    const inCart = cart.find(item => getProductCartKey(item.producto) === v.id_ext)?.cantidad || 0;
+                    const remainingStock = Math.max(0, maxStock - inCart);
+                    const outOfStock = maxStock <= 0;
+                    const isMaxInCart = !outOfStock && remainingStock <= 0;
+
+                    return (
+                      <div 
+                        key={v.id_ext} 
+                        className={`grid grid-cols-1 sm:grid-cols-12 gap-3 items-center bg-[#FFFFFF] p-3 rounded-xl border transition-all ${
+                          outOfStock 
+                            ? 'border-[#E5E4DF] opacity-50 bg-[#F9F9F8]' 
+                            : isMaxInCart 
+                            ? 'border-[#B89768]/60 bg-[#FDFBF7]' 
+                            : 'border-[#E5E4DF] hover:border-[#B89768]/50'
+                        }`}
+                      >
+                        <div className="col-span-1 sm:col-span-5 flex items-center gap-2.5">
+                          {v.codigo_color && (
+                            <div className="w-7 h-7 rounded-md bg-[#F7F6F2] border border-[#E5E4DF] flex items-center justify-center text-[10px] font-mono font-bold text-[#666666]">
+                              {v.codigo_color}
                             </div>
-                          </div>
-                          
-                          <div className="col-span-1 sm:col-span-3 text-left sm:text-center">
-                            <span className="sm:hidden text-xs text-slate-500 mr-2">Precio:</span>
-                            <span className="font-black text-emerald-400">${v.precio_neto_clp?.toLocaleString('es-CL')}</span>
-                          </div>
-                          
-                          <div className="col-span-1 sm:col-span-2 text-left sm:text-center">
-                            <span className="sm:hidden text-xs text-slate-500 mr-2">Stock en origen:</span>
-                            {outOfStock ? (
-                              <span className="text-xs font-bold px-2 py-1 rounded-md bg-red-500/10 text-red-400">
-                                Agotado en origen
-                              </span>
-                            ) : isMaxInCart ? (
-                              <span className="text-xs font-bold px-2 py-1 rounded-md bg-amber-500/10 text-amber-400" title={`Ya tienes ${inCart} en el carrito`}>
-                                Máx. ({maxStock})
-                              </span>
-                            ) : inCart > 0 ? (
-                              <span className="text-xs font-bold px-2 py-1 rounded-md bg-teal-500/10 text-teal-300" title={`${inCart} en carrito`}>
-                                {remainingStock} un.
-                              </span>
-                            ) : (
-                              <span className="text-xs font-bold px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-400">
-                                {maxStock >= 50 ? '50+ un.' : `${maxStock} un.`}
-                              </span>
-                            )}
-                          </div>
-                          
-                          <div className="col-span-1 sm:col-span-2 flex justify-start sm:justify-center">
-                            <input 
-                              type="number"
-                              min="0"
-                              max={remainingStock}
-                              disabled={outOfStock || isMaxInCart}
-                              value={quantities[v.id_ext] || ''}
-                              placeholder="0"
-                              onChange={(e) => handleQuantityChange(v.id_ext, e.target.value, maxStock, remainingStock)}
-                              className="w-16 bg-slate-900 border border-slate-700 rounded-lg py-1.5 px-2 text-center text-white font-bold text-sm focus:outline-none focus:border-emerald-500 disabled:opacity-50"
-                            />
+                          )}
+                          <div>
+                            <p className="font-semibold text-xs text-[#111111]">{v.color || 'Estándar'}</p>
+                            <p className="text-[10px] text-[#888888] font-mono">SKU: {v.id_ext}</p>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-
-                  {stockWarning && (
-                    <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 text-xs font-semibold flex items-center gap-2 animate-fade-in">
-                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
-                      <span>{stockWarning}</span>
-                    </div>
-                  )}
-
-                  {successMsg && (
-                    <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-xs font-semibold flex items-center gap-2 animate-fade-in">
-                      <Check className="w-4 h-4 shrink-0 text-emerald-400" />
-                      <span>{successMsg}</span>
-                    </div>
-                  )}
-
-                  <div className="mt-auto pt-6 border-t border-slate-800 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Total Seleccionado</p>
-                      <p className="text-2xl font-black text-white">{getTotalSelected()} <span className="text-sm font-normal text-slate-500">unidades</span></p>
-                    </div>
-                    
-                    <button 
-                      onClick={handleAddAllToCart}
-                      disabled={getTotalSelected() === 0 || isAdding}
-                      className="bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-black px-8 py-4 rounded-2xl transition shadow-lg shadow-emerald-500/20 disabled:shadow-none flex items-center gap-2"
-                    >
-                      {isAdding ? (
-                        'Agregando...'
-                      ) : (
-                        <>
-                          <ShoppingBag className="w-5 h-5" />
-                          Añadir al Pedido
-                        </>
-                      )}
-                    </button>
-                  </div>
+                        
+                        <div className="col-span-1 sm:col-span-3 text-left sm:text-center">
+                          <span className="sm:hidden text-xs text-[#888888] mr-2">Precio:</span>
+                          <span className="font-mono font-bold text-[#111111] text-sm">
+                            {typeof v.precio_neto_clp === 'number' 
+                              ? `$${v.precio_neto_clp.toLocaleString('es-CL')}` 
+                              : 'Cotizar'}
+                          </span>
+                        </div>
+                        
+                        <div className="col-span-1 sm:col-span-2 text-left sm:text-center">
+                          <span className="sm:hidden text-xs text-[#888888] mr-2">Stock en origen:</span>
+                          {outOfStock ? (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-red-50 text-red-600 border border-red-200">
+                              Agotado
+                            </span>
+                          ) : isMaxInCart ? (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200" title={`Ya tiene ${inCart} en el carrito`}>
+                              Máx ({maxStock})
+                            </span>
+                          ) : inCart > 0 ? (
+                            <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-[#F4EFE6] text-[#9E7D4F] border border-[#B89768]/30">
+                              {remainingStock} un.
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-[#F7F6F2] text-[#111111] border border-[#E5E4DF]">
+                              {maxStock >= 50 ? '50+ un.' : `${maxStock} un.`}
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="col-span-1 sm:col-span-2 flex justify-start sm:justify-center">
+                          <input 
+                            type="number"
+                            min="0"
+                            max={remainingStock}
+                            disabled={outOfStock || isMaxInCart}
+                            value={quantities[v.id_ext] || ''}
+                            placeholder="0"
+                            onChange={(e) => handleQuantityChange(v.id_ext, e.target.value, maxStock, remainingStock)}
+                            className="w-16 bg-[#FFFFFF] border border-[#D0CEBE] rounded-lg py-1 px-2 text-center text-[#111111] font-mono font-bold text-xs focus:outline-none focus:border-[#B89768] disabled:opacity-40"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
+
+                {stockWarning && (
+                  <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-medium flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                    <span>{stockWarning}</span>
+                  </div>
+                )}
+
+                {successMsg && (
+                  <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-medium flex items-center gap-2">
+                    <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <span>{successMsg}</span>
+                  </div>
+                )}
+
+                <div className="mt-auto pt-5 border-t border-[#E5E4DF] flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] text-[#888888] font-semibold uppercase tracking-wider mb-0.5">Total Seleccionado</p>
+                    <p className="font-mono text-xl font-bold text-[#111111]">{getTotalSelected()} <span className="text-xs font-normal text-[#888888]">unidades</span></p>
+                  </div>
+                  
+                  <button 
+                    onClick={handleAddAllToCart}
+                    disabled={getTotalSelected() === 0 || isAdding}
+                    className="bg-[#111111] hover:bg-[#222222] disabled:bg-[#E5E4DF] disabled:text-[#888888] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider px-6 py-3.5 rounded-xl transition shadow-md disabled:shadow-none flex items-center gap-2"
+                  >
+                    {isAdding ? (
+                      'Añadiendo...'
+                    ) : (
+                      <>
+                        <ShoppingBag className="w-4 h-4 text-[#B89768]" />
+                        Añadir al Pedido
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -1,52 +1,91 @@
 @import "tailwindcss";
 
 /* ============================================================
-   OPTIHUB B2B — SISTEMA DE DISEÑO CORPORATIVO
-   Paleta: Slate oscuro + Emerald accent + Amber warnings
+   OPTIHUB B2B — MAISON EDITORIAL DESIGN SYSTEM
+   Estética de Lujo & Precisión Técnica
+   Paleta: Piedra Alabastro (#F7F6F2) + Blanco Puro (#FFFFFF)
+           Bordes Ultrafinos (#E5E4DF) + Negro Obsidiana (#111111)
+           Acentos Bronce/Champagne (#B89768)
    ============================================================ */
 
 :root {
-  --background: #020617;   /* slate-950 fijo en toda la app */
-  --foreground: #f1f5f9;   /* slate-100 */
+  --background: #F7F6F2;   /* Alabastro / Piedra suave */
+  --foreground: #111111;   /* Negro Obsidiana */
 
-  /* Tokens de la paleta OptiHub */
-  --oh-bg-base:    #020617;   /* slate-950 */
-  --oh-bg-card:    #0f172a;   /* slate-900 */
-  --oh-bg-input:   #020617;   /* slate-950 */
-  --oh-bg-raised:  #1e293b;   /* slate-800 */
-  --oh-border:     rgba(51, 65, 85, 0.8);   /* slate-700/80 */
-  --oh-border-soft:rgba(30, 41, 59, 0.9);   /* slate-800/90 */
+  /* Maison Editorial Palette */
+  --maison-bg:             #F7F6F2;
+  --maison-card:           #FFFFFF;
+  --maison-border:         #E5E4DF;
+  --maison-border-subtle:  #EFECE6;
+  --maison-obsidian:       #111111;
+  --maison-obsidian-muted: #242424;
+  --maison-obsidian-soft:  #3A3936;
+  --maison-champagne:      #B89768;
+  --maison-champagne-lt:   #C9AD82;
+  --maison-champagne-dk:   #9E7D4F;
+  --maison-champagne-tint: #F7F3EB;
+  --maison-stone-subtle:   #FAF9F6;
+  --maison-stone-dark:     #2A2825;
+  --maison-text-primary:   #111111;
+  --maison-text-secondary: #575551;
+  --maison-text-muted:     #82807A;
 
-  /* Acentos */
-  --oh-emerald:    #10b981;   /* emerald-500 */
-  --oh-emerald-lt: #34d399;   /* emerald-400 */
-  --oh-emerald-dk: #059669;   /* emerald-600 */
-  --oh-amber:      #f59e0b;   /* amber-500 */
-  --oh-amber-lt:   #fbbf24;   /* amber-400 */
-  --oh-rose:       #f43f5e;   /* rose-500 */
+  /* Backward Compatibility Tokens mapped to Maison Editorial */
+  --oh-bg-base:      #F7F6F2;
+  --oh-bg-card:      #FFFFFF;
+  --oh-bg-input:     #FFFFFF;
+  --oh-bg-raised:    #FAF9F6;
+  --oh-border:       #E5E4DF;
+  --oh-border-soft:  #EFECE6;
 
-  /* Tipografía */
-  --oh-text-primary:   #ffffff;
-  --oh-text-secondary: #94a3b8;  /* slate-400 */
-  --oh-text-muted:     #64748b;  /* slate-500 */
+  --oh-emerald:      #111111;   /* Primary actions resolve to obsidian */
+  --oh-emerald-lt:   #242424;
+  --oh-emerald-dk:   #000000;
+  --oh-champagne:    #B89768;   /* Luxury champagne accents */
+  --oh-champagne-lt: #C9AD82;
+  --oh-champagne-dk: #9E7D4F;
+  --oh-amber:        #B89768;
+  --oh-amber-lt:     #C9AD82;
+  --oh-rose:         #A83232;
 
-  /* Radios */
-  --oh-radius-sm:   0.75rem;   /* rounded-xl  — inputs, badges */
-  --oh-radius-md:   1rem;      /* rounded-2xl — botones, controles */
-  --oh-radius-lg:   1.25rem;   /* rounded-3xl — cards */
-  --oh-radius-xl:   1.5rem;    /* rounded-3xl — modales */
+  --oh-text-primary:   #111111;
+  --oh-text-secondary: #575551;
+  --oh-text-muted:     #82807A;
 
-  /* Sombras */
-  --oh-shadow-card:    0 4px 24px 0 rgba(0,0,0,0.4);
-  --oh-shadow-emerald: 0 4px 20px 0 rgba(16,185,129,0.25);
-  --oh-shadow-amber:   0 4px 20px 0 rgba(245,158,11,0.20);
+  /* Radios Editoriales (Limpios, estructurados) */
+  --oh-radius-sm: 0.375rem;
+  --oh-radius-md: 0.5rem;
+  --oh-radius-lg: 0.75rem;
+  --oh-radius-xl: 1rem;
+
+  /* Sombras Sutiles de Alta Gama */
+  --oh-shadow-card:      0 1px 3px rgba(17, 17, 17, 0.02), 0 4px 16px rgba(17, 17, 17, 0.04);
+  --oh-shadow-hover:     0 8px 30px rgba(17, 17, 17, 0.08);
+  --oh-shadow-champagne: 0 4px 20px rgba(184, 151, 104, 0.18);
 }
 
-@theme inline {
+@theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-serif), "Cormorant Garamond", Georgia, serif;
+  --font-mono: var(--font-mono), "JetBrains Mono", monospace;
+  --font-sans: var(--font-sans), "Inter", system-ui, sans-serif;
+  --font-editorial: var(--font-serif), "Cormorant Garamond", Georgia, serif;
+  --font-tech: var(--font-mono), "JetBrains Mono", monospace;
+
+  --color-stone-bg: #F7F6F2;
+  --color-stone-border: #E5E4DF;
+  --color-stone-subtle: #FAF9F6;
+  --color-stone-dark: #2A2825;
+  --color-obsidian: #111111;
+  --color-obsidian-muted: #242424;
+  --color-obsidian-soft: #3A3936;
+  --color-obsidian-light: #575551;
+  --color-champagne: #B89768;
+  --color-champagne-light: #C9AD82;
+  --color-champagne-dark: #9E7D4F;
+  --color-champagne-tint: #F7F3EB;
+  --color-alabaster: #F7F6F2;
 }
 
 /* ============================================================
@@ -63,43 +102,52 @@ html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--maison-bg);
 }
 
 body {
-  background: var(--oh-bg-base);
-  color: var(--oh-text-primary);
-  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  background-color: var(--maison-bg);
+  color: var(--maison-text-primary);
+  font-family: var(--font-sans, system-ui, sans-serif);
   line-height: 1.6;
   letter-spacing: -0.01em;
 }
 
+/* Tipografía Editorial y Técnica */
+.font-editorial {
+  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+}
+
+.font-tech {
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+}
+
 /* ============================================================
-   SCROLLBAR PERSONALIZADO
+   SCROLLBAR PERSONALIZADO (EDITORIAL MINIMAL)
    ============================================================ */
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--oh-bg-base);
+  background: var(--maison-bg);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--oh-bg-raised);
+  background: #D5D3CC;
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155; /* slate-700 */
+  background: #B89768;
 }
 
-/* Clase helper para scrollbar delgado en contenedores */
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: var(--oh-bg-raised) transparent;
+  scrollbar-color: #D5D3CC transparent;
 }
 
 /* ============================================================
-   ANIMACIONES REUTILIZABLES
+   ANIMACIONES
    ============================================================ */
 
 @keyframes oh-fade-in {
@@ -108,7 +156,7 @@ body {
 }
 
 @keyframes oh-slide-up {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
@@ -118,7 +166,7 @@ body {
 }
 
 @keyframes oh-scale-in {
-  from { opacity: 0; transform: scale(0.97); }
+  from { opacity: 0; transform: scale(0.98); }
   to   { opacity: 1; transform: scale(1); }
 }
 
@@ -132,130 +180,158 @@ body {
 .animate-slide-down{ animation: oh-slide-down 0.25s ease forwards; }
 .animate-scale-in  { animation: oh-scale-in  0.25s ease forwards; }
 
-/* Skeleton shimmer para carga */
+/* Skeleton shimmer adaptado a fondo piedra/blanco */
 .skeleton {
   background: linear-gradient(
     90deg,
-    var(--oh-bg-card) 25%,
-    var(--oh-bg-raised) 50%,
-    var(--oh-bg-card) 75%
+    #F0EFEA 25%,
+    #FFFFFF 50%,
+    #F0EFEA 75%
   );
   background-size: 800px 100%;
-  animation: oh-shimmer 1.4s ease-in-out infinite;
+  animation: oh-shimmer 1.5s ease-in-out infinite;
   border-radius: var(--oh-radius-sm);
 }
 
 /* ============================================================
-   CLASES UTILITARIAS — BOTONES
+   BOTONES EDITORIALES
    ============================================================ */
 
-/* Botón principal esmeralda */
+/* Botón principal: Negro Obsidiana con acentos de precisión */
 .btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  background-color: var(--oh-emerald);
-  color: #020617;
-  font-weight: 900;
-  font-size: 0.8125rem;
+  background-color: #111111;
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: 0.875rem 1.5rem;
   border-radius: var(--oh-radius-md);
-  box-shadow: var(--oh-shadow-emerald);
-  transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  border: 1px solid #111111;
+  box-shadow: 0 2px 8px rgba(17, 17, 17, 0.12);
+  transition: all 0.2s ease;
   cursor: pointer;
-  border: none;
   white-space: nowrap;
 }
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--oh-emerald-lt);
+  background-color: #242424;
+  border-color: #B89768;
   transform: translateY(-1px);
-  box-shadow: 0 6px 24px rgba(16,185,129,0.35);
+  box-shadow: 0 4px 16px rgba(17, 17, 17, 0.18);
 }
 .btn-primary:active:not(:disabled) {
   transform: translateY(0);
 }
 .btn-primary:disabled {
-  background-color: #1e293b;
-  color: #475569;
+  background-color: #E5E4DF;
+  color: #82807A;
+  border-color: #E5E4DF;
   box-shadow: none;
   cursor: not-allowed;
 }
 
-/* Botón secundario oscuro */
+/* Botón secundario: Blanco Puro con Borde Ultrafino */
 .btn-secondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  background-color: var(--oh-bg-raised);
-  color: #e2e8f0;
-  font-weight: 700;
-  font-size: 0.8125rem;
+  background-color: #FFFFFF;
+  color: #111111;
+  font-weight: 600;
+  font-size: 0.75rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   padding: 0.875rem 1.5rem;
   border-radius: var(--oh-radius-md);
-  border: 1px solid rgba(51, 65, 85, 0.8);
-  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  border: 1px solid #E5E4DF;
+  transition: all 0.2s ease;
   cursor: pointer;
   white-space: nowrap;
 }
 .btn-secondary:hover:not(:disabled) {
-  background-color: #334155;
-  border-color: #475569;
-  color: #ffffff;
+  background-color: #FAF9F6;
+  border-color: #B89768;
+  color: #111111;
   transform: translateY(-1px);
+  box-shadow: 0 2px 10px rgba(17, 17, 17, 0.04);
 }
 .btn-secondary:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
-/* Botón ghost peligro */
+/* Botón Champagne de Acento */
+.btn-champagne {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: #B89768;
+  color: #111111;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.875rem 1.5rem;
+  border-radius: var(--oh-radius-md);
+  border: 1px solid #B89768;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-champagne:hover:not(:disabled) {
+  background-color: #C9AD82;
+  transform: translateY(-1px);
+  box-shadow: var(--oh-shadow-champagne);
+}
+
+/* Botón danger */
 .btn-danger {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  color: #94a3b8;
+  color: #82807A;
   font-size: 0.75rem;
   font-weight: 600;
   padding: 0.5rem 0.75rem;
-  border-radius: 0.625rem;
-  border: 1px solid var(--oh-border-soft);
-  background: var(--oh-bg-card);
-  transition: color 0.15s ease, background-color 0.15s ease;
+  border-radius: var(--oh-radius-sm);
+  border: 1px solid #E5E4DF;
+  background: #FFFFFF;
+  transition: all 0.15s ease;
   cursor: pointer;
 }
 .btn-danger:hover {
-  color: #fb7185;
-  background-color: rgba(244, 63, 94, 0.08);
-  border-color: rgba(244, 63, 94, 0.25);
+  color: #A83232;
+  background-color: #FDF4F4;
+  border-color: #EAC4C4;
 }
 
 /* ============================================================
-   CLASES UTILITARIAS — INPUTS
+   INPUTS EDITORIALES
    ============================================================ */
 
 .input-field {
   width: 100%;
-  background-color: var(--oh-bg-input);
-  border: 1px solid var(--oh-border-soft);
-  border-radius: var(--oh-radius-sm);
+  background-color: #FFFFFF;
+  border: 1px solid #E5E4DF;
+  border-radius: var(--oh-radius-md);
   padding: 0.625rem 1rem;
   font-size: 0.875rem;
-  color: var(--oh-text-primary);
+  color: #111111;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
   outline: none;
 }
 .input-field::placeholder {
-  color: var(--oh-text-muted);
+  color: #82807A;
 }
 .input-field:focus {
-  border-color: var(--oh-emerald);
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+  border-color: #B89768;
+  box-shadow: 0 0 0 3px rgba(184, 151, 104, 0.12);
 }
 
 .input-field-icon {
@@ -263,93 +339,117 @@ body {
 }
 
 /* ============================================================
-   CLASES UTILITARIAS — TARJETAS
+   TARJETAS EDITORIALES (BLANCO PURO + BORDE ULTRAFINO)
    ============================================================ */
 
 /* Card base de producto */
 .card-product {
-  background: var(--oh-bg-card);
-  border: 1px solid var(--oh-border-soft);
+  background: #FFFFFF;
+  border: 1px solid #E5E4DF;
   border-radius: var(--oh-radius-lg);
   overflow: hidden;
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
   box-shadow: var(--oh-shadow-card);
   display: flex;
   flex-direction: column;
 }
 .card-product:hover {
-  border-color: rgba(16, 185, 129, 0.45);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(16,185,129,0.15);
+  border-color: #B89768;
+  box-shadow: var(--oh-shadow-hover), 0 0 0 1px rgba(184, 151, 104, 0.2);
   transform: translateY(-3px);
 }
 
-/* Card de contenedor genérico */
+/* Card contenedor de sección */
 .card-section {
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid var(--oh-border-soft);
+  background: #FFFFFF;
+  border: 1px solid #E5E4DF;
   border-radius: var(--oh-radius-xl);
   padding: 1.5rem 2rem;
   box-shadow: var(--oh-shadow-card);
 }
 
 /* ============================================================
-   CLASES UTILITARIAS — BADGES / PILLS
+   DISTINTIVOS / BADGES EDITORIALES
    ============================================================ */
 
+/* Badge de marca: Alta costura */
 .badge-brand {
   display: inline-block;
-  background: var(--oh-bg-raised);
-  border: 1px solid rgba(51, 65, 85, 0.6);
-  color: var(--oh-emerald-lt);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  background: #FFFFFF;
+  border: 1px solid #E5E4DF;
+  color: #111111;
+  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 0.2rem 0.6rem;
-  border-radius: 0.375rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: var(--oh-radius-sm);
+  box-shadow: 0 1px 4px rgba(17, 17, 17, 0.04);
 }
 
+/* Badge técnico de stock / calibre */
 .badge-stock {
   display: inline-block;
-  background: var(--oh-bg-raised);
-  border: 1px solid var(--oh-border-soft);
-  color: #cbd5e1;
+  background: #FAF9F6;
+  border: 1px solid #E5E4DF;
+  color: #575551;
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
   font-size: 0.75rem;
   font-weight: 600;
   padding: 0.25rem 0.625rem;
-  border-radius: 0.5rem;
+  border-radius: var(--oh-radius-sm);
 }
 
+/* Badge de precio restringido B2B */
 .badge-b2b-locked {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.2);
-  color: var(--oh-amber-lt);
+  background: #F7F3EB;
+  border: 1px solid rgba(184, 151, 104, 0.4);
+  color: #9E7D4F;
   font-size: 0.6875rem;
   font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   padding: 0.25rem 0.625rem;
-  border-radius: 0.5rem;
+  border-radius: var(--oh-radius-sm);
+}
+
+/* Badge champagne editorial */
+.badge-champagne {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  background: #F7F3EB;
+  border: 1px solid rgba(184, 151, 104, 0.4);
+  color: #9E7D4F;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--oh-radius-sm);
 }
 
 /* ============================================================
-   CLASES UTILITARIAS — TIPOGRAFÍA
+   TIPOGRAFÍA EDITORIAL
    ============================================================ */
 
 .section-heading {
-  font-size: 1.875rem;
-  font-weight: 900;
-  color: #ffffff;
-  letter-spacing: -0.03em;
-  text-transform: uppercase;
+  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+  font-size: 2.25rem;
+  font-weight: 600;
+  color: #111111;
+  letter-spacing: -0.02em;
   line-height: 1.15;
 }
 
 .section-subheading {
   font-size: 0.9375rem;
-  color: var(--oh-text-secondary);
+  color: var(--maison-text-secondary);
   line-height: 1.6;
   max-width: 48rem;
 }
@@ -358,20 +458,20 @@ body {
   display: block;
   font-size: 0.6875rem;
   font-weight: 700;
-  color: #cbd5e1;
+  color: #575551;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-bottom: 0.5rem;
 }
 
 /* ============================================================
-   CLASES UTILITARIAS — ESTADOS / ALERTAS
+   ALERTAS / ESTADOS
    ============================================================ */
 
 .alert-error {
-  background: rgba(244, 63, 94, 0.08);
-  border: 1px solid rgba(244, 63, 94, 0.25);
-  color: #fda4af;
+  background: #FDF4F4;
+  border: 1px solid #EAC4C4;
+  color: #A83232;
   border-radius: var(--oh-radius-sm);
   padding: 1rem;
   font-size: 0.875rem;
@@ -381,9 +481,9 @@ body {
 }
 
 .alert-success {
-  background: rgba(16, 185, 129, 0.08);
-  border: 1px solid rgba(16, 185, 129, 0.25);
-  color: #6ee7b7;
+  background: #F4F8F5;
+  border: 1px solid #C4D9C8;
+  color: #2D6A4F;
   border-radius: var(--oh-radius-sm);
   padding: 1rem;
   font-size: 0.875rem;
@@ -393,9 +493,9 @@ body {
 }
 
 .alert-warning {
-  background: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.25);
-  color: #fcd34d;
+  background: #FBF8F1;
+  border: 1px solid #EADBBE;
+  color: #8C6A2E;
   border-radius: var(--oh-radius-sm);
   padding: 1rem;
   font-size: 0.875rem;
@@ -405,7 +505,7 @@ body {
 }
 
 /* ============================================================
-   UTILIDADES DE LAYOUT
+   LAYOUT
    ============================================================ */
 
 .page-container {
@@ -430,31 +530,18 @@ body {
   }
 }
 
-/* Divisor con gradiente sutil */
-.divider-glow {
+.divider-subtle {
   border: none;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(16,185,129,0.2), transparent);
+  background: #E5E4DF;
   margin: 2rem 0;
 }
 
-/* Focus ring accesible */
 .focus-ring:focus-visible {
-  outline: 2px solid var(--oh-emerald);
+  outline: 2px solid #B89768;
   outline-offset: 2px;
 }
 
-/* Efecto glow en hover para elementos interactivos */
-.hover-glow {
-  transition: box-shadow 0.2s ease;
-}
-.hover-glow:hover {
-  box-shadow: 0 0 20px rgba(16,185,129,0.15);
-}
-
-
-/* Infinite Marquee Swiper Linear Animation */
 .brand-marquee-swiper .swiper-wrapper {
   transition-timing-function: linear !important;
 }
-

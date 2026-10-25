@@ -1,17 +1,86 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Cormorant_Garamond, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import AIChatbox from '@/components/ui/AIChatbox';
 import { AuthProvider } from '@/context/AuthContext';
 import CartSync from '@/components/CartSync';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  display: 'swap',
+});
+
+const cormorant = Cormorant_Garamond({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-serif',
+  display: 'swap',
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-mono',
+  display: 'swap',
+});
+
+const BASE_URL = process.env.SITE_URL || 'https://optihub-b2b.vercel.app';
 
 export const metadata: Metadata = {
-  title: 'OptiHub B2B | Distribución Mayorista de Marcos',
-  description: 'Plataforma e-commerce B2B de Marcos y Gafas de Sol',
+  metadataBase: new URL(BASE_URL),
+  title: {
+    default: 'OptiHub | Marcos ópticos al por mayor en Chile • Importación Directa',
+    template: '%s | OptiHub B2B',
+  },
+  description: 'Distribución mayorista e importación directa de armazones oftálmicos y lentes de sol de alta gama desde EE.UU. para ópticas en Chile. Mínimo 10 unidades combinables y factura electrónica SII.',
+  keywords: [
+    'marcos opticos por mayor chile',
+    'distribucion armazones opticas chile',
+    'lentes de sol por mayor santiago',
+    'importacion armazones estados unidos',
+    'venta mayorista optica chile',
+    'marcos oftálmicos al por mayor',
+    'armazones de acetato y titanio importados para opticas',
+    'compra minima 10 armazones',
+    'factura electronica sii optica'
+  ],
+  authors: [{ name: 'OptiHub B2B' }],
+  creator: 'OptiHub B2B',
+  publisher: 'OptiHub B2B',
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  alternates: {
+    canonical: BASE_URL,
+  },
+  openGraph: {
+    title: 'OptiHub | Marcos ópticos al por mayor en Chile • Importación Directa',
+    description: 'Catálogo mayorista de armazones de acetato, titanio y lentes de sol para ópticas en Chile. Precios netos en CLP, entrega en 10-15 días y factura SII.',
+    url: BASE_URL,
+    siteName: 'OptiHub B2B',
+    locale: 'es_CL',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'OptiHub | Marcos ópticos al por mayor en Chile',
+    description: 'Importación directa mayorista de armazones para ópticas en Chile. Mínimo 10 unidades combinables.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
 };
 
 export default function RootLayout({
@@ -20,35 +89,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
-      <body className={`${inter.className} bg-slate-950 text-slate-100 antialiased`}>
+    <html lang="es" className={`${inter.variable} ${cormorant.variable} ${jetbrainsMono.variable}`}>
+      <body className="bg-[#F7F6F2] text-[#111111] font-sans antialiased selection:bg-[#B89768]/20 selection:text-[#111111]">
         <AuthProvider>
-          {/* --- BANNER SUPERIOR DE CONDICIONES COMERCIALES --- */}
-          <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white text-xs sm:text-sm font-medium py-2 px-4 text-center shadow-md flex flex-wrap justify-center items-center gap-4">
-              <span className="flex items-center gap-1.5">
-                  📦 Mínimo 10 unidades combinables (cualquier marca)
-              </span>
-              <span className="hidden md:inline text-emerald-300">•</span>
-              <span className="flex items-center gap-1.5">
-                  ✈️ Importación Directa USA (Entrega en 10 a 15 días hábiles)
-              </span>
-              <span className="hidden md:inline text-emerald-300">•</span>
-              <span className="flex items-center gap-1.5 font-semibold text-emerald-100">
-                  💵 Todos los valores son más IVA
-              </span>
-          </div>
-
-          {/* Barra de navegación principal */}
+          {/* Barra de navegación principal limpia */}
           <Navbar />
           <CartSync />
+
           {/* Contenido de las páginas */}
-          {children}
+          <main className="min-h-screen">
+            {children}
+          </main>
 
-          {/* Footer Institucional B2B */}
+          {/* Footer Institucional B2B Esencial */}
           <Footer />
-
-          {/* AI Chatbox Flotante */}
-          <AIChatbox />
         </AuthProvider>
       </body>
     </html>

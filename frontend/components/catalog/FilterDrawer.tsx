@@ -12,7 +12,7 @@ interface FilterDrawerProps extends FilterPanelProps {
   onClearAll: () => void;
 }
 
-/** Drawer deslizable de filtros (solo mobile/tablet < lg) */
+/** Drawer deslizable de filtros (solo mobile/tablet < lg) - Maison Editorial */
 export default function FilterDrawer({
   open,
   onClose,
@@ -42,7 +42,7 @@ export default function FilterDrawer({
       {/* Fondo */}
       <div
         onClick={onClose}
-        className={`absolute inset-0 bg-slate-950/70 backdrop-blur-sm transition-opacity duration-300 ${
+        className={`absolute inset-0 bg-[#111111]/60 backdrop-blur-xs transition-opacity duration-300 ${
           open ? 'opacity-100' : 'opacity-0'
         }`}
       />
@@ -52,16 +52,16 @@ export default function FilterDrawer({
         role="dialog"
         aria-modal="true"
         aria-label="Filtros del catálogo"
-        className={`absolute inset-y-0 left-0 w-[88%] max-w-sm bg-slate-900 border-r border-slate-800 shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
+        className={`absolute inset-y-0 left-0 w-[88%] max-w-sm bg-[#FFFFFF] border-r border-[#E5E4DF] shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
-          <h2 className="flex items-center gap-2 text-sm font-black text-white uppercase tracking-wider">
-            <SlidersHorizontal className="w-4 h-4 text-emerald-400" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E4DF]">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-[#111111] uppercase tracking-wider">
+            <SlidersHorizontal className="w-4 h-4 text-[#B89768]" />
             Filtros
             {activeCount > 0 && (
-              <span className="min-w-5 h-5 px-1.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black flex items-center justify-center">
+              <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#111111] text-white text-[10px] font-tech font-bold flex items-center justify-center">
                 {activeCount}
               </span>
             )}
@@ -69,7 +69,7 @@ export default function FilterDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition"
+            className="w-9 h-9 rounded-xl bg-[#FAF9F6] border border-[#E5E4DF] hover:bg-[#FFFFFF] text-[#575551] flex items-center justify-center transition"
             aria-label="Cerrar filtros"
           >
             <X className="w-4 h-4" />
@@ -80,7 +80,7 @@ export default function FilterDrawer({
           <FilterPanel {...panel} />
         </div>
 
-        <div className="p-4 border-t border-slate-800 flex gap-3 bg-slate-900">
+        <div className="p-4 border-t border-[#E5E4DF] flex gap-3 bg-[#FFFFFF]">
           <button
             type="button"
             onClick={onClearAll}

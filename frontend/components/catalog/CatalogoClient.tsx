@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { useCartStore } from "@/store/useCartStore";
 import { useAuth } from "@/context/AuthContext";
-import { Check, ShoppingBag, ArrowRight, Lock, Search, SlidersHorizontal, AlertCircle } from "lucide-react";
+import { Check, Lock, Search, SlidersHorizontal, AlertCircle } from "lucide-react";
 
 import {
   MARCOS_B2B_COLUMNS,
@@ -30,6 +30,7 @@ import SortSelect from "@/components/catalog/SortSelect";
 import ProductCard from "@/components/catalog/ProductCard";
 import QuickViewModal from "@/components/catalog/QuickViewModal";
 import QuickSegmentPills from "@/components/catalog/QuickSegmentPills";
+import MoqProgressBar from "@/components/catalog/MoqProgressBar";
 import { normalizeText } from "@/lib/catalog/normalize";
 
 interface Props { 
@@ -157,7 +158,6 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
 
   const agregarAlCarrito = (producto: EnrichedMarco, cantidadSeleccionada: number) => {
     if (!isLoggedIn) return;
-
     const res = addToCart(stripEnriched(producto), cantidadSeleccionada);
     setSelectedProduct(null);
     if (res.message) {
@@ -174,49 +174,48 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
 
   const totalUnidades = mounted ? getTotalUnits() : 0;
   const montoNeto = mounted ? getMontoNeto() : 0;
-  const moqAlcanzado = totalUnidades >= 10;
 
   const filterPanelProps = { facets, state: filters, onToggle: toggle };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-32">
+    <div className="min-h-screen bg-[#F7F6F2] text-[#111111] pb-32">
       
       {/* Toast flotante de confirmación / advertencia */}
       {toastMessage && (
         <div className={`fixed top-24 right-4 z-50 font-bold px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 animate-slide-down ${
-          toastType === "warning" ? "bg-amber-500 text-slate-950" : "bg-emerald-500 text-slate-950"
+          toastType === "warning" ? "bg-[#B89768] text-[#111111]" : "bg-[#111111] text-[#FFFFFF]"
         }`}>
-          {toastType === "warning" ? <AlertCircle className="w-5 h-5 shrink-0" /> : <Check className="w-5 h-5 shrink-0" />}
-          <span>{toastMessage}</span>
+          {toastType === "warning" ? <AlertCircle className="w-5 h-5 shrink-0" /> : <Check className="w-5 h-5 shrink-0 text-[#B89768]" />}
+          <span className="text-xs tracking-wide">{toastMessage}</span>
         </div>
       )}
 
-      {/* --- ENCABEZADO DE CATÁLOGO --- */}
-      <div className="bg-slate-900/50 border-b border-slate-800/80 py-8 px-4 sm:px-6 lg:px-8 mb-6">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="text-center md:text-left">
-            <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold px-3 py-1 rounded-full mb-3">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              Distribución Exclusiva B2B para Ópticas
+      {/* --- ENCABEZADO DE CATÁLOGO EDITORIAL --- */}
+      <div className="bg-[#FFFFFF] border-b border-[#E5E4DF] py-10 px-4 sm:px-6 lg:px-8 mb-8">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="text-left">
+            <div className="inline-flex items-center gap-2 bg-[#F7F3EB] border border-[#B89768]/40 text-[#9E7D4F] text-xs font-semibold px-3 py-1 rounded-full mb-3 tracking-wide uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#B89768]" />
+              Maison B2B • Distribución Mayorista Oficial
             </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Catálogo Mayorista de Armazones
+            <h1 className="font-editorial text-3xl sm:text-5xl font-semibold text-[#111111] tracking-tight">
+              Catálogo de Armazones & Gafas
             </h1>
-            <p className="mt-2 text-base text-slate-300 max-w-2xl">
-              Importación directa desde EE.UU. con sincronización en tiempo real. 
-              <span className="text-emerald-400 font-semibold"> Compra mínima de 10 unidades</span> combinables entre cualquier marca.
+            <p className="mt-2 text-sm sm:text-base text-[#575551] max-w-2xl font-sans">
+              Importación directa desde EE.UU. con stock verificado en origen. 
+              <span className="text-[#111111] font-semibold"> Mínimo mayorista de 10 unidades combinables</span> entre cualquier marca y modelo.
             </p>
           </div>
 
-          <div className="bg-slate-800/80 border border-slate-700/60 p-4 rounded-xl shadow-lg flex items-center gap-3 backdrop-blur-sm">
-            <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-lg">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="bg-[#FAF9F6] border border-[#E5E4DF] p-4 rounded-2xl flex items-center gap-3.5 shadow-2xs">
+            <div className="p-2.5 bg-[#FFFFFF] border border-[#E5E4DF] text-[#B89768] rounded-xl shadow-xs">
+              <svg className="w-5 h-5 stroke-[1.8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
               </svg>
             </div>
             <div>
-              <p className="text-xs text-slate-400 font-medium">Plazo de entrega</p>
-              <p className="text-sm font-bold text-white">10 a 15 días hábiles</p>
+              <p className="text-[11px] text-[#82807A] uppercase font-bold tracking-wider">Tránsito de Importación</p>
+              <p className="text-sm font-bold text-[#111111] font-tech">10 a 15 días hábiles</p>
             </div>
           </div>
         </div>
@@ -224,22 +223,27 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
 
       <div className="max-w-7xl mx-auto space-y-6 px-4 sm:px-6 lg:px-8">
         
+        {/* BARRA DE PROGRESO DE MOQ EN VIVO (BANNER SUPERIOR) */}
+        {mounted && (
+          <MoqProgressBar variant="banner" isLoggedIn={isLoggedIn} className="mb-2" />
+        )}
+
         {/* BANNER INFORMATIVO PARA USUARIOS NO LOGUEADOS (GATEKEEPING B2B) */}
         {mounted && !isLoggedIn && (
-          <div className="bg-gradient-to-r from-amber-950/40 via-slate-900/80 to-slate-900/60 border border-amber-500/30 rounded-3xl p-5 sm:p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl p-6 sm:p-8 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-amber-500/20 text-amber-400 rounded-2xl border border-amber-500/30 flex-shrink-0">
-                <Lock className="w-6 h-6" />
+              <div className="p-3.5 bg-[#FAF9F6] text-[#B89768] rounded-2xl border border-[#E5E4DF] flex-shrink-0">
+                <Lock className="w-6 h-6 stroke-[1.8]" />
               </div>
               <div>
-                <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <h3 className="text-base sm:text-lg font-bold text-[#111111] flex items-center gap-2">
                   <span>Precios Mayoristas Reservados para Ópticas</span>
-                  <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full uppercase">
+                  <span className="text-[10px] bg-[#F7F3EB] text-[#9E7D4F] border border-[#B89768]/30 px-2.5 py-0.5 rounded-full uppercase tracking-wider font-semibold">
                     Exclusivo B2B
                   </span>
                 </h3>
-                <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                  Para proteger los márgenes comerciales de nuestros clientes, los precios netos en CLP y el pedido mayorista solo son visibles para ópticas registradas.
+                <p className="text-xs sm:text-sm text-[#575551] mt-1 max-w-2xl leading-relaxed">
+                  Para proteger la rentabilidad y los márgenes de nuestros clientes comerciales, las tarifas netas en CLP y la orden de importación solo están habilitadas para ópticas acreditadas.
                 </p>
               </div>
             </div>
@@ -247,13 +251,13 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
             <div className="flex items-center gap-3 w-full md:w-auto">
               <Link
                 href="/login?redirect=/catalogo"
-                className="flex-1 md:flex-none bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs px-5 py-3 rounded-xl transition uppercase tracking-wider text-center shadow-lg shadow-emerald-500/20"
+                className="btn-primary flex-1 md:flex-none text-center"
               >
                 Iniciar Sesión
               </Link>
               <Link
                 href="/registro?redirect=/catalogo"
-                className="flex-1 md:flex-none bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-5 py-3 rounded-xl transition uppercase tracking-wider text-center border border-slate-700"
+                className="btn-secondary flex-1 md:flex-none text-center"
               >
                 Registrar Óptica
               </Link>
@@ -265,7 +269,7 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
         <div className="flex gap-8 items-start">
           <FilterSidebar {...filterPanelProps} activeCount={activeCount} onClearAll={clearAll} />
 
-          <div className="flex-1 min-w-0 space-y-5">
+          <div className="flex-1 min-w-0 space-y-6">
             {/* Curaduría de Marcas: Pestañas Rápidas por Segmento */}
             <QuickSegmentPills
               selectedBrands={filters.marca}
@@ -287,12 +291,12 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
                 <button
                   type="button"
                   onClick={() => setDrawerOpen(true)}
-                  className="lg:hidden flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-200 transition"
+                  className="lg:hidden flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-[#FFFFFF] border border-[#E5E4DF] hover:border-[#82807A] rounded-xl px-4 py-2.5 text-xs font-bold text-[#111111] transition shadow-2xs"
                 >
-                  <SlidersHorizontal className="w-4 h-4 text-emerald-400" />
+                  <SlidersHorizontal className="w-4 h-4 text-[#B89768]" />
                   Filtros
                   {activeCount > 0 && (
-                    <span className="min-w-5 h-5 px-1.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black flex items-center justify-center">
+                    <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#111111] text-white text-[10px] font-tech font-bold flex items-center justify-center">
                       {activeCount}
                     </span>
                   )}
@@ -303,14 +307,13 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
 
             {/* Conteo de resultados + chips de filtros activos */}
             <div className="space-y-3">
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-[#575551]">
                 {loading ? (
                   "Cargando catálogo…"
                 ) : (
                   <>
-                    <span className="text-white font-bold tabular-nums">{totalCount}</span>{" "}
-                    {totalCount === 1 ? "armazón" : "armazones"}
-                    
+                    <span className="text-[#111111] font-bold font-tech text-base">{totalCount}</span>{" "}
+                    {totalCount === 1 ? "armazón disponible" : "armazones disponibles"}
                   </>
                 )}
               </p>
@@ -323,17 +326,17 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
               />
             </div>
 
-            {/* Grid de Productos */}
+            {/* Grid de Productos Impecable en Blanco Puro */}
             {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 sm:gap-8">
                 {Array.from({ length: 9 }).map((_, i) => (
-                  <div key={i} className="bg-slate-900 border border-slate-800/80 rounded-2xl overflow-hidden shadow-lg animate-pulse">
-                    <div className="h-48 bg-slate-800/60" />
-                    <div className="p-4 space-y-3">
+                  <div key={i} className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl overflow-hidden shadow-xs animate-pulse">
+                    <div className="h-60 bg-[#FAF9F6]" />
+                    <div className="p-5 space-y-3">
                       <div className="h-3 skeleton w-1/3" />
-                      <div className="h-4 skeleton w-3/4" />
+                      <div className="h-5 skeleton w-3/4" />
                       <div className="h-3 skeleton w-1/2" />
-                      <div className="pt-3 border-t border-slate-800 flex justify-between items-center">
+                      <div className="pt-3 border-t border-[#E5E4DF] flex justify-between items-center">
                         <div className="h-4 skeleton w-20" />
                         <div className="h-6 skeleton w-14" />
                       </div>
@@ -342,19 +345,19 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
                 ))}
               </div>
             ) : totalCount === 0 ? (
-              <div className="text-center py-20 bg-slate-900/30 border border-slate-800/80 rounded-2xl">
-                <Search className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                <p className="text-slate-300 font-semibold">No hay armazones con esta combinación de filtros.</p>
-                <p className="text-slate-500 text-sm mt-1">Prueba quitando algún filtro o ampliando la búsqueda.</p>
+              <div className="text-center py-20 bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl p-8">
+                <Search className="w-10 h-10 text-[#82807A] mx-auto mb-3" />
+                <p className="text-[#111111] font-semibold text-base font-editorial">No hay armazones con esta combinación de filtros.</p>
+                <p className="text-[#575551] text-xs mt-1">Prueba quitando algún filtro o ampliando el término de búsqueda.</p>
                 <button
                   onClick={() => clearAll()}
-                  className="mt-5 text-xs text-emerald-400 hover:text-emerald-300 font-bold uppercase tracking-wider transition"
+                  className="mt-5 btn-secondary !py-2.5 !text-xs"
                 >
                   Limpiar filtros
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 sm:gap-8">
                 {groupedResults.map((variants, idx) => (
                   <ProductCard 
                     key={`${variants[0].marca}-${variants[0].modelo}`}
@@ -370,21 +373,21 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
 
             {/* Paginación SSR */}
             {totalPages > 1 && (
-              <div className="flex justify-center items-center gap-4 mt-10 pt-6 border-t border-slate-800">
+              <div className="flex justify-center items-center gap-4 mt-12 pt-8 border-t border-[#E5E4DF]">
                 <button
                   disabled={currentPage <= 1}
                   onClick={() => setPage(currentPage - 1)}
-                  className="px-4 py-2 bg-slate-800 text-white rounded-lg disabled:opacity-50 hover:bg-slate-700 transition font-bold text-sm"
+                  className="px-5 py-2.5 bg-[#FFFFFF] text-[#111111] border border-[#E5E4DF] rounded-xl disabled:opacity-40 hover:bg-[#FAF9F6] transition font-semibold text-xs uppercase tracking-wider shadow-2xs"
                 >
                   Anterior
                 </button>
-                <span className="text-sm text-slate-400 font-semibold">
-                  Página <span className="text-white">{currentPage}</span> de {totalPages}
+                <span className="text-xs text-[#575551] font-medium font-tech">
+                  Página <span className="text-[#111111] font-bold">{currentPage}</span> de {totalPages}
                 </span>
                 <button
                   disabled={currentPage >= totalPages}
                   onClick={() => setPage(currentPage + 1)}
-                  className="px-4 py-2 bg-slate-800 text-white rounded-lg disabled:opacity-50 hover:bg-slate-700 transition font-bold text-sm"
+                  className="px-5 py-2.5 bg-[#FFFFFF] text-[#111111] border border-[#E5E4DF] rounded-xl disabled:opacity-40 hover:bg-[#FAF9F6] transition font-semibold text-xs uppercase tracking-wider shadow-2xs"
                 >
                   Siguiente
                 </button>
@@ -395,11 +398,11 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
         </div>
 
         {/* Modal de Vista Rapida (Quick View) */}
-          <QuickViewModal 
-            variants={selectedProduct ? groupedResults.find((g: EnrichedMarco[]) => g[0].modelo === selectedProduct.modelo && g[0].marca === selectedProduct.marca) || [selectedProduct] : []}
-            isOpen={!!selectedProduct} 
-            onClose={() => setSelectedProduct(null)} 
-          />
+        <QuickViewModal 
+          variants={selectedProduct ? groupedResults.find((g: EnrichedMarco[]) => g[0].modelo === selectedProduct.modelo && g[0].marca === selectedProduct.marca) || [selectedProduct] : []}
+          isOpen={!!selectedProduct} 
+          onClose={() => setSelectedProduct(null)} 
+        />
 
       </div>
 
@@ -413,66 +416,11 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
         onClearAll={clearAll}
       />
 
-      {/* --- BARRA FLOTANTE INFERIOR SINCRONIZADA CON EL STORE --- */}
+      {/* --- BARRA FLOTANTE DE PROGRESO MOQ EN NEGRO OBSIDIANA / CHAMPAGNE --- */}
       {mounted && totalUnidades > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-800 backdrop-blur-md p-4 z-40 shadow-2xl">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-4">
-              <div className="bg-emerald-500/20 text-emerald-400 p-3 rounded-xl border border-emerald-500/30">
-                <ShoppingBag className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-white flex items-center gap-2">
-                  <span>Carrito B2B: {totalUnidades} {totalUnidades === 1 ? 'unidad' : 'unidades'}</span>
-                  {isLoggedIn && (
-                    <>
-                      <span className="text-slate-400">•</span>
-                      <span className="text-emerald-400 font-extrabold">${montoNeto.toLocaleString('es-CL')} CLP Neto</span>
-                    </>
-                  )}
-                </p>
-                <p className="text-xs text-slate-400">
-                  {totalUnidades < 6 ? (
-                    <span className="text-amber-400 font-semibold">
-                      ⚠️ Faltan {10 - totalUnidades} {10 - totalUnidades === 1 ? 'armazón' : 'armazones'} para liberar tu importación (mínimo 10 un.)
-                    </span>
-                  ) : totalUnidades < 10 ? (
-                    <span className="text-amber-300 font-bold animate-pulse">
-                      🔥 ¡Te faltan solo {10 - totalUnidades} {10 - totalUnidades === 1 ? 'armazón' : 'armazones'} para liberar tu importación desde USA!
-                    </span>
-                  ) : totalUnidades < 15 ? (
-                    <span className="text-emerald-400 font-bold">
-                      ✅ ¡Mínimo de 10 unidades cumplido! Pedido listo para importar desde USA
-                    </span>
-                  ) : (
-                    <span className="text-cyan-300 font-black">
-                      🚀 ¡Escala Mayorista alcanzada ({totalUnidades} un.)! Despacho prioritario y embalaje reforzado
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <button 
-                onClick={() => clearCart()}
-                className="text-xs text-slate-400 hover:text-rose-400 px-3 py-2 transition"
-              >
-                Vaciar
-              </button>
-              <Link 
-                href="/carrito"
-                className="flex-1 sm:flex-none font-black px-6 py-3 rounded-xl transition text-sm flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/20"
-              >
-                Revisar Carrito B2B
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          </div>
-        </div>
+        <MoqProgressBar variant="floating" isLoggedIn={isLoggedIn} />
       )}
 
     </div>
   );
 }
-

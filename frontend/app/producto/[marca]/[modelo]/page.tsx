@@ -62,6 +62,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title,
       description,
       url: canonicalUrl,
+      locale: 'es_CL',
       images: data.imagen_principal
         ? [
             {
@@ -210,7 +211,7 @@ export default async function ProductPage({ params }: Props) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
-      <div className="min-h-screen bg-slate-950 pt-24 pb-16">
+      <div className="min-h-screen bg-[#F7F6F2] text-[#111111] pt-6 pb-20">
         <ProductClientView variants={variants} baseProduct={baseProduct} />
 
         {/* Interlinking interno para escalabilidad de Googlebot */}
