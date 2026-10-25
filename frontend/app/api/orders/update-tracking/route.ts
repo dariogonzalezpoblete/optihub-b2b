@@ -1,19 +1,53 @@
-import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { authenticateServerRequest } from '@/lib/auth/serverAuth';
+import { checkBusinessMutationAllowed } from '@/lib/env/runtimeEnv';
 
 // Service role Supabase client for administrative order management
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+function getAdminSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Configuración de servidor incompleta: NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY ausente.');
+  }
 
-export async function POST(req: Request) {
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
+
+export async function handleUpdateTracking(
+  req: Request,
+  options?: { customAuthClient?: any; customAdminClient?: any }
+) {
   try {
+    // 1. Autenticar solicitud mediante Supabase Auth
+    const auth = await authenticateServerRequest(req, {
+      customAuthClient: options?.customAuthClient,
+    });
+
+    if (!auth.authenticated) {
+      return auth.response;
+    }
+
+    // 2. Verificar rol administrativo del solicitante autenticado
+    if (!auth.isAdmin) {
+      return Response.json(
+        { error: 'Acceso denegado: Se requieren permisos administrativos para actualizar el seguimiento.' },
+        { status: 403 }
+      );
+    }
+
+    // 3. Control de aislamiento de entorno: bloqueado en Preview para proteger la base compartida
+    const envGuard = checkBusinessMutationAllowed('update_order_tracking', options);
+    if (!envGuard.allowed) {
+      return envGuard.response;
+    }
+
+    const adminSupabase = options?.customAdminClient || getAdminSupabase();
     const body = await req.json();
     const { orderId, shipping_provider, tracking_number, stage, customNote } = body;
 
-    if (!orderId) {
-      return NextResponse.json({ error: 'orderId es requerido' }, { status: 400 });
+    if (!orderId || typeof orderId !== 'string') {
+      return Response.json({ error: 'orderId es requerido' }, { status: 400 });
     }
 
     // Determine DB status compatible with check constraint:
@@ -29,16 +63,16 @@ export async function POST(req: Request) {
 
     const notesPayload = JSON.stringify({
       stage: stage || 'logistica_usa',
-      courier: shipping_provider || null,
-      trackingNumber: tracking_number ? tracking_number.trim() : null,
-      note: customNote ? customNote.trim() : null,
+      courier: shipping_provider ? String(shipping_provider).trim() : null,
+      trackingNumber: tracking_number ? String(tracking_number).trim() : null,
+      note: customNote ? String(customNote).trim() : null,
       updatedAt: new Date().toISOString()
     });
 
     const updatePayload: Record<string, any> = {
       status: mappedStatus,
-      shipping_provider: shipping_provider ? shipping_provider.trim() : null,
-      tracking_number: tracking_number ? tracking_number.trim() : null,
+      shipping_provider: shipping_provider ? String(shipping_provider).trim() : null,
+      tracking_number: tracking_number ? String(tracking_number).trim() : null,
       notes: notesPayload,
       updated_at: new Date().toISOString()
     };
@@ -51,13 +85,17 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
-      console.error('Error updating order tracking:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('[UpdateTracking] Error updating order tracking:', error.message || error);
+      return Response.json({ error: 'Error al actualizar el seguimiento del pedido' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, order: data });
+    return Response.json({ success: true, order: data });
   } catch (err: any) {
-    console.error('Exception updating order tracking:', err);
-    return NextResponse.json({ error: err.message || 'Error del servidor' }, { status: 500 });
+    console.error('[UpdateTracking] Exception updating order tracking:', err?.message || err);
+    return Response.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
+}
+
+export async function POST(req: Request) {
+  return handleUpdateTracking(req);
 }

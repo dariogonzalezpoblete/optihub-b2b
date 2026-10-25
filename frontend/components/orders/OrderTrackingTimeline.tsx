@@ -25,6 +25,7 @@ import {
   ParsedTracking
 } from '@/lib/trackingUtils';
 import type { Order } from '@/lib/catalog/types';
+import { useAuth } from '@/context/AuthContext';
 
 interface OrderTrackingTimelineProps {
   order: Order;
@@ -37,6 +38,7 @@ export default function OrderTrackingTimeline({
   onOrderUpdated,
   isAdmin = false 
 }: OrderTrackingTimelineProps) {
+  const { session } = useAuth();
   const [copied, setCopied] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -71,10 +73,19 @@ export default function OrderTrackingTimeline({
     setSaveError('');
     setSaveSuccess(false);
 
+    if (!session?.access_token) {
+      setSaveError('Sesión no disponible o expirada. Por favor recarga la página o inicia sesión.');
+      setSaving(false);
+      return;
+    }
+
     try {
       const res = await fetch('/api/orders/update-tracking', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           orderId: order.id,
           shipping_provider: selectedCourier,

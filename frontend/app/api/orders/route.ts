@@ -1,23 +1,34 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { authenticateServerRequest } from '@/lib/auth/serverAuth';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
+function getAdminSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const ADMIN_EMAILS = ['multifocuslimitada@gmail.com'];
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Configuración de servidor incompleta: NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY ausente.');
+  }
 
-export async function GET(req: NextRequest) {
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
+
+export async function handleGetOrders(
+  req: Request,
+  options?: { customAuthClient?: any; customAdminClient?: any }
+) {
   try {
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get('userId');
-    const email = searchParams.get('email');
+    // 1. Autenticar identidad mediante Supabase Auth (Bearer <token>)
+    const auth = await authenticateServerRequest(req, {
+      customAuthClient: options?.customAuthClient,
+    });
 
-    if (!userId && !email) {
-      return NextResponse.json({ error: 'Identificación de usuario requerida' }, { status: 401 });
+    if (!auth.authenticated) {
+      return auth.response;
     }
 
-    const isAdmin = Boolean(email && ADMIN_EMAILS.includes(email.toLowerCase().trim()));
+    const adminSupabase = options?.customAdminClient || getAdminSupabase();
+    const { searchParams } = new URL(req.url);
+    const targetUserId = searchParams.get('userId');
 
     let query = adminSupabase
       .from('orders')
@@ -25,30 +36,40 @@ export async function GET(req: NextRequest) {
       .neq('status', 'cancelled')
       .order('created_at', { ascending: false });
 
-    // Si NO es admin, filtrar estrictamente solo los pedidos del usuario
-    if (!isAdmin) {
-      if (!userId) {
-        return NextResponse.json({ error: 'userId requerido para clientes' }, { status: 400 });
+    // 2. Control de autorización estricto:
+    // - Para administradores legítimos (user.email verificado en lista de admins):
+    //   pueden ver todos los pedidos, o filtrar por un cliente específico si proporcionan ?userId=.
+    // - Para clientes comunes:
+    //   se restringe obligatoriamente a su propio user.id verificado por Supabase Auth.
+    //   Cualquier parámetro 'userId' o 'email' enviado en la URL por el cliente es estrictamente ignorado.
+    if (auth.isAdmin) {
+      if (targetUserId) {
+        query = query.eq('user_id', targetUserId);
       }
-      query = query.eq('user_id', userId);
+    } else {
+      query = query.eq('user_id', auth.user.id);
     }
 
     const { data: orders, error } = await query;
 
     if (error) {
-      console.error('Error fetching orders:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('[Orders] Error fetching orders:', error.message || error);
+      return Response.json({ error: 'Error al obtener pedidos' }, { status: 500 });
     }
 
     // Filtrar sesiones de checkout abandonadas sin pago
-    const validOrders = (orders || []).filter(order => 
-      order.status !== 'cancelled' && 
+    const validOrders = (orders || []).filter((order: any) =>
+      order.status !== 'cancelled' &&
       !(order.status === 'pending' && order.payment_status === 'pending')
     );
 
-    return NextResponse.json({ orders: validOrders, isAdmin });
+    return Response.json({ orders: validOrders, isAdmin: auth.isAdmin });
   } catch (err: any) {
-    console.error('Exception fetching orders:', err);
-    return NextResponse.json({ error: err.message || 'Error del servidor' }, { status: 500 });
+    console.error('[Orders] Exception fetching orders:', err?.message || err);
+    return Response.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
+}
+
+export async function GET(req: Request) {
+  return handleGetOrders(req);
 }

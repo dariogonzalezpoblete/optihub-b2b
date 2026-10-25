@@ -7,7 +7,13 @@ import { useCartStore } from "@/store/useCartStore";
 import { useAuth } from "@/context/AuthContext";
 import { Check, ShoppingBag, ArrowRight, Lock, Search, SlidersHorizontal, AlertCircle } from "lucide-react";
 
-import type { EnrichedMarco, Marco } from "@/lib/catalog/types";
+import {
+  MARCOS_B2B_COLUMNS,
+  MARCOS_B2B_COMMERCIAL_OVERLAY_COLUMNS,
+  MARCOS_PUBLIC_COLUMNS,
+  type EnrichedMarco,
+  type Marco,
+} from "@/lib/catalog/types";
 import {
   applyFilters,
   countActiveFilters,
@@ -62,18 +68,52 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
   useEffect(() => {
     setMarcos(initialMarcos);
     setLoading(false);
-  }, [initialMarcos]);
+
+    if (!mounted || !isLoggedIn || !initialMarcos || initialMarcos.length === 0) {
+      return;
+    }
+
+    const ids = Array.from(
+      new Set(initialMarcos.map((m) => m?.id_ext).filter(Boolean))
+    );
+    if (ids.length === 0) return;
+
+    let cancelled = false;
+    supabase
+      .from("marcos")
+      .select(MARCOS_B2B_COMMERCIAL_OVERLAY_COLUMNS)
+      .in("id_ext", ids)
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return;
+        const b2bMap = new Map(
+          (data as unknown as Array<{ id_ext: string; precio_neto_clp?: number; precio_bruto_clp?: number; stock?: number }>).map(
+            (row) => [row.id_ext, row]
+          )
+        );
+        setMarcos((prev) =>
+          prev.map((item) => {
+            const b2b = b2bMap.get(item.id_ext);
+            return b2b ? { ...item, ...b2b } : item;
+          })
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialMarcos, mounted, isLoggedIn]);
 
   const fetchMarcos = async () => {
     try {
+      const projection = isLoggedIn ? MARCOS_B2B_COLUMNS : MARCOS_PUBLIC_COLUMNS;
       const { data, error } = await supabase
         .from("marcos")
-        .select("*");
+        .select(projection);
 
       if (error) {
         console.error("❌ Error de Supabase:", error.message);
       } else if (data) {
-        setMarcos(data);
+        setMarcos(data as unknown as Marco[]);
       }
     } catch (error) {
       console.error("❌ Error inesperado:", error);

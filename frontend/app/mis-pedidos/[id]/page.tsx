@@ -12,7 +12,7 @@ import OrderTrackingTimeline from '@/components/orders/OrderTrackingTimeline';
 export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
   const orderId = unwrappedParams.id;
-  const { user, isLoggedIn } = useAuth();
+  const { user, session, isLoggedIn } = useAuth();
   const router = useRouter();
   
   const [loading, setLoading] = useState(true);
@@ -23,13 +23,22 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
   useEffect(() => {
     const fetchOrderDetail = async () => {
+      if (!session?.access_token) return;
       setLoading(true);
       setError('');
       try {
-        const res = await fetch(`/api/orders/${orderId}?userId=${encodeURIComponent(user!.id)}&email=${encodeURIComponent(user!.email || '')}`);
+        const res = await fetch(`/api/orders/${orderId}`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        });
         const json = await res.json();
 
         if (!res.ok || json.error) {
+          if (res.status === 401) {
+            router.push('/login?redirect=/mis-pedidos/' + orderId);
+            return;
+          }
           setError(json.error || 'Pedido no encontrado o no tienes permisos para verlo.');
           setLoading(false);
           return;
@@ -48,10 +57,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
     if (isLoggedIn === false) {
       router.push('/login?redirect=/mis-pedidos/' + orderId);
-    } else if (isLoggedIn && user) {
+    } else if (isLoggedIn && session?.access_token) {
       fetchOrderDetail();
     }
-  }, [isLoggedIn, user, orderId, router]);
+  }, [isLoggedIn, session?.access_token, orderId, router]);
 
   if (!isLoggedIn || !user) {
     return (

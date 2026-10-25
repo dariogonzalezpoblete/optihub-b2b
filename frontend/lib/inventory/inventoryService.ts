@@ -1,8 +1,8 @@
 // frontend/lib/inventory/inventoryService.ts
-import { PoolClient } from 'pg';
+import type { PoolClient } from 'pg';
 import crypto from 'node:crypto';
 import { executeQuery, withTransaction } from '../db/postgres';
-import {
+import type {
   AdjustStockInput,
   AdjustStockResult,
   CreatePurchaseOrderInput,
@@ -17,7 +17,6 @@ import {
 import {
   InsufficientStockError,
   InvalidQuantityError,
-  OrderAlreadyProcessedError,
   OrderNotFoundError,
   ProductNotFoundError,
 } from './errors';
@@ -150,10 +149,9 @@ export async function createPurchaseOrderWithAtomicStockDeduction(
 
     for (const item of sanitizedItems) {
       const marco = lockedMap.get(item.productId)!;
-      const unitPrice =
-        item.unitPriceNet !== undefined && item.unitPriceNet >= 0
-          ? Math.round(item.unitPriceNet)
-          : Math.round(Number(marco.precio_neto_clp || 0));
+      // CRÍTICO-01: El precio unitario neto se obtiene exclusivamente desde el catálogo en servidor (marcos.precio_neto_clp).
+      // Se ignora cualquier valor unitPriceNet suministrado por el cliente.
+      const unitPrice = Math.round(Number(marco.precio_neto_clp || 0));
 
       const lineSubtotal = unitPrice * item.quantity;
       subtotalNet += lineSubtotal;
@@ -279,15 +277,13 @@ export async function createPurchaseOrderWithAtomicStockDeduction(
       const previousStock = Number(marco.stock ?? 0);
       const newStock = previousStock - qtyToDeduct;
 
-      // Update marcos stock (o eliminar de la base de datos si llega a 0)
-      if (newStock <= 0) {
-        await client.query(`DELETE FROM marcos WHERE id_ext = $1`, [pid]);
-      } else {
-        await client.query(
-          `UPDATE marcos SET stock = stock - $1 WHERE id_ext = $2`,
-          [qtyToDeduct, pid]
-        );
-      }
+      // Update marcos stock (cuando el stock llega a 0 se mantiene la fila con stock = 0
+      // en lugar de DELETE FROM marcos, preservando la restricción FOREIGN KEY ON DELETE RESTRICT
+      // de public.inventory_movements en supabase_migration_003.sql y permitiendo devoluciones/reposiciones)
+      await client.query(
+        `UPDATE marcos SET stock = stock - $1 WHERE id_ext = $2`,
+        [qtyToDeduct, pid]
+      );
 
       // Insert audit movement record (type: SALE, quantity negative for audit ledger)
       const insertMovementQuery = `
@@ -431,14 +427,13 @@ export async function deductStockForOrderAtomic(
       const previousStock = Number(item.stock ?? 0);
       const newStock = previousStock - item.quantity;
 
-      if (newStock <= 0) {
-        await client.query(`DELETE FROM marcos WHERE id_ext = $1`, [item.product_id]);
-      } else {
-        await client.query(`UPDATE marcos SET stock = stock - $1 WHERE id_ext = $2`, [
-          item.quantity,
-          item.product_id,
-        ]);
-      }
+      // Cuando el stock llega a 0 se actualiza stock = 0 sin eliminar la fila de public.marcos,
+      // preservando la restricción FOREIGN KEY ON DELETE RESTRICT de public.inventory_movements
+      // (supabase_migration_003.sql) y permitiendo futuras devoluciones o reposiciones.
+      await client.query(`UPDATE marcos SET stock = stock - $1 WHERE id_ext = $2`, [
+        item.quantity,
+        item.product_id,
+      ]);
 
       await client.query(
         `INSERT INTO inventory_movements (
@@ -540,15 +535,13 @@ export async function adjustOrReplenishStockAtomic(
       );
     }
 
-    // 2. Update stock (o eliminar de BD si llega a 0)
-    if (newStock <= 0) {
-      await client.query(`DELETE FROM marcos WHERE id_ext = $1`, [productId]);
-    } else {
-      await client.query(`UPDATE marcos SET stock = $1 WHERE id_ext = $2`, [
-        newStock,
-        productId,
-      ]);
-    }
+    // 2. Update stock (cuando llega a 0 se conserva la fila con stock = 0 sin ejecutar DELETE,
+    // preservando la restricción FOREIGN KEY ON DELETE RESTRICT de public.inventory_movements
+    // en supabase_migration_003.sql y permitiendo futuras devoluciones o reposiciones)
+    await client.query(`UPDATE marcos SET stock = $1 WHERE id_ext = $2`, [
+      newStock,
+      productId,
+    ]);
 
     // 3. Write movement ledger
     const insertMovement = `

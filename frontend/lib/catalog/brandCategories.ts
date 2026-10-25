@@ -177,7 +177,7 @@ export function getRotationBadge(brand: string): { label: string; bg: string; te
  * Calculadora de Margen Retail Sugerido (PVP de Mercado Óptico)
  * Basado en multiplicador estándar B2B de 2.8x - 3.0x sobre costo neto.
  */
-export function calculateRetailProjection(precioNetoClp: number) {
+export function calculateRetailProjection(precioNetoClp?: number | null) {
   if (!precioNetoClp || precioNetoClp <= 0) {
     return {
       pvpSugerido: 0,

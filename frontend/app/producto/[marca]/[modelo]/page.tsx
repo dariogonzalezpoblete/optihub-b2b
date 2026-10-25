@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import ProductClientView from './ProductClientView';
 import RelatedProducts from '@/components/catalog/RelatedProducts';
 import { enrichMarcos } from '@/lib/catalog/filterEngine';
-import type { Marco } from '@/lib/catalog/types';
+import { MARCOS_PUBLIC_COLUMNS, type Marco } from '@/lib/catalog/types';
 
 // Incremental Static Regeneration (revalida cada hora para indexación veloz)
 export const revalidate = 3600;
@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const { data } = await supabase
     .from('marcos')
-    .select('*')
+    .select('marca, modelo, imagen_principal')
     .ilike('marca', decodedMarca)
     .ilike('modelo', decodedModelo)
     .limit(1)
@@ -90,11 +90,11 @@ export default async function ProductPage({ params }: Props) {
   const decodedMarca = decodeURIComponent(resolvedParams.marca);
   const decodedModelo = decodeURIComponent(resolvedParams.modelo);
 
-  // Consulta paralela: Variantes del producto actual y Modelos relacionados de la misma marca
+  // Consulta paralela: Variantes del producto actual (solo campos públicos no sensibles) y Modelos relacionados de la misma marca
   const [productRes, relatedRes] = await Promise.all([
     supabase
       .from('marcos')
-      .select('*')
+      .select(MARCOS_PUBLIC_COLUMNS)
       .ilike('marca', decodedMarca)
       .ilike('modelo', decodedModelo),
     supabase
@@ -110,11 +110,11 @@ export default async function ProductPage({ params }: Props) {
   }
 
   // Deduplicar modelos relacionados (un solo ítem por modelo)
-  const relatedModelsMap = new Map<string, any>();
+  const relatedModelsMap = new Map<string, Marco>();
   if (relatedRes.data) {
     for (const rel of relatedRes.data) {
-      if (!relatedModelsMap.has(rel.modelo)) {
-        relatedModelsMap.set(rel.modelo, rel);
+      if (rel.modelo && !relatedModelsMap.has(rel.modelo)) {
+        relatedModelsMap.set(rel.modelo, rel as unknown as Marco);
       }
       if (relatedModelsMap.size >= 4) break;
     }
@@ -155,7 +155,6 @@ export default async function ProductPage({ params }: Props) {
       '@type': 'Offer',
       url: productUrl,
       priceCurrency: 'CLP',
-      price: v.precio_neto_clp,
       availability: 'https://schema.org/PreOrder', // Estándar oficial Google para productos bajo importación
       itemCondition: 'https://schema.org/NewCondition',
       sku: v.id_ext,

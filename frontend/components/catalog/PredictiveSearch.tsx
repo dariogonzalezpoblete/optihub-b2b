@@ -224,7 +224,9 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
                           {m.color && <span className="font-sans"> · {m.color}</span>}
                         </span>
                       </span>
-                      <span className="text-[10px] text-slate-500 tabular-nums flex-shrink-0">{m.stock} un.</span>
+                      {typeof m.stock === 'number' && (
+                        <span className="text-[10px] text-slate-500 tabular-nums flex-shrink-0">{m.stock} un.</span>
+                      )}
                     </button>
                   </li>
                 ))}

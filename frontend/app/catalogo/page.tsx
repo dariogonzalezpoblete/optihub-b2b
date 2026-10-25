@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import CatalogoClient from '@/components/catalog/CatalogoClient';
 import { normalizeText } from '@/lib/catalog/normalize';
 import { isFillerBrand } from '@/lib/catalog/brandCategories';
+import { MARCOS_FACET_PUBLIC_COLUMNS, MARCOS_PUBLIC_COLUMNS } from '@/lib/catalog/types';
 
 // Renderizado dinámico inmediato para reflejar cambios de stock y nuevas marcas al instante
 export const dynamic = 'force-dynamic';
@@ -30,8 +31,7 @@ export default async function CatalogoPage({
   while (true) {
     const { data: chunk, error: chunkErr } = await supabase
       .from('marcos')
-      .select('id, id_ext, marca, modelo, genero, material, forma, tamano, stock')
-      .gt('stock', 0)
+      .select(MARCOS_FACET_PUBLIC_COLUMNS)
       .range(facetOffset, facetOffset + facetChunkSize - 1);
     if (chunkErr || !chunk || chunk.length === 0) break;
     allFacetItems.push(...chunk);
@@ -47,8 +47,8 @@ export default async function CatalogoPage({
   const allDbMateriales = Array.from(new Set(facetList.map((r) => r.material).filter((m) => m && m.toLowerCase() !== 'select')));
   const allDbFormas = Array.from(new Set(facetList.map((r) => r.forma).filter((f) => f && f.toLowerCase() !== 'select')));
 
-  // 3. Construcción de Query a Supabase (solo productos con inventario activo)
-  let query = supabase.from('marcos').select('*', { count: 'exact' }).gt('stock', 0);
+  // 3. Construcción de Query a Supabase (solo columnas públicas no sensibles; RLS filtra stock > 0 para anon)
+  let query = supabase.from('marcos').select(MARCOS_PUBLIC_COLUMNS, { count: 'exact' });
 
   // 4. Búsqueda por texto libre
   if (q) {
@@ -126,17 +126,9 @@ export default async function CatalogoPage({
     }
   }
 
-  // 6. Ordenamiento
+  // 6. Ordenamiento en SSR (anon): solo por columnas públicas autorizadas;
+  // el ordenamiento B2B por precio_neto_clp o stock se aplica en cliente (authenticated) tras hidratación
   switch (sort) {
-    case 'precio-asc':
-      query = query.order('precio_neto_clp', { ascending: true });
-      break;
-    case 'precio-desc':
-      query = query.order('precio_neto_clp', { ascending: false });
-      break;
-    case 'stock':
-      query = query.order('stock', { ascending: false });
-      break;
     case 'modelo':
       query = query.order('modelo', { ascending: true });
       break;

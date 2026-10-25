@@ -1,7 +1,11 @@
-﻿node_modules/
+node_modules/
 .next/
 .env
 .env.local
 .venv/
 __pycache__/
 .vercel
+_local_archive/
+frontend/lint.json
+frontend/lint.txt
+backend/scraper/chromium_test.zip
