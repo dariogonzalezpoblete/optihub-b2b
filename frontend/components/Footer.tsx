@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { ShieldCheck, Truck, FileText } from 'lucide-react';
+import { ShieldCheck, Truck, FileText, MessageCircle } from 'lucide-react';
 
 export default function Footer() {
   const { isLoggedIn } = useAuth();
@@ -64,7 +64,7 @@ export default function Footer() {
             </p>
           </div>
 
-          {/* ENLACES ESENCIALES */}
+          {/* ENLACES ESENCIALES Y WHATSAPP */}
           <nav className="flex flex-wrap justify-center items-center gap-6 text-xs font-medium text-[#575551]">
             <Link href="/" className="hover:text-[#111111] transition-colors">
               Inicio
@@ -78,15 +78,28 @@ export default function Footer() {
             <Link href="/carrito" className="hover:text-[#111111] transition-colors">
               Carro
             </Link>
-            <a href="mailto:contacto@optihub.cl" className="hover:text-[#111111] transition-colors">
-              contacto@optihub.cl
+            <a
+              href="https://wa.me/569989338537"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-[#FAF9F6] hover:bg-[#F4EFE6] text-[#111111] border border-[#E5E4DF] hover:border-[#B89768] px-3.5 py-2 rounded-full transition-all font-semibold"
+            >
+              <MessageCircle className="w-3.5 h-3.5 text-[#B89768]" />
+              <span>Soporte Mayorista y Consultas por WhatsApp</span>
             </a>
           </nav>
         </div>
 
         <div className="mt-8 pt-8 border-t border-[#E5E4DF] flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-[#82807A]">
           <p>© {new Date().getFullYear()} OptiHub B2B SpA. Todos los derechos reservados.</p>
-          <p className="font-tech text-[10px]">Huérfanos 1160, Santiago Centro • Región Metropolitana</p>
+          <a
+            href="https://wa.me/569989338537"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-[11px] text-[#575551] hover:text-[#B89768] transition-colors"
+          >
+            WhatsApp Directo: +56 9 9893 38537
+          </a>
         </div>
       </div>
 
