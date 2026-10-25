@@ -1035,6 +1035,26 @@ export async function checkCandidatePreferenceValidity(
       };
     }
 
+    if (
+      isMercadoPagoSandboxMode(mpAccessToken) &&
+      typeof prefData.payer?.email === 'string' &&
+      prefData.payer.email.trim() !== ''
+    ) {
+      const remotePayerEmail = prefData.payer.email.trim().toLowerCase();
+      const expectedTestEmail = resolveSandboxSafePayerEmail(null, mpAccessToken).toLowerCase();
+      if (
+        remotePayerEmail === 'test_user_optihub_b2b@testuser.com' ||
+        (!remotePayerEmail.endsWith('@testuser.com') && remotePayerEmail !== expectedTestEmail)
+      ) {
+        markPreferenceAsInvalidated(cleanPrefId);
+        return {
+          valid: false,
+          status: 'expired',
+          error: 'El payer.email de la preferencia previa no corresponde a un usuario de prueba registrado en Mercado Pago'
+        };
+      }
+    }
+
     // Verificar congruencia de external_reference con la orden
     const cleanExpectedOrderId =
       typeof expectedOrderId === 'string' ? expectedOrderId.trim() : '';
@@ -2147,11 +2167,13 @@ export async function handleCreatePreference(
     });
 
     if (pendingDecision.outcome === 'reuse_existing_preference') {
-      const isSandboxModeActive = isMercadoPagoSandboxMode(getMercadoPagoAccessToken());
+      const activeToken = getMercadoPagoAccessToken();
+      const isSandboxModeActive = isMercadoPagoSandboxMode(activeToken);
+      const expectsSandboxDomain = activeToken.startsWith('TEST-');
       const candidateInitPoint = String(pendingDecision.order.init_point || '');
-      const isCandidateSandbox = candidateInitPoint.includes('sandbox.mercadopago.cl');
+      const isCandidateSandboxDomain = candidateInitPoint.includes('sandbox.mercadopago.cl');
 
-      if (isSandboxModeActive === isCandidateSandbox) {
+      if (expectsSandboxDomain === isCandidateSandboxDomain) {
         return NextResponse.json({
           id: pendingDecision.order.preference_id,
           initPoint: pendingDecision.order.init_point,

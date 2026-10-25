@@ -112,16 +112,24 @@ export function validateMercadoPagoEnvironmentConsistency(
 }
 
 /**
+ * Official registered Mercado Pago Test Buyer email (site_id: MLC) created via
+ * POST https://api.mercadopago.com/users/test_user for B2B Sandbox testing.
+ * Using an unregistered @testuser.com string or a real user email when the seller
+ * is a Test User causes Mercado Pago to reject the checkout.
+ */
+export const DEFAULT_MP_REGISTERED_TEST_PAYER_EMAIL = 'test_user_6657000377108884466@testuser.com';
+
+/**
  * Resolves a safe payer email for Mercado Pago Preference creation.
  *
  * CRITICAL FIX FOR SANDBOX:
- * In Mercado Pago Checkout Pro, if the seller uses Sandbox/Test credentials (TEST-...)
- * and `payer.email` in the preference payload is a real user's email (or the seller's own email),
- * Mercado Pago blocks the checkout with:
+ * In Mercado Pago Checkout Pro, if the seller uses Sandbox/Test credentials (TEST-... or
+ * APP_USR-... belonging to a Test User) and `payer.email` in the preference payload is a
+ * real user's email or an unregistered fake email, Mercado Pago blocks the checkout with:
  * "Una de las partes con la que intentas hacer el pago es de prueba".
  *
- * In Sandbox mode, this function maps `payer.email` to `MP_TEST_PAYER_EMAIL` or a neutral
- * `@testuser.com` test buyer address unless `customerEmail` is already a `@testuser.com` email.
+ * In Sandbox mode, this function maps `payer.email` to `MP_TEST_PAYER_EMAIL` or the
+ * registered `@testuser.com` test buyer address (`DEFAULT_MP_REGISTERED_TEST_PAYER_EMAIL`).
  * The real customer email remains stored in Supabase `orders.customer_email` for B2B invoicing.
  */
 export function resolveSandboxSafePayerEmail(
@@ -136,10 +144,13 @@ export function resolveSandboxSafePayerEmail(
     if (configuredTestPayer) {
       return configuredTestPayer;
     }
-    if (cleanCustomerEmail.toLowerCase().endsWith('@testuser.com')) {
+    if (
+      cleanCustomerEmail.toLowerCase().endsWith('@testuser.com') &&
+      cleanCustomerEmail.toLowerCase() !== 'test_user_optihub_b2b@testuser.com'
+    ) {
       return cleanCustomerEmail;
     }
-    return 'test_user_optihub_b2b@testuser.com';
+    return DEFAULT_MP_REGISTERED_TEST_PAYER_EMAIL;
   }
 
   return cleanCustomerEmail || 'cliente@optihub.cl';
@@ -147,15 +158,18 @@ export function resolveSandboxSafePayerEmail(
 
 /**
  * Selects the appropriate redirect URL from a Mercado Pago preference response.
- * Strictly prioritizes `sandbox_init_point` when running in Sandbox / TEST- mode.
+ * - `sandbox_init_point` (`sandbox.mercadopago.cl`) is strictly for legacy `TEST-` tokens.
+ * - `init_point` (`www.mercadopago.cl`) must be used for `APP_USR-` tokens (including
+ *   Mercado Pago Test User `APP_USR-` credentials in Sandbox mode, because `sandbox.mercadopago.cl`
+ *   fails when submitting cards for `APP_USR-` preferences).
  */
 export function resolvePreferenceInitPoint(
   prefResponse: { init_point?: string; sandbox_init_point?: string } | null | undefined,
   customToken?: string
 ): string {
   if (!prefResponse) return '';
-  const isSandbox = isMercadoPagoSandboxMode(customToken);
-  if (isSandbox) {
+  const token = getMercadoPagoAccessToken(customToken);
+  if (token.startsWith('TEST-')) {
     return prefResponse.sandbox_init_point || prefResponse.init_point || '';
   }
   return prefResponse.init_point || prefResponse.sandbox_init_point || '';
