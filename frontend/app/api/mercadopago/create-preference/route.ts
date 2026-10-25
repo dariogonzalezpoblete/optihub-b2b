@@ -23,6 +23,7 @@ import {
   resolveSandboxSafePayerEmail,
   resolvePreferenceInitPoint,
   validateMercadoPagoEnvironmentConsistency,
+  isMercadoPagoSandboxMode,
 } from '@/lib/mercadopago';
 
 export {
@@ -2146,11 +2147,55 @@ export async function handleCreatePreference(
     });
 
     if (pendingDecision.outcome === 'reuse_existing_preference') {
-      return NextResponse.json({
-        id: pendingDecision.order.preference_id,
-        initPoint: pendingDecision.order.init_point,
-        orderId: pendingDecision.order.id
+      const isSandboxModeActive = isMercadoPagoSandboxMode(getMercadoPagoAccessToken());
+      const candidateInitPoint = String(pendingDecision.order.init_point || '');
+      const isCandidateSandbox = candidateInitPoint.includes('sandbox.mercadopago.cl');
+
+      if (isSandboxModeActive === isCandidateSandbox) {
+        return NextResponse.json({
+          id: pendingDecision.order.preference_id,
+          initPoint: pendingDecision.order.init_point,
+          orderId: pendingDecision.order.id,
+          sandboxMode: isSandboxModeActive,
+        });
+      }
+
+      // El entorno cambió (ej. se activó MP_SANDBOX_MODE): regenerar preferencia para esta misma orden
+      const candidateOrder = pendingDecision.order;
+      const pref = await createMpPreference({
+        orderId: candidateOrder.id,
+        customerName: candidateOrder.customer_name || billing.contacto_nombre || 'Cliente B2B',
+        customerEmail: candidateOrder.customer_email || billing.contacto_email || user.email || '',
+        orderItems: pendingDecision.candidateItems,
+        taxAmount: Number(candidateOrder.tax_amount),
+        siteUrl
       });
+
+      const leaseBeforePersist = await verifyUserCheckoutLease(supabaseAdmin, verifiedUserId, leaseId);
+      if (!leaseBeforePersist.valid) {
+        await invalidateCandidateOrderPreference(pref.id, getMercadoPagoAccessToken());
+        return NextResponse.json(
+          {
+            error: 'Tu reserva de pago expiró mientras se generaba la pasarela. Por favor intenta nuevamente.',
+            code: leaseBeforePersist.code
+          },
+          { status: 409 }
+        );
+      }
+
+      const result = await persistPreferenceAtomic(
+        supabaseAdmin,
+        candidateOrder.id,
+        pref.id,
+        pref.paymentUrl,
+        {
+          userId: verifiedUserId,
+          leaseId,
+          expectedStalePreferenceId: candidateOrder.preference_id
+        }
+      );
+
+      return NextResponse.json(result);
     }
 
     if (pendingDecision.outcome === 'recover_missing_preference') {
