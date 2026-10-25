@@ -7,18 +7,12 @@ import {
   ArrowRight, 
   Building2, 
   Sparkles, 
-  Lock, 
-  Glasses, 
-  ShieldCheck, 
-  Truck
+  Lock
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import HeroSpotlight from '@/components/home/HeroSpotlight';
-import AuthenticityBanner from '@/components/home/AuthenticityBanner';
-import ImportSteps from '@/components/home/ImportSteps';
 import RecentlyViewed from '@/components/catalog/RecentlyViewed';
-import MoqProgressBar from '@/components/catalog/MoqProgressBar';
 
 interface MarcoDestacado {
   id_ext: string;
@@ -93,26 +87,21 @@ export default function Home() {
   }, [destacados, activeFilter]);
 
   return (
-    <div className="min-h-screen bg-[#F7F6F2] text-[#111111] overflow-x-hidden">
+    <div className="bg-[#F7F6F2] text-[#111111] overflow-x-hidden">
       
-      {/* 1. SECCIÓN HERO EDITORIAL CON VITRINA 3D */}
+      {/* 1. SECCIÓN HERO EDITORIAL */}
       <section className="relative pt-6 sm:pt-10 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        
-        {/* Glow de acento champagne sutil */}
-        <div className="absolute top-1/4 left-1/3 -translate-x-1/2 w-[600px] h-[300px] bg-[#B89768]/6 blur-[120px] rounded-full pointer-events-none -z-10" />
-
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
           
-          {/* Columna Izquierda: Mensaje Central B2B (7 columnas) */}
-          <div className="lg:col-span-7 bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl p-8 sm:p-12 flex flex-col justify-between shadow-xs relative overflow-hidden">
-            
-            <div className="relative z-10">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F7F3EB] border border-[#B89768]/30 text-[#9E7D4F] text-xs font-semibold tracking-wider uppercase mb-6">
+          {/* Mensaje Central B2B (7 columnas) */}
+          <div className="lg:col-span-7 bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl p-8 sm:p-12 flex flex-col justify-between shadow-xs">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#FAF9F6] border border-[#E5E4DF] text-[#9E7D4F] text-xs font-semibold tracking-wider uppercase mb-6">
                 <Sparkles className="w-3.5 h-3.5 text-[#B89768]" />
-                <span>Maison de Distribución B2B para Ópticas</span>
+                <span>Distribución Exclusiva B2B para Ópticas</span>
               </div>
 
-              <h1 className="font-editorial text-3xl sm:text-5xl lg:text-6xl font-normal text-[#111111] tracking-tight leading-[1.08]">
+              <h1 className="font-editorial text-4xl sm:text-5xl lg:text-6xl font-normal text-[#111111] tracking-tight leading-[1.08]">
                 Catálogo Mayorista de Armazones de <span className="text-[#B89768] italic font-serif">Alta Gama</span>
               </h1>
 
@@ -121,8 +110,8 @@ export default function Home() {
               </p>
             </div>
 
-            {/* CTAs y Resumen de Métricas */}
-            <div className="relative z-10 mt-10 pt-8 border-t border-[#E5E4DF] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+            {/* CTAs y Métricas */}
+            <div className="mt-10 pt-8 border-t border-[#E5E4DF] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
               <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                 <Link
                   href="/catalogo"
@@ -143,7 +132,7 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Métricas clave técnicas */}
+              {/* Métricas clave */}
               <div className="flex items-center gap-6 text-xs text-[#575551] font-semibold">
                 <div>
                   <span className="block text-2xl font-bold text-[#111111] font-tech">10 un.</span>
@@ -156,10 +145,9 @@ export default function Home() {
                 </div>
               </div>
             </div>
-
           </div>
 
-          {/* Columna Derecha: Vitrina Interactiva de Monturas (5 columnas) */}
+          {/* Vitrina Interactiva de Monturas (5 columnas) */}
           <div className="lg:col-span-5 min-h-[460px]">
             <HeroSpotlight />
           </div>
@@ -167,12 +155,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 2. BARRA DE MOQ VISUAL */}
-      <section className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto mb-10">
-        <MoqProgressBar variant="banner" isLoggedIn={isLoggedIn} />
-      </section>
-
-      {/* 3. CATEGORÍAS B2B CON FOTOGRAFÍA EDITORIAL */}
+      {/* 2. LÍNEAS PRINCIPALES (OFTÁLMICOS Y SOLARES) */}
       <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-8 pb-4 border-b border-[#E5E4DF]">
           <div>
@@ -180,7 +163,7 @@ export default function Home() {
               Curaduría por Especialidad
             </span>
             <h2 className="font-editorial text-3xl font-semibold text-[#111111] tracking-tight">
-              Líneas Principales para Vitrina Óptica
+              Líneas para Vitrina Óptica
             </h2>
           </div>
           <Link
@@ -192,9 +175,8 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          
-          {/* Card Oftálmicos con Imagen de Fondo Editorial */}
-          <div className="group relative rounded-3xl overflow-hidden border border-[#E5E4DF] min-h-[380px] p-8 sm:p-10 flex flex-col justify-between shadow-xs hover:border-[#B89768] transition-all duration-500 bg-[#FFFFFF]">
+          {/* Card Oftálmicos */}
+          <div className="group relative rounded-3xl overflow-hidden border border-[#E5E4DF] min-h-[340px] p-8 sm:p-10 flex flex-col justify-between shadow-xs hover:border-[#B89768] transition-all duration-500 bg-[#FFFFFF]">
             <div className="absolute inset-0 -z-10">
               <Image
                 src="https://images.unsplash.com/photo-1591076482161-42ce6da69f67?auto=format&fit=crop&w=1200&q=80"
@@ -214,19 +196,14 @@ export default function Home() {
                 Monturas Oftálmicas
               </h3>
               <p className="text-[#E5E4DF] text-sm mt-3 leading-relaxed max-w-md font-sans">
-                Armazones graduables en acetato de celulosa, titanio y aleaciones de alta precisión. Listos para montaje de cristales monofocales y progresivos de alta gama.
+                Armazones graduables en acetato de celulosa, titanio y aleaciones ligeras diseñados para cristales de alta gama.
               </p>
             </div>
 
             <div className="pt-6 border-t border-white/20 flex items-center justify-between">
-              <div className="flex gap-2">
-                <span className="text-[10px] bg-white/10 border border-white/20 px-2.5 py-1 rounded-md text-white font-medium">
-                  Acetato Premium
-                </span>
-                <span className="text-[10px] bg-white/10 border border-white/20 px-2.5 py-1 rounded-md text-white font-medium">
-                  Titanio Ligero
-                </span>
-              </div>
+              <span className="text-[10px] text-white/80 font-mono">
+                Acetato Premium • Titanio
+              </span>
               <Link
                 href="/catalogo?q=optico"
                 className="inline-flex items-center gap-2 text-xs font-bold text-white hover:text-[#B89768] uppercase tracking-wider transition"
@@ -237,8 +214,8 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Card Solares con Imagen de Fondo Editorial */}
-          <div className="group relative rounded-3xl overflow-hidden border border-[#E5E4DF] min-h-[380px] p-8 sm:p-10 flex flex-col justify-between shadow-xs hover:border-[#B89768] transition-all duration-500 bg-[#FFFFFF]">
+          {/* Card Solares */}
+          <div className="group relative rounded-3xl overflow-hidden border border-[#E5E4DF] min-h-[340px] p-8 sm:p-10 flex flex-col justify-between shadow-xs hover:border-[#B89768] transition-all duration-500 bg-[#FFFFFF]">
             <div className="absolute inset-0 -z-10">
               <Image
                 src="https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=1200&q=80"
@@ -258,19 +235,14 @@ export default function Home() {
                 Lentes de Sol
               </h3>
               <p className="text-[#E5E4DF] text-sm mt-3 leading-relaxed max-w-md font-sans">
-                Gafas solares con cristales polarizados y protección total contra radiación solar. Siluetas icónicas de firmas internacionales con estuche original garantizado.
+                Gafas solares con cristales polarizados y protección total contra radiación solar de firmas mundiales.
               </p>
             </div>
 
             <div className="pt-6 border-t border-white/20 flex items-center justify-between">
-              <div className="flex gap-2">
-                <span className="text-[10px] bg-white/10 border border-white/20 px-2.5 py-1 rounded-md text-white font-medium">
-                  Polarizados
-                </span>
-                <span className="text-[10px] bg-white/10 border border-white/20 px-2.5 py-1 rounded-md text-white font-medium">
-                  Filtro UV400
-                </span>
-              </div>
+              <span className="text-[10px] text-white/80 font-mono">
+                Polarizados • UV400
+              </span>
               <Link
                 href="/catalogo?q=sol"
                 className="inline-flex items-center gap-2 text-xs font-bold text-white hover:text-[#B89768] uppercase tracking-wider transition"
@@ -280,18 +252,16 @@ export default function Home() {
               </Link>
             </div>
           </div>
-
         </div>
       </section>
 
-      {/* 4. ARMAZONES DESTACADOS CON FILTROS EN TIEMPO REAL (TARJETAS BLANCAS IMPECABLES) */}
+      {/* 3. ARMAZONES SELECCIONADOS (TARJETAS BLANCAS CON FOTOGRAFÍA DESTACADA) */}
       <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 pb-4 border-b border-[#E5E4DF]">
           <div>
-            <div className="inline-flex items-center gap-2 text-xs font-bold text-[#B89768] uppercase tracking-wider mb-2">
-              <span className="w-2 h-2 rounded-full bg-[#B89768]" />
+            <span className="text-xs font-bold text-[#B89768] uppercase tracking-wider mb-2 block font-mono">
               Disponibilidad Inmediata en Origen
-            </div>
+            </span>
             <h2 className="font-editorial text-3xl font-semibold text-[#111111] tracking-tight">
               Armazones Seleccionados del Catálogo
             </h2>
@@ -343,7 +313,7 @@ export default function Home() {
                 href={`/producto/${encodeURIComponent(marco.marca)}/${encodeURIComponent(marco.modelo)}`}
                 className="bg-[#FFFFFF] border border-[#E5E4DF] hover:border-[#B89768] rounded-2xl overflow-hidden group transition-all duration-300 hover:-translate-y-1 hover:shadow-lg flex flex-col justify-between"
               >
-                {/* Imagen limpia del marco */}
+                {/* Imagen limpia del marco sobre blanco puro */}
                 <div className="relative aspect-[4/3] bg-[#FFFFFF] flex items-center justify-center p-4 overflow-hidden border-b border-[#E5E4DF]">
                   <Image
                     unoptimized
@@ -402,31 +372,24 @@ export default function Home() {
             href="/catalogo"
             className="btn-secondary !py-3.5 !px-8 text-xs font-bold"
           >
-            <span>Ver los más de 400 modelos en el catálogo</span>
+            <span>Ver los más de 1.000 modelos en el catálogo</span>
             <ArrowRight className="w-4 h-4 ml-1 text-[#B89768]" />
           </Link>
         </div>
       </section>
 
-      {/* 5. GARANTÍA DE AUTENTICIDAD Y EMPAQUE OFICIAL */}
-      <AuthenticityBanner />
-
-      {/* 6. PROCESO DE IMPORTACIÓN TRANSPARENTE (PASO A PASO) */}
-      <ImportSteps />
-
-      {/* 7. VISTOS RECIENTEMENTE */}
+      {/* 4. VISTOS RECIENTEMENTE */}
       <RecentlyViewed />
 
-      {/* 8. BANNER FINAL CTA DE CONVERSIÓN EN NEGRO OBSIDIANA DE ALTA GAMA */}
+      {/* 5. BANNER FINAL CTA DE CONVERSIÓN MINIMALISTA */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="relative bg-[#111111] border border-[#242424] rounded-3xl p-8 sm:p-14 text-center sm:text-left flex flex-col md:flex-row items-center justify-between gap-8 shadow-xl overflow-hidden text-white">
-          
+        <div className="relative bg-[#111111] border border-[#242424] rounded-3xl p-8 sm:p-12 text-center sm:text-left flex flex-col md:flex-row items-center justify-between gap-8 shadow-xl overflow-hidden text-white">
           <div className="max-w-xl">
             <span className="text-xs font-bold text-[#B89768] uppercase tracking-widest block mb-2 font-mono">
               Distribución Exclusiva Mayorista
             </span>
             <h2 className="font-editorial text-3xl sm:text-4xl font-normal text-white tracking-tight">
-              Abastece tu óptica con precios mayoristas directos
+              Abastece tu óptica con precios directos de fábrica
             </h2>
             <p className="text-[#E5E4DF] text-sm mt-3 leading-relaxed font-sans">
               Crea tu cuenta comercial en segundos para ver precios netos y comenzar tu orden de 10 armazones combinables.
@@ -436,20 +399,19 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto flex-shrink-0">
             <Link
               href="/catalogo"
-              className="btn-champagne px-8 py-4 text-center"
+              className="btn-champagne px-8 py-3.5 text-center"
             >
               Explorar Catálogo
             </Link>
             {!isLoggedIn && (
               <Link
                 href="/registro"
-                className="btn-secondary !bg-[#242424] !text-white !border-[#3A3936] hover:!border-[#B89768] px-8 py-4 text-center"
+                className="btn-secondary !bg-[#242424] !text-white !border-[#3A3936] hover:!border-[#B89768] px-8 py-3.5 text-center"
               >
                 Registrar mi Óptica
               </Link>
             )}
           </div>
-
         </div>
       </section>
 

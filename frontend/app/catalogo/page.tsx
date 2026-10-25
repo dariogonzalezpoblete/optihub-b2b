@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import type { Metadata } from 'next';
 import { supabase } from '@/lib/supabaseClient';
 import CatalogoClient from '@/components/catalog/CatalogoClient';
 import { normalizeText } from '@/lib/catalog/normalize';
@@ -8,6 +9,39 @@ import { MARCOS_FACET_PUBLIC_COLUMNS, MARCOS_PUBLIC_COLUMNS } from '@/lib/catalo
 // Renderizado dinámico inmediato para reflejar cambios de stock y nuevas marcas al instante
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const BASE_URL = process.env.SITE_URL || 'https://optihub-b2b.vercel.app';
+
+export const metadata: Metadata = {
+  title: 'Catálogo Mayorista de Armazones y Gafas de Sol',
+  description: 'Catálogo mayorista de armazones graduables y lentes de sol de primeras marcas para ópticas en Chile. Precios netos en CLP, stock en origen y compra mínima de 10 unidades combinables.',
+  alternates: {
+    canonical: `${BASE_URL}/catalogo`,
+  },
+  openGraph: {
+    title: 'Catálogo Mayorista de Armazones y Gafas de Sol | OptiHub',
+    description: 'Importación directa desde EE.UU. con stock verificado en origen en tiempo real. Precios netos en CLP y entrega en 10 a 15 días hábiles.',
+    url: `${BASE_URL}/catalogo`,
+    siteName: 'OptiHub B2B',
+    locale: 'es_CL',
+    type: 'website',
+  },
+};
+
+function CatalogSkeleton() {
+  return (
+    <div className="min-h-screen bg-[#F7F6F2] py-10 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-8 animate-pulse">
+        <div className="h-28 bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-6" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <div key={n} className="h-80 bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default async function CatalogoPage({
   searchParams,
@@ -23,21 +57,11 @@ export default async function CatalogoPage({
   const q = (params.q as string) || '';
   const sort = (params.sort as string) || 'relevancia';
 
-  // 2. Consulta de metadatos globales de TODO el inventario con stock activo en Supabase
-  // Usamos lectura paginada para asegurar que el 100% de los armazones alimenten las facetas
-  const allFacetItems: any[] = [];
-  let facetOffset = 0;
-  const facetChunkSize = 1000;
-  while (true) {
-    const { data: chunk, error: chunkErr } = await supabase
-      .from('marcos')
-      .select(MARCOS_FACET_PUBLIC_COLUMNS)
-      .range(facetOffset, facetOffset + facetChunkSize - 1);
-    if (chunkErr || !chunk || chunk.length === 0) break;
-    allFacetItems.push(...chunk);
-    if (chunk.length < facetChunkSize) break;
-    facetOffset += facetChunkSize;
-  }
+  // 2. Consulta optimizada en una sola llamada de metadatos globales para facetas
+  const { data: allFacetItems } = await supabase
+    .from('marcos')
+    .select(MARCOS_FACET_PUBLIC_COLUMNS)
+    .limit(2500);
 
   const facetList = (allFacetItems || []).filter(
     (item) => !isFillerBrand(item.marca) && item.marca && item.marca.toLowerCase() !== 'select'
@@ -126,8 +150,7 @@ export default async function CatalogoPage({
     }
   }
 
-  // 6. Ordenamiento en SSR (anon): solo por columnas públicas autorizadas;
-  // el ordenamiento B2B por precio_neto_clp o stock se aplica en cliente (authenticated) tras hidratación
+  // 6. Ordenamiento en SSR (anon): solo por columnas públicas autorizadas
   switch (sort) {
     case 'modelo':
       query = query.order('modelo', { ascending: true });
@@ -152,7 +175,7 @@ export default async function CatalogoPage({
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">Cargando catálogo OptiHub...</div>}>
+    <Suspense fallback={<CatalogSkeleton />}>
       <CatalogoClient 
         initialMarcos={marcos} 
         totalCount={total} 
