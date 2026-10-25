@@ -18,6 +18,12 @@ import {
   getRuntimeEnvironment,
   type CheckoutPreferenceGuardOptions
 } from '@/lib/env/runtimeEnv';
+import {
+  getMercadoPagoAccessToken,
+  resolveSandboxSafePayerEmail,
+  resolvePreferenceInitPoint,
+  validateMercadoPagoEnvironmentConsistency,
+} from '@/lib/mercadopago';
 
 export {
   classifyCheckoutRpcFailureForRecovery,
@@ -311,9 +317,21 @@ export async function createMpPreference({
   injectedPreferenceClient?: any;
   invalidatePreference?: (preferenceId: string) => Promise<{ success: boolean; error?: string }>;
 }): Promise<{ id: string; paymentUrl: string }> {
-  const mpAccessToken = process.env.MP_ACCESS_TOKEN || '';
+  const mpAccessToken = getMercadoPagoAccessToken();
   if (!mpAccessToken && !injectedPreferenceClient) {
     throw new Error('Falta configuración de Mercado Pago en el servidor.');
+  }
+
+  const envConsistency = validateMercadoPagoEnvironmentConsistency(mpAccessToken);
+  if (!envConsistency.valid && !injectedPreferenceClient) {
+    const mismatchErr = new Error(
+      envConsistency.warning || 'Conflicto de credenciales entre entorno de prueba (TEST-) y producción (APP_USR-).'
+    );
+    (mismatchErr as any).status = 500;
+    throw mismatchErr;
+  }
+  if (envConsistency.warning) {
+    console.warn(`[CreatePref] ${envConsistency.warning}`);
   }
 
   const checkoutGuard = checkCheckoutPreferenceAllowed({
@@ -368,17 +386,22 @@ export async function createMpPreference({
   let timeoutId: NodeJS.Timeout | undefined;
 
   const isHttps = siteUrl.startsWith('https://');
+  const safePayerEmail = resolveSandboxSafePayerEmail(customerEmail, mpAccessToken);
   const preferenceBody: any = {
     items: mpItems,
     external_reference: orderId,
     payer: {
       name: (customerName || '').trim() || 'Cliente B2B',
-      email: (customerEmail || '').trim() || 'cliente@optihub.cl',
+      email: safePayerEmail,
     },
     back_urls: {
       success: `${siteUrl}/checkout/resultado?status=approved&ref=${orderId}`,
       failure: `${siteUrl}/checkout/resultado?status=failure&ref=${orderId}`,
       pending: `${siteUrl}/checkout/resultado?status=pending&ref=${orderId}`,
+    },
+    metadata: {
+      order_id: orderId,
+      customer_email: (customerEmail || '').trim() || null,
     },
     expires: true,
     expiration_date_to: expirationDateTo,
@@ -440,11 +463,7 @@ export async function createMpPreference({
     }
   }
 
-  const isTestToken = (process.env.MP_ACCESS_TOKEN || '').startsWith('TEST-');
-  const isSandboxRequested = process.env.MP_SANDBOX_MODE === 'true';
-  const paymentUrl = (isTestToken || isSandboxRequested)
-    ? (prefResponse?.sandbox_init_point || prefResponse?.init_point)
-    : (prefResponse?.init_point || prefResponse?.sandbox_init_point);
+  const paymentUrl = resolvePreferenceInitPoint(prefResponse, mpAccessToken);
 
   if (!prefResponse?.id || !paymentUrl) {
     throw new Error('Mercado Pago devolvió una Preference incompleta.');
@@ -485,7 +504,7 @@ export async function persistPreferenceAtomic(
     expectedStalePreferenceId?: string | null;
   }
 ): Promise<{ id: string; initPoint: string; orderId: string }> {
-  const mpAccessToken = options?.mpAccessToken ?? process.env.MP_ACCESS_TOKEN ?? '';
+  const mpAccessToken = options?.mpAccessToken ?? getMercadoPagoAccessToken();
   const invalidateFn =
     options?.invalidatePreference ??
     (mpAccessToken || options?.injectedPreferenceClient
@@ -1005,11 +1024,7 @@ export async function checkCandidatePreferenceValidity(
     }
 
     // Verificar existencia de un init_point utilizable
-    const isTestToken = (process.env.MP_ACCESS_TOKEN || '').startsWith('TEST-');
-    const isSandboxRequested = process.env.MP_SANDBOX_MODE === 'true';
-    const usableInitPoint = (isTestToken || isSandboxRequested)
-      ? (prefData.sandbox_init_point || prefData.init_point)
-      : (prefData.init_point || prefData.sandbox_init_point);
+    const usableInitPoint = resolvePreferenceInitPoint(prefData, mpAccessToken);
 
     if (typeof usableInitPoint !== 'string' || usableInitPoint.trim() === '') {
       return {
@@ -1539,7 +1554,7 @@ export async function restorePendingOrdersAfterFailedReplacement({
     if (!prefId) return;
     const invFn =
       invalidatePreference ||
-      ((id: string) => invalidateCandidateOrderPreference(id, process.env.MP_ACCESS_TOKEN || ''));
+      ((id: string) => invalidateCandidateOrderPreference(id, getMercadoPagoAccessToken()));
     try {
       const invRes = await invFn(prefId);
       if (invRes?.success) {
@@ -2114,13 +2129,13 @@ export async function handleCreatePreference(
       matchesOrder: (candidateOrder, candidateItems) =>
         matchesCandidateOrder(candidateOrder, candidateItems, itemsPayload, cartCalc),
       checkPaymentStatus: (candidateOrderId: string) =>
-        checkCandidateOrderPaymentStatus(candidateOrderId, process.env.MP_ACCESS_TOKEN!),
+        checkCandidateOrderPaymentStatus(candidateOrderId, getMercadoPagoAccessToken()),
       invalidatePreference: (preferenceId: string) =>
-        invalidateCandidateOrderPreference(preferenceId, process.env.MP_ACCESS_TOKEN!),
+        invalidateCandidateOrderPreference(preferenceId, getMercadoPagoAccessToken()),
       checkPreferenceValidity: (preferenceId: string, expectedOrdId?: string) =>
         checkCandidatePreferenceValidity(
           preferenceId,
-          process.env.MP_ACCESS_TOKEN!,
+          getMercadoPagoAccessToken(),
           7000,
           undefined,
           requestNowMs,
@@ -2163,7 +2178,7 @@ export async function handleCreatePreference(
 
         const leaseBeforePersistRecover = await verifyUserCheckoutLease(supabaseAdmin, verifiedUserId, leaseId);
         if (!leaseBeforePersistRecover.valid) {
-          await invalidateCandidateOrderPreference(pref.id, process.env.MP_ACCESS_TOKEN!);
+          await invalidateCandidateOrderPreference(pref.id, getMercadoPagoAccessToken());
           return NextResponse.json(
             {
               error: 'Tu reserva de pago expiró mientras se generaba la pasarela. Por favor intenta nuevamente.',
@@ -2320,7 +2335,7 @@ export async function handleCreatePreference(
         preferencesToInvalidate,
         ordersToReplace: priorOrdersSnapshot,
         invalidatePreference: (preferenceId: string) =>
-          invalidateCandidateOrderPreference(preferenceId, process.env.MP_ACCESS_TOKEN!)
+          invalidateCandidateOrderPreference(preferenceId, getMercadoPagoAccessToken())
       });
 
       detachedOrders = invalidationOutcome.detachedOrders;
@@ -2564,7 +2579,7 @@ export async function handleCreatePreference(
       // No confiar únicamente en el Set en memoria: verificar siempre la preferencia en Mercado Pago
       const existingPrefValidity = await checkCandidatePreferenceValidity(
         orderData.preference_id,
-        process.env.MP_ACCESS_TOKEN!,
+        getMercadoPagoAccessToken(),
         7000,
         undefined,
         requestNowMs,
@@ -2631,7 +2646,7 @@ export async function handleCreatePreference(
 
       const leaseBeforePersistNewPref = await verifyUserCheckoutLease(supabaseAdmin, verifiedUserId, leaseId);
       if (!leaseBeforePersistNewPref.valid) {
-        await invalidateCandidateOrderPreference(pref.id, process.env.MP_ACCESS_TOKEN!);
+        await invalidateCandidateOrderPreference(pref.id, getMercadoPagoAccessToken());
         return NextResponse.json(
           {
             error: 'Tu reserva de pago expiró mientras se generaba la pasarela. Por favor intenta nuevamente.',

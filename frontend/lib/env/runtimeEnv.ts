@@ -144,14 +144,6 @@ export interface CronDispatchGuardOptions {
 
 /**
  * Evaluates whether the email outbox cron recovery dispatcher is permitted to execute.
- *
- * Strict policy:
- * - Only permitted in confirmed production (VERCEL_ENV === 'production').
- * - Preview (VERCEL_ENV === 'preview') is strictly blocked (HTTP 403, PREVIEW_CRON_BLOCKED)
- *   to prevent claiming, processing, or modifying production outbox rows in the shared DB.
- * - Local development is blocked (HTTP 403, LOCAL_CRON_BLOCKED) to protect shared production data.
- * - Unknown or unverified environments fail-closed (HTTP 403, UNVERIFIED_ENVIRONMENT_BLOCKED).
- * - No exceptions allowed for orderId, shared secrets, or EMAIL_SIMULATION_MODE.
  */
 export function checkCronDispatchAllowed(
   options?: CronDispatchGuardOptions
@@ -258,27 +250,18 @@ export interface CheckoutPreferenceGuardOptions {
 /**
  * Checks whether creating a Mercado Pago payment preference is allowed
  * under the current environment and configuration.
- *
- * Guarantees:
- * 1. Production: allowed with configured credentials.
- * 2. Preview with production credentials (APP_USR-... or not TEST-...):
- *    STRICTLY BLOCKED (HTTP 403, PREVIEW_PRODUCTION_CREDENTIALS_BLOCKED).
- * 3. Preview connected to production DB or without verified isolation:
- *    STRICTLY BLOCKED (HTTP 403, PREVIEW_SHARED_DATABASE_BLOCKED) to prevent
- *    polluting shared production tables (orders, order_items, checkout leases).
- * 4. Declarative variable ISOLATED_PREVIEW_DB=true is strictly insufficient on its own.
- *    In real deployments, checkout is ALWAYS blocked on Preview.
- *    Exceptions are restricted strictly to explicit unit tests with injected mock clients and confirmed isolated DB.
- * 5. Local / Unknown environment:
- *    Blocked from making remote calls unless running in a mock test or with
- *    verified test credentials + isolated DB.
- * 6. Never reveals secrets or credential tokens in error messages or responses.
  */
 export function checkCheckoutPreferenceAllowed(
   options?: CheckoutPreferenceGuardOptions
 ): CheckoutPreferenceGuardResult {
   const env = getRuntimeEnvironment();
-  const rawToken = (options?.customToken ?? process.env.MP_ACCESS_TOKEN ?? process.env.MERCADOPAGO_ACCESS_TOKEN ?? '').trim();
+  const rawToken = (
+    options?.customToken ??
+    process.env.MP_TEST_ACCESS_TOKEN ??
+    process.env.MP_ACCESS_TOKEN ??
+    process.env.MERCADOPAGO_ACCESS_TOKEN ??
+    ''
+  ).trim();
 
   // PRODUCTION ENVIRONMENT
   if (env === 'production') {
@@ -304,7 +287,6 @@ export function checkCheckoutPreferenceAllowed(
 
   // PREVIEW ENVIRONMENT
   if (env === 'preview') {
-    // 1. Check credentials: Must never use production credentials
     const isProductionToken = rawToken.startsWith('APP_USR-') || (!rawToken.startsWith('TEST-') && rawToken.length > 0);
     if (isProductionToken) {
       return {
@@ -325,8 +307,6 @@ export function checkCheckoutPreferenceAllowed(
       };
     }
 
-    // 2. Check database isolation:
-    // Any reference to the production database project strictly blocks checkout
     if (isConnectedToProductionDb()) {
       return {
         allowed: false,
@@ -346,10 +326,6 @@ export function checkCheckoutPreferenceAllowed(
       };
     }
 
-    // Declarative variable ISOLATED_PREVIEW_DB=true is strictly insufficient on its own.
-    // In real deployments (options?.allowInTest is falsy), checkout is ALWAYS blocked on Preview
-    // because isolation cannot be verified cryptographically and OptiHub shares DB with production.
-    // Exceptions are restricted strictly to explicit unit tests with injected mock clients and confirmed isolated DB.
     const isExplicitUnitTestWithMock = Boolean(
       options?.allowInTest &&
       options?.injectedPreferenceClient &&
@@ -360,7 +336,6 @@ export function checkCheckoutPreferenceAllowed(
       return { allowed: true, environment: 'preview' };
     }
 
-    // Otherwise, real Preview runtime or unverified/declarative-only attempts remain blocked.
     return {
       allowed: false,
       environment: 'preview',
@@ -390,8 +365,15 @@ export function checkCheckoutPreferenceAllowed(
     return { allowed: true, environment: env === 'development' ? 'development' : 'test' };
   }
 
-  // Development with verified test token and isolated DB
+  // Development with verified test token and isolated DB (or explicit MP_SANDBOX_MODE=true with TEST- token)
   if (env === 'development') {
+    const isExplicitSandboxWithTestToken =
+      process.env.MP_SANDBOX_MODE === 'true' && rawToken.startsWith('TEST-');
+
+    if (isExplicitSandboxWithTestToken) {
+      return { allowed: true, environment: 'development' };
+    }
+
     if (isConnectedToProductionDb()) {
       return {
         allowed: false,

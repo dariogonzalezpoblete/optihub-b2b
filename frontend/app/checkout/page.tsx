@@ -3,24 +3,31 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCartStore } from '@/store/useCartStore';
+import { useCartStore, getProductCartKey } from '@/store/useCartStore';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { isValidRUT, formatRUT } from '@/lib/utils/rut';
 import { ensureCartSynced } from '@/lib/cartService';
-import { 
-  Building2, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  FileText, 
-  ShieldCheck, 
-  ArrowLeft, 
-  CreditCard, 
+import { getMercadoPagoPublicKey, isMercadoPagoSandboxMode } from '@/lib/mercadopago';
+import {
+  Building2,
+  MapPin,
+  Phone,
+  Mail,
+  FileText,
+  ShieldCheck,
+  ArrowLeft,
+  ArrowRight,
+  CreditCard,
   AlertCircle,
   Truck,
   Lock,
-  Check 
+  Check,
+  CheckCircle2,
+  Package,
+  Sparkles,
+  X,
+  UserCheck,
 } from 'lucide-react';
 
 const REGIONES_CHILE = [
@@ -31,7 +38,7 @@ const REGIONES_CHILE = [
   'Región de Atacama',
   'Región de Coquimbo',
   'Región de Valparaíso',
-  'Región del Libertador Gral. Bernardo O\'Higgins',
+  "Región del Libertador Gral. Bernardo O'Higgins",
   'Región del Maule',
   'Región de Ñuble',
   'Región del Biobío',
@@ -51,6 +58,9 @@ export default function CheckoutPage() {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const submittingRef = useRef(false);
+
+  const mpPublicKey = getMercadoPagoPublicKey();
+  const isSandboxFrontend = isMercadoPagoSandboxMode(undefined, mpPublicKey);
 
   const { user, isLoggedIn, loading: authLoading } = useAuth();
   const cart = useCartStore((state) => state.cart);
@@ -90,7 +100,6 @@ export default function CheckoutPage() {
         return;
       }
 
-      // Fetch Perfil real B2B
       const fetchProfile = async () => {
         if (!user) return;
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
@@ -98,7 +107,7 @@ export default function CheckoutPage() {
           setFormData((prev) => ({
             ...prev,
             razon_social: data.business_name || prev.razon_social,
-            rut: data.rut || prev.rut,
+            rut: data.rut ? formatRUT(data.rut) : prev.rut,
             contacto_nombre: data.first_name || prev.contacto_nombre,
             contacto_telefono: data.phone || prev.contacto_telefono,
             contacto_email: user.email || prev.contacto_email,
@@ -107,10 +116,10 @@ export default function CheckoutPage() {
             region: data.region || prev.region,
           }));
         } else {
-          setFormData(prev => ({ ...prev, contacto_email: user.email || '' }));
+          setFormData((prev) => ({ ...prev, contacto_email: user.email || '' }));
         }
       };
-      
+
       fetchProfile();
     }
   }, [mounted, authLoading, isLoggedIn, router, user]);
@@ -133,24 +142,34 @@ export default function CheckoutPage() {
     }
   }, [mounted, user?.id, cart, cartId, setCart, setCartId, setLastSyncedAt, setSyncStatus]);
 
-  if (!mounted || authLoading) return null;
+  if (!mounted || authLoading) {
+    return (
+      <div className="min-h-screen bg-[#F7F6F2] text-[#111111] flex items-center justify-center py-20">
+        <div className="w-8 h-8 border-2 border-[#B89768] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
-  // Pantalla de carga mientras se navega hacia la pasarela segura de Mercado Pago.
-  // Evita que aparezca el guardián de "Requisitos no cumplidos / Carrito vacío".
+  // Pantalla de transición mientras se navega hacia la pasarela segura de Mercado Pago.
   if (isRedirecting) {
     return (
-      <div className="min-h-screen pt-24 pb-12 flex items-center justify-center bg-slate-950 px-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 md:p-12 text-center max-w-md w-full">
-          <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
-            <CreditCard className="w-10 h-10 text-emerald-400 animate-pulse" />
+      <div className="min-h-screen pt-20 pb-16 flex items-center justify-center bg-[#F7F6F2] px-4">
+        <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-8 sm:p-12 text-center max-w-md w-full shadow-sm">
+          <div className="w-16 h-16 bg-[#F7F3EB] rounded-2xl flex items-center justify-center mx-auto mb-6 border border-[#B89768]/30">
+            <CreditCard className="w-8 h-8 text-[#9E7D4F] animate-pulse" />
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">Redirigiendo a Mercado Pago</h2>
-          <p className="text-slate-400 mb-6 text-sm">
-            Estamos conectando con la pasarela de pagos segura. Serás transferido en unos segundos...
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9E7D4F] mb-2">
+            Pasarela Mayorista B2B
+          </span>
+          <h2 className="font-editorial font-serif text-2xl sm:text-3xl font-semibold text-[#111111] mb-3">
+            Conectando con Mercado Pago
+          </h2>
+          <p className="text-[#575551] mb-8 text-xs sm:text-sm leading-relaxed">
+            Estamos preparando su sesión de pago encriptada y reservando las unidades de su orden mayorista. Será transferido automáticamente en unos instantes...
           </p>
-          <div className="flex justify-center items-center gap-2 text-xs font-semibold text-emerald-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            Transferencia segura SSL
+          <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-[#FAF9F6] border border-[#E5E4DF] text-[11px] font-mono font-medium text-[#111111]">
+            <span className="w-2 h-2 rounded-full bg-[#B89768] animate-ping" />
+            Conexión SSL Verificada • {isSandboxFrontend ? 'Entorno Sandbox TEST' : 'Producción'}
           </div>
         </div>
       </div>
@@ -159,37 +178,41 @@ export default function CheckoutPage() {
 
   if (cart.length === 0 || !isValidMOQ()) {
     return (
-      <div className="min-h-screen pt-24 pb-12 flex items-center justify-center bg-slate-950 px-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 md:p-12 text-center max-w-md w-full">
-          <div className="w-20 h-20 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-rose-500/20">
-            <AlertCircle className="w-10 h-10 text-rose-500" />
+      <div className="min-h-[80vh] bg-[#F7F6F2] text-[#111111] flex items-center justify-center px-4 py-16">
+        <div className="max-w-md w-full bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-8 sm:p-10 text-center shadow-sm">
+          <div className="w-16 h-16 bg-[#FAF9F6] text-[#B89768] rounded-2xl flex items-center justify-center mx-auto mb-6 border border-[#E5E4DF]">
+            <AlertCircle className="w-8 h-8 stroke-[1.6]" />
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">Requisitos no cumplidos</h2>
-          <p className="text-slate-400 mb-8">
-            {cart.length === 0 
-              ? 'Tu carrito está vacío.' 
-              : 'El pedido mínimo mayorista (MOQ) es de 10 unidades.'}
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#B89768] mb-2">
+            Validación Mayorista B2B
+          </span>
+          <h2 className="font-editorial font-serif text-2xl sm:text-3xl font-semibold text-[#111111] mb-2">
+            Requisitos no cumplidos
+          </h2>
+          <p className="text-[#575551] text-xs sm:text-sm mb-8 leading-relaxed">
+            {cart.length === 0
+              ? 'Su carro mayorista se encuentra vacío actuellement.'
+              : 'El pedido mínimo mayorista (MOQ) requerido para emitir factura electrónica es de 10 unidades combinables.'}
           </p>
-          <Link 
+          <Link
             href="/carrito"
-            className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 px-6 rounded-xl transition text-sm uppercase"
+            className="w-full inline-flex items-center justify-center gap-2 bg-[#111111] hover:bg-[#222222] text-[#FFFFFF] font-semibold py-3.5 px-6 rounded-xl transition text-xs uppercase tracking-widest"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Volver al Carrito
+            <ArrowLeft className="w-4 h-4 text-[#B89768]" />
+            Volver al Carro Mayorista
           </Link>
         </div>
       </div>
     );
   }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
     let value = e.target.value;
-    
-    // Auto-formatear RUT
     if (e.target.name === 'rut') {
       value = formatRUT(value);
     }
-    
     setFormData((prev) => ({
       ...prev,
       [e.target.name]: value,
@@ -202,15 +225,14 @@ export default function CheckoutPage() {
       return;
     }
     setErrorMsg('');
-    
-    // Validación de cliente B2B
+
     if (!isValidRUT(formData.rut)) {
-      setErrorMsg('El RUT ingresado no es válido. Por favor verifica e intenta nuevamente.');
+      setErrorMsg('El RUT empresarial ingresado no es válido. Verifique el dígito verificador e intente nuevamente.');
       return;
     }
 
     if (!acceptTerms) {
-      setErrorMsg('Debes aceptar los Términos y Condiciones Comerciales B2B para continuar.');
+      setErrorMsg('Debe aceptar las Condiciones Comerciales Mayoristas B2B para proceder al pago.');
       return;
     }
 
@@ -218,10 +240,12 @@ export default function CheckoutPage() {
     setLoading(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       if (!session?.user?.id) {
-        setErrorMsg('Debes iniciar sesión para completar la compra.');
+        setErrorMsg('Su sesión ha expirado. Inicie sesión nuevamente para completar la orden.');
         return;
       }
 
@@ -243,22 +267,22 @@ export default function CheckoutPage() {
         const syncErrMsg = syncErr instanceof Error ? syncErr.message : '';
         setErrorMsg(
           syncErrMsg === 'OCC_PERSISTENT_CONFLICT'
-            ? 'Detectamos cambios simultáneos en tu carrito. Por favor, revisa tus productos y vuelve a intentar.'
-            : 'No se pudo sincronizar tu pedido con el servidor. Por favor, reintenta en unos instantes.'
+            ? 'Detectamos cambios simultáneos en su carro mayorista. Revise las cantidades y vuelva a intentar.'
+            : 'No se pudo sincronizar su pedido con el servidor. Por favor, reintente en unos instantes.'
         );
         return;
       }
 
       if (!confirmedCartId) {
-        setErrorMsg('No se pudo obtener el identificador del carrito en el servidor. Reintenta la operación.');
+        setErrorMsg('No se pudo obtener el identificador del carrito en el servidor. Reintente la operación.');
         return;
       }
 
       const response = await fetch('/api/mercadopago/create-preference', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           cart,
@@ -267,7 +291,14 @@ export default function CheckoutPage() {
         }),
       });
 
-      let data: { error?: string; details?: string; initPoint?: string; orderId?: string } | null = null;
+      let data: {
+        error?: string;
+        details?: string;
+        initPoint?: string;
+        sandboxInitPoint?: string;
+        orderId?: string;
+        sandboxMode?: boolean;
+      } | null = null;
       try {
         data = await response.json();
       } catch {
@@ -280,7 +311,8 @@ export default function CheckoutPage() {
         let friendlyError = rawServerError;
 
         if (!friendlyError || friendlyError === 'Internal Server Error') {
-          friendlyError = 'No se pudo procesar la solicitud de pago en el servidor. Por favor intenta nuevamente en unos momentos.';
+          friendlyError =
+            'No se pudo procesar la solicitud de pago en el servidor. Por favor intente nuevamente en unos momentos.';
         } else if (rawDetails && !friendlyError.includes(rawDetails)) {
           friendlyError = `${friendlyError}: ${rawDetails}`;
         }
@@ -289,81 +321,162 @@ export default function CheckoutPage() {
           status: response.status,
           error: rawServerError,
           details: rawDetails,
-          data
+          data,
         });
 
         throw new Error(friendlyError);
       }
 
-      if (data?.initPoint) {
-        // Activar pantalla de redirección. Conservamos el carrito en Zustand y localStorage
-        // para que no se pierdan productos si el pago se cancela, queda pendiente o falla.
+      const targetRedirectUrl = data?.initPoint;
+      if (targetRedirectUrl) {
+        // Conservamos el carrito en Zustand y localStorage hasta que /checkout/resultado
+        // verifique el pago aprobado en Supabase.
         setIsRedirecting(true);
         if (typeof window !== 'undefined') {
-          window.location.href = data.initPoint;
+          window.location.href = targetRedirectUrl;
         }
         return;
       } else {
-        // initPoint ausente: mostrar error pero mantener la orden identificable
         console.error('[Checkout] Preference creada sin initPoint', data);
-        setErrorMsg('No se pudo obtener la URL de pago de Mercado Pago. Por favor contacte soporte.');
+        setErrorMsg('No se pudo obtener la URL de pago de Mercado Pago. Por favor contacte a soporte.');
         if (data?.orderId) {
           router.push(`/mis-pedidos/${data.orderId}`);
         }
         return;
       }
-
     } catch (error: unknown) {
       setIsRedirecting(false);
       const errMsg = error instanceof Error ? error.message : '';
-      setErrorMsg(errMsg || 'Error de conexión. Intenta nuevamente.');
+      setErrorMsg(errMsg || 'Error de conexión con la pasarela. Intente nuevamente.');
     } finally {
       submittingRef.current = false;
       setLoading(false);
     }
   };
 
+  const totalUnits = getTotalUnits();
+  const montoNeto = getMontoNeto();
+  const montoIva = getMontoIva();
+  const montoTotal = getMontoTotal();
+  const rutValido = formData.rut.trim().length > 3 && isValidRUT(formData.rut);
+
   return (
-    <main className="min-h-screen pt-24 pb-20 bg-slate-950">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        {/* Cabecera Segura */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 border-b border-slate-800 pb-8">
+    <main className="min-h-screen bg-[#F7F6F2] text-[#111111] py-10 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* CABECERA EDITORIAL Y STEPPER B2B */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 border-b border-[#E5E4DF] pb-6">
           <div>
-            <h1 className="text-3xl font-black text-white flex items-center gap-3 tracking-tight">
-              Checkout B2B
-            </h1>
-            <p className="text-slate-400 mt-2 flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              Tus datos están protegidos y encriptados.
+            <div className="flex items-center gap-2 text-xs text-[#82807A] mb-2">
+              <Link href="/" className="hover:text-[#111111] transition">
+                Inicio
+              </Link>
+              <span>/</span>
+              <Link href="/carrito" className="hover:text-[#111111] transition">
+                Carro Mayorista B2B
+              </Link>
+              <span>/</span>
+              <span className="text-[#111111] font-medium">Facturación y Pago</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="font-editorial font-serif text-3xl sm:text-4xl font-semibold text-[#111111] tracking-tight">
+                Checkout &amp; Facturación B2B
+              </h1>
+              {isSandboxFrontend && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono font-semibold bg-[#F7F3EB] text-[#9E7D4F] border border-[#B89768]/40">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Modo Sandbox (TEST-)
+                </span>
+              )}
+            </div>
+            <p className="text-[#575551] text-xs sm:text-sm mt-1.5 flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-[#9E7D4F] shrink-0" />
+              Emisión de Factura Electrónica SII • Pago encriptado vía Mercado Pago Checkout Pro
             </p>
           </div>
-          <Link href="/carrito" className="text-sm font-bold text-slate-400 hover:text-emerald-400 transition flex items-center gap-2">
-            <ArrowLeft className="w-4 h-4" /> Modificar Carrito
-          </Link>
+
+          {/* Indicador de Etapas B2B */}
+          <div className="flex items-center gap-2 sm:gap-3 text-xs bg-[#FFFFFF] border border-[#E5E4DF] rounded-xl px-4 py-2.5 shadow-sm">
+            <Link
+              href="/carrito"
+              className="flex items-center gap-2 text-[#575551] hover:text-[#111111] transition"
+            >
+              <span className="w-5 h-5 rounded-full bg-[#F7F3EB] border border-[#B89768]/40 text-[#9E7D4F] flex items-center justify-center font-mono text-[10px] font-bold">
+                ✓
+              </span>
+              <span className="hidden sm:inline font-medium">1. Carro ({totalUnits} un.)</span>
+            </Link>
+            <span className="text-[#E5E4DF]">/</span>
+            <div className="flex items-center gap-2 text-[#111111] font-semibold">
+              <span className="w-5 h-5 rounded-full bg-[#111111] text-[#FFFFFF] flex items-center justify-center font-mono text-[10px] font-bold">
+                2
+              </span>
+              <span>2. Datos Tributarios</span>
+            </div>
+            <span className="text-[#E5E4DF]">/</span>
+            <div className="flex items-center gap-2 text-[#82807A]">
+              <span className="w-5 h-5 rounded-full bg-[#FAF9F6] border border-[#E5E4DF] text-[#82807A] flex items-center justify-center font-mono text-[10px]">
+                3
+              </span>
+              <span className="hidden sm:inline">3. Pago Seguro</span>
+            </div>
+          </div>
         </div>
 
+        {/* ALERTA DE ERROR */}
         {errorMsg && (
-          <div className="mb-8 bg-rose-500/10 border border-rose-500/20 p-4 rounded-xl flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
-            <p className="text-rose-400 font-semibold">{errorMsg}</p>
+          <div className="bg-red-50/90 border border-red-200 rounded-2xl p-4 sm:p-5 flex items-start justify-between gap-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-700 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-red-900">
+                  Verificación Requerida
+                </h3>
+                <p className="text-xs sm:text-sm text-red-800 mt-1 leading-relaxed">{errorMsg}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setErrorMsg('')}
+              className="text-red-700 hover:text-red-950 p-1 transition"
+              aria-label="Cerrar alerta"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-          
-          {/* Columna Izquierda: Formulario B2B */}
-          <div className="lg:col-span-7 space-y-8">
-            
-            {/* Facturación */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8">
-              <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-emerald-400" />
-                Datos de Facturación
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-400">RUT Empresa (con guion)</label>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* COLUMNA IZQUIERDA: FORMULARIO TRIBUTARIO Y LOGÍSTICO (7 COLUMNAS) */}
+          <div className="lg:col-span-7 space-y-6">
+            {/* SECCIÓN 1: DATOS TRIBUTARIOS DE FACTURACIÓN (SII) */}
+            <section className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl overflow-hidden shadow-sm">
+              <div className="px-6 py-5 border-b border-[#E5E4DF] bg-[#FAF9F6] flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#F7F3EB] border border-[#B89768]/30 flex items-center justify-center text-[#9E7D4F]">
+                    <Building2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-mono uppercase tracking-[0.18em] text-[#9E7D4F]">
+                      Sección 01 • Documento Tributario Electrónico
+                    </span>
+                    <h2 className="font-editorial font-serif text-lg sm:text-xl font-semibold text-[#111111]">
+                      Datos de Facturación SII
+                    </h2>
+                  </div>
+                </div>
+                {rutValido && (
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    RUT Verificado
+                  </span>
+                )}
+              </div>
+
+              <div className="p-6 sm:p-7 grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#575551]">
+                    RUT Empresa / Óptica <span className="text-[#9E7D4F]">*</span>
+                  </label>
                   <input
                     type="text"
                     name="rut"
@@ -371,248 +484,463 @@ export default function CheckoutPage() {
                     onChange={handleChange}
                     required
                     placeholder="Ej: 76.123.456-K"
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
+                    className="w-full bg-[#FAF9F6] border border-[#E5E4DF] focus:bg-[#FFFFFF] focus:border-[#111111] rounded-xl px-4 py-3 text-sm font-mono text-[#111111] placeholder:text-[#82807A]/60 outline-none transition"
                   />
+                  <p className="text-[11px] text-[#82807A]">
+                    Formato automático con puntos y guion verificador.
+                  </p>
                 </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-400">Razón Social</label>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#575551]">
+                    Razón Social <span className="text-[#9E7D4F]">*</span>
+                  </label>
                   <input
                     type="text"
                     name="razon_social"
                     value={formData.razon_social}
                     onChange={handleChange}
                     required
-                    placeholder="Ej: Ópticas Visión SpA"
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
+                    placeholder="Ej: Sociedad Óptica Visión SpA"
+                    className="w-full bg-[#FAF9F6] border border-[#E5E4DF] focus:bg-[#FFFFFF] focus:border-[#111111] rounded-xl px-4 py-3 text-sm text-[#111111] placeholder:text-[#82807A]/60 outline-none transition"
                   />
+                  <p className="text-[11px] text-[#82807A]">
+                    Nombre legal registrado ante el SII.
+                  </p>
                 </div>
-                
-                <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-bold text-slate-400">Giro Comercial</label>
+
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#575551]">
+                    Giro Comercial <span className="text-[#9E7D4F]">*</span>
+                  </label>
                   <input
                     type="text"
                     name="giro"
                     value={formData.giro}
                     onChange={handleChange}
                     required
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
+                    placeholder="Comercialización de artículos ópticos y médicos"
+                    className="w-full bg-[#FAF9F6] border border-[#E5E4DF] focus:bg-[#FFFFFF] focus:border-[#111111] rounded-xl px-4 py-3 text-sm text-[#111111] placeholder:text-[#82807A]/60 outline-none transition"
                   />
                 </div>
               </div>
-            </div>
+            </section>
 
-            {/* Contacto */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8">
-              <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-emerald-400" />
-                Contacto del Encargado
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-400 flex items-center gap-2"><Lock className="w-3 h-3"/> Nombre Completo</label>
-                  <input
-                    type="text"
-                    name="contacto_nombre"
-                    value={formData.contacto_nombre}
-                    onChange={handleChange}
-                    required
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
-                  />
+            {/* SECCIÓN 2: RESPONSABLE DE ADQUISICIONES B2B */}
+            <section className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl overflow-hidden shadow-sm">
+              <div className="px-6 py-5 border-b border-[#E5E4DF] bg-[#FAF9F6] flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#F7F3EB] border border-[#B89768]/30 flex items-center justify-center text-[#9E7D4F]">
+                  <UserCheck className="w-4 h-4" />
                 </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-400 flex items-center gap-2"><Phone className="w-3 h-3"/> Teléfono B2B</label>
-                  <input
-                    type="tel"
-                    name="contacto_telefono"
-                    value={formData.contacto_telefono}
-                    onChange={handleChange}
-                    required
-                    placeholder="+56 9 1234 5678"
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
-                  />
-                </div>
-
-                <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-bold text-slate-400 flex items-center gap-2"><Mail className="w-3 h-3"/> Email B2B (Donde recibirás la confirmación)</label>
-                  <input
-                    type="email"
-                    name="contacto_email"
-                    value={formData.contacto_email}
-                    onChange={handleChange}
-                    required
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
-                  />
+                <div>
+                  <span className="block text-[10px] font-mono uppercase tracking-[0.18em] text-[#9E7D4F]">
+                    Sección 02 • Notificaciones y DTE
+                  </span>
+                  <h2 className="font-editorial font-serif text-lg sm:text-xl font-semibold text-[#111111]">
+                    Contacto del Responsable de Compras
+                  </h2>
                 </div>
               </div>
-            </div>
 
-            {/* Despacho */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8">
-              <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                <Truck className="w-5 h-5 text-emerald-400" />
-                Despacho y Bodega
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-bold text-slate-400">Región</label>
+              <div className="p-6 sm:p-7 grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#575551]">
+                    Nombre Completo <span className="text-[#9E7D4F]">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="contacto_nombre"
+                      value={formData.contacto_nombre}
+                      onChange={handleChange}
+                      required
+                      placeholder="Nombre y Apellido"
+                      className="w-full bg-[#FAF9F6] border border-[#E5E4DF] focus:bg-[#FFFFFF] focus:border-[#111111] rounded-xl px-4 py-3 text-sm text-[#111111] placeholder:text-[#82807A]/60 outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#575551]">
+                    Teléfono Directo / WhatsApp <span className="text-[#9E7D4F]">*</span>
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-[#82807A] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="tel"
+                      name="contacto_telefono"
+                      value={formData.contacto_telefono}
+                      onChange={handleChange}
+                      required
+                      placeholder="+56 9 1234 5678"
+                      className="w-full bg-[#FAF9F6] border border-[#E5E4DF] focus:bg-[#FFFFFF] focus:border-[#111111] rounded-xl pl-10 pr-4 py-3 text-sm font-mono text-[#111111] placeholder:text-[#82807A]/60 outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#575551]">
+                    Correo Corporativo de Confirmación y Facturación <span className="text-[#9E7D4F]">*</span>
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-[#82807A] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="email"
+                      name="contacto_email"
+                      value={formData.contacto_email}
+                      onChange={handleChange}
+                      required
+                      placeholder="compras@suoptica.cl"
+                      className="w-full bg-[#FAF9F6] border border-[#E5E4DF] focus:bg-[#FFFFFF] focus:border-[#111111] rounded-xl pl-10 pr-4 py-3 text-sm text-[#111111] placeholder:text-[#82807A]/60 outline-none transition"
+                    />
+                  </div>
+                  <p className="text-[11px] text-[#82807A]">
+                    Recibirá el comprobante mayorista, tracking de importación y copia del DTE en esta casilla.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* SECCIÓN 3: LOGÍSTICA Y DIRECCIÓN DE DESPACHO */}
+            <section className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl overflow-hidden shadow-sm">
+              <div className="px-6 py-5 border-b border-[#E5E4DF] bg-[#FAF9F6] flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#F7F3EB] border border-[#B89768]/30 flex items-center justify-center text-[#9E7D4F]">
+                  <Truck className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="block text-[10px] font-mono uppercase tracking-[0.18em] text-[#9E7D4F]">
+                    Sección 03 • Recepción en Sucursal o Bodega
+                  </span>
+                  <h2 className="font-editorial font-serif text-lg sm:text-xl font-semibold text-[#111111]">
+                    Logística y Dirección de Despacho
+                  </h2>
+                </div>
+              </div>
+
+              <div className="p-6 sm:p-7 grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#575551]">
+                    Región <span className="text-[#9E7D4F]">*</span>
+                  </label>
                   <select
                     name="region"
                     value={formData.region}
                     onChange={handleChange}
                     required
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition appearance-none"
+                    className="w-full bg-[#FAF9F6] border border-[#E5E4DF] focus:bg-[#FFFFFF] focus:border-[#111111] rounded-xl px-4 py-3 text-sm text-[#111111] outline-none transition"
                   >
-                    {REGIONES_CHILE.map(r => (
-                      <option key={r} value={r}>{r}</option>
+                    {REGIONES_CHILE.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
                     ))}
                   </select>
                 </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-400">Comuna</label>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#575551]">
+                    Comuna / Ciudad <span className="text-[#9E7D4F]">*</span>
+                  </label>
                   <input
                     type="text"
                     name="comuna"
                     value={formData.comuna}
                     onChange={handleChange}
                     required
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
+                    placeholder="Ej: Providencia"
+                    className="w-full bg-[#FAF9F6] border border-[#E5E4DF] focus:bg-[#FFFFFF] focus:border-[#111111] rounded-xl px-4 py-3 text-sm text-[#111111] placeholder:text-[#82807A]/60 outline-none transition"
                   />
                 </div>
 
-                <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-bold text-slate-400 flex items-center gap-2"><MapPin className="w-3 h-3"/> Dirección Exacta</label>
-                  <input
-                    type="text"
-                    name="direccion"
-                    value={formData.direccion}
-                    onChange={handleChange}
-                    required
-                    placeholder="Calle Principal 123, Local 4B"
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
-                  />
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#575551]">
+                    Dirección Exacta de Entrega <span className="text-[#9E7D4F]">*</span>
+                  </label>
+                  <div className="relative">
+                    <MapPin className="w-4 h-4 text-[#82807A] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="direccion"
+                      value={formData.direccion}
+                      onChange={handleChange}
+                      required
+                      placeholder="Av. Nueva Providencia 1881, Local 104 / Oficina 502"
+                      className="w-full bg-[#FAF9F6] border border-[#E5E4DF] focus:bg-[#FFFFFF] focus:border-[#111111] rounded-xl pl-10 pr-4 py-3 text-sm text-[#111111] placeholder:text-[#82807A]/60 outline-none transition"
+                    />
+                  </div>
                 </div>
-                
-                <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-bold text-slate-400">Instrucciones Adicionales (Opcional)</label>
+
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#575551]">
+                    Instrucciones de Recepción en Óptica (Opcional)
+                  </label>
                   <textarea
                     name="instrucciones_entrega"
                     value={formData.instrucciones_entrega}
                     onChange={handleChange}
                     rows={3}
-                    placeholder="Horario de recepción, referencias, etc."
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition resize-none"
+                    placeholder="Horario de bodega, nombre de encargado de recepción o indicaciones de acceso..."
+                    className="w-full bg-[#FAF9F6] border border-[#E5E4DF] focus:bg-[#FFFFFF] focus:border-[#111111] rounded-xl px-4 py-3 text-sm text-[#111111] placeholder:text-[#82807A]/60 outline-none transition resize-none"
                   />
                 </div>
               </div>
-            </div>
-
+            </section>
           </div>
-          
-          {/* Columna Derecha: Resumen de Orden */}
-          <div className="lg:col-span-5 space-y-6">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8 sticky top-28">
-              <h2 className="text-lg font-bold text-white mb-6">Resumen de Orden</h2>
-              
-              <div className="flex justify-between items-center pb-4 border-b border-slate-800">
-                <span className="text-slate-400">Total Unidades</span>
-                <span className="text-white font-bold">{getTotalUnits()} armazones</span>
+
+          {/* COLUMNA DERECHA: RESUMEN DE ORDEN Y PAGO MERCADO PAGO (5 COLUMNAS) */}
+          <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-6">
+            <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-6 sm:p-7 shadow-sm space-y-6">
+              <div className="border-b border-[#E5E4DF] pb-4 flex items-center justify-between">
+                <div>
+                  <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#B89768] mb-1">
+                    Liquidación Mayorista
+                  </span>
+                  <h2 className="font-editorial font-serif text-2xl font-semibold text-[#111111]">
+                    Resumen de su Pedido
+                  </h2>
+                </div>
+                <Link
+                  href="/carrito"
+                  className="text-xs font-medium text-[#575551] hover:text-[#111111] underline underline-offset-4 transition"
+                >
+                  Editar carro
+                </Link>
               </div>
-              
-              <div className="py-4 space-y-4 border-b border-slate-800">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-400">Subtotal Neto</span>
-                  <span className="text-white font-semibold">${getMontoNeto().toLocaleString('es-CL')}</span>
+
+              {/* PREVIEW DE ARMAZONES EN LA ORDEN */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs text-[#575551]">
+                  <span className="font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                    <Package className="w-3.5 h-3.5 text-[#9E7D4F]" />
+                    Detalle ({cart.length} {cart.length === 1 ? 'referencia' : 'referencias'})
+                  </span>
+                  <span className="font-mono font-semibold text-[#111111]">
+                    {totalUnits} armazones
+                  </span>
                 </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-400">IVA (19%)</span>
-                  <span className="text-white font-semibold">${getMontoIva().toLocaleString('es-CL')}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-400">Despacho Nacional</span>
-                  <span className="text-emerald-400 font-bold">Por calcular</span>
-                </div>
-              </div>
-              
-              <div className="pt-4 pb-8">
-                <div className="flex justify-between items-end">
-                  <span className="text-slate-400 text-sm font-bold uppercase tracking-wider">Total B2B</span>
-                  <div className="text-right">
-                    <p className="text-2xl md:text-3xl font-black text-white">
-                      ${getMontoTotal().toLocaleString('es-CL')}
-                    </p>
-                  </div>
+
+                <div className="max-h-56 overflow-y-auto pr-1 space-y-2.5 divide-y divide-[#E5E4DF] border border-[#E5E4DF] rounded-xl bg-[#FAF9F6] p-3">
+                  {cart.map((item) => {
+                    const key = getProductCartKey(item.producto);
+                    const lineNet = (item.producto.precio_neto_clp || 0) * item.cantidad;
+                    return (
+                      <div key={key} className="pt-2.5 first:pt-0 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-11 h-11 rounded-lg bg-[#FFFFFF] border border-[#E5E4DF] p-1 flex items-center justify-center shrink-0">
+                            <img
+                              src={item.producto.imagen_principal || '/placeholder.png'}
+                              alt={item.producto.modelo}
+                              className="max-h-full max-w-full object-contain"
+                              onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = '/placeholder.png';
+                              }}
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#9E7D4F] truncate">
+                              {item.producto.marca}
+                            </p>
+                            <p className="text-xs font-semibold text-[#111111] truncate">
+                              {item.producto.modelo}
+                            </p>
+                            <p className="text-[11px] font-mono text-[#82807A]">
+                              {item.cantidad} un. × ${(item.producto.precio_neto_clp || 0).toLocaleString('es-CL')}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0 font-mono text-xs font-semibold text-[#111111]">
+                          ${lineNet.toLocaleString('es-CL')}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="space-y-4 mb-6">
-                <label className="flex items-start gap-3 cursor-pointer group">
+              {/* DESGLOSE FINANCIERO */}
+              <div className="space-y-3 text-sm border-b border-[#E5E4DF] pb-5">
+                <div className="flex justify-between text-[#575551]">
+                  <span>Subtotal Neto Mayorista</span>
+                  <span className="font-mono text-[#111111] font-medium">
+                    ${montoNeto.toLocaleString('es-CL')} CLP
+                  </span>
+                </div>
+                <div className="flex justify-between text-[#575551]">
+                  <span>IVA (19% Factura Electrónica)</span>
+                  <span className="font-mono text-[#111111] font-medium">
+                    ${montoIva.toLocaleString('es-CL')} CLP
+                  </span>
+                </div>
+                <div className="flex justify-between text-[#575551] text-xs pt-1">
+                  <span>Logística e Importación B2B</span>
+                  <span className="text-[#9E7D4F] font-semibold">Consolidación Asegurada</span>
+                </div>
+              </div>
+
+              {/* TOTAL A FACTURAR */}
+              <div className="flex justify-between items-baseline">
+                <div>
+                  <span className="text-sm font-bold text-[#111111] uppercase tracking-wider block">
+                    Total a Facturar
+                  </span>
+                  <span className="text-[11px] text-[#82807A]">IVA 19% incluido • Moneda CLP</span>
+                </div>
+                <div className="text-right font-mono">
+                  <span className="text-2xl sm:text-3xl font-bold text-[#111111] tracking-tight">
+                    ${montoTotal.toLocaleString('es-CL')}
+                  </span>
+                  <span className="block text-[10px] text-[#82807A] uppercase">Pesos Chilenos</span>
+                </div>
+              </div>
+
+              {/* TARJETA DE PASARELA MERCADO PAGO */}
+              <div className="bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl p-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-[#9E7D4F]" />
+                    <span className="text-xs font-semibold text-[#111111]">
+                      Mercado Pago Checkout Pro
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-[#F7F3EB] text-[#9E7D4F] border border-[#B89768]/30">
+                    {isSandboxFrontend ? 'Sandbox TEST' : ' Encriptación 256-bit'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#575551] leading-relaxed">
+                  Acepte pagos corporativos con Tarjetas de Crédito (hasta 12 cuotas), Débito Redcompra, Prepago o saldo Mercado Pago con acreditación instantánea.
+                </p>
+              </div>
+
+              {/* ACEPTACIÓN DE CONDICIONES COMERCIALES */}
+              <div className="pt-1">
+                <label className="flex items-start gap-3 cursor-pointer group select-none">
                   <div className="relative flex items-center justify-center mt-0.5">
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       className="sr-only"
                       checked={acceptTerms}
                       onChange={(e) => setAcceptTerms(e.target.checked)}
                     />
-                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors
-                      ${acceptTerms ? 'bg-emerald-500 border-emerald-500' : 'bg-slate-950 border-slate-700 group-hover:border-emerald-500'}
-                    `}>
-                      {acceptTerms && <Check className="w-3.5 h-3.5 text-slate-950" />}
+                    <div
+                      className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
+                        acceptTerms
+                          ? 'bg-[#111111] border-[#111111]'
+                          : 'bg-[#FAF9F6] border-[#E5E4DF] group-hover:border-[#B89768]'
+                      }`}
+                    >
+                      {acceptTerms && <Check className="w-3.5 h-3.5 text-[#FFFFFF]" />}
                     </div>
                   </div>
-                  <span className="text-xs text-slate-400 font-medium leading-relaxed">
-                    Confirmo que los datos ingresados son correctos, represento legalmente a la empresa y acepto las <button type="button" onClick={() => setShowTerms(true)} className="text-emerald-400 underline">Condiciones de Venta B2B</button>.
+                  <span className="text-xs text-[#575551] leading-relaxed">
+                    Declaro que los datos tributarios informados son fidedignos, represento a la razón social indicada y acepto los{' '}
+                    <button
+                      type="button"
+                      onClick={() => setShowTerms(true)}
+                      className="text-[#111111] font-semibold underline decoration-[#B89768] underline-offset-2 hover:text-[#9E7D4F] transition"
+                    >
+                      Términos y Condiciones Mayoristas B2B
+                    </button>
+                    .
                   </span>
                 </label>
               </div>
 
+              {/* BOTÓN PRINCIPAL DE PAGO */}
               <button
                 type="submit"
                 disabled={loading || !acceptTerms}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-black py-4 px-6 rounded-xl transition-all flex justify-center items-center gap-2 group"
+                className={`w-full py-4 px-6 rounded-xl font-semibold text-xs uppercase tracking-widest transition flex items-center justify-center gap-2.5 shadow-sm ${
+                  loading || !acceptTerms
+                    ? 'bg-[#E5E4DF] text-[#82807A] cursor-not-allowed'
+                    : 'bg-[#111111] hover:bg-[#222222] text-[#FFFFFF]'
+                }`}
               >
                 {loading ? (
-                  <span className="animate-pulse">Sincronizando y procesando orden segura...</span>
+                  <>
+                    <span className="w-4 h-4 border-2 border-[#B89768] border-t-transparent rounded-full animate-spin" />
+                    <span>Sincronizando Orden y Preferencia...</span>
+                  </>
                 ) : (
                   <>
-                    <CreditCard className="w-5 h-5" />
-                    Proceder al Pago
+                    <CreditCard className="w-4 h-4 text-[#B89768]" />
+                    <span>Pagar con Mercado Pago</span>
+                    <ArrowRight className="w-4 h-4 text-[#B89768]" />
                   </>
                 )}
               </button>
-              
-              <div className="mt-6 flex flex-col items-center gap-2 text-xs text-slate-500 font-semibold text-center">
-                <p className="flex items-center gap-1">
-                  <ShieldCheck className="w-4 h-4 text-emerald-500/50" />
-                  Transacción 100% segura. Verificación SSL.
-                </p>
-                <p>Las facturas se emiten según Ley de la República de Chile.</p>
+
+              {/* SELLOS DE CONFIANZA */}
+              <div className="pt-2 border-t border-[#E5E4DF] space-y-2 text-[11px] text-[#575551]">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#B89768] shrink-0" />
+                  <span>Reserva de stock atómica y conciliación automática en servidor.</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#B89768] shrink-0" />
+                  <span>Factura Electrónica afecta a IVA emitida según normativa SII Chile.</span>
+                </div>
               </div>
             </div>
           </div>
-          
         </form>
       </div>
 
+      {/* MODAL DE CONDICIONES B2B */}
       {showTerms && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <h2 className="text-2xl font-black text-white mb-6">Condiciones B2B</h2>
-            <div className="space-y-4 text-sm text-slate-400 mb-8">
-              <p>1. OptiHub opera estrictamente en modalidad de importación al por mayor (B2B).</p>
-              <p>2. El tiempo estimado logístico no depende de OptiHub sino de los transportistas aéreos internacionales.</p>
-              <p>3. Los pagos realizados se procesan server-side y el inventario solo se compromete transaccionalmente una vez confirmado.</p>
+        <div
+          className="fixed inset-0 bg-[#111111]/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
+          onClick={() => setShowTerms(false)}
+        >
+          <div
+            className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-6 sm:p-8 max-w-xl w-full max-h-[82vh] overflow-y-auto shadow-xl space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[#E5E4DF] pb-4">
+              <div>
+                <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#B89768] mb-1">
+                  Marco Regulatorio Mayorista
+                </span>
+                <h2 className="font-editorial font-serif text-2xl font-semibold text-[#111111]">
+                  Condiciones Comerciales B2B
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTerms(false)}
+                className="text-[#82807A] hover:text-[#111111] p-1 rounded-lg transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <button 
-              onClick={() => setShowTerms(false)}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-6 rounded-xl transition"
-            >
-              Cerrar y volver al checkout
-            </button>
+
+            <div className="space-y-3.5 text-xs sm:text-sm text-[#575551] leading-relaxed">
+              <p>
+                <strong className="text-[#111111]">1. Modalidad Mayorista (MOQ):</strong> OptiHub opera exclusivamente en modalidad de distribución mayorista B2B para ópticas y clínicas oftalmológicas establecidas, con un mínimo de compra de 10 unidades por orden.
+              </p>
+              <p>
+                <strong className="text-[#111111]">2. Confirmación y Descuento de Stock:</strong> Los pagos se procesan mediante Mercado Pago Checkout Pro. El inventario se descuenta de forma transaccional una vez acreditado el pago en nuestros servidores.
+              </p>
+              <p>
+                <strong className="text-[#111111]">3. Plazos de Importación y Despacho:</strong> Las órdenes pasan a consolidación internacional e internación aduanera tras la aprobación del pago, con un plazo estimado de entrega de 10 a 15 días hábiles en su óptica.
+              </p>
+              <p>
+                <strong className="text-[#111111]">4. Facturación Electrónica SII:</strong> El Documento Tributario Electrónico (DTE) se emite exclusivamente al RUT y Razón Social informados en este formulario.
+              </p>
+            </div>
+
+            <div className="pt-2 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setAcceptTerms(true);
+                  setShowTerms(false);
+                }}
+                className="w-full bg-[#111111] hover:bg-[#222222] text-[#FFFFFF] font-semibold py-3.5 px-6 rounded-xl transition text-xs uppercase tracking-widest"
+              >
+                Aceptar Condiciones y Continuar
+              </button>
+            </div>
           </div>
         </div>
       )}

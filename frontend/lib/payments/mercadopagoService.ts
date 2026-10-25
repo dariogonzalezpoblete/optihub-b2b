@@ -1,8 +1,13 @@
 // frontend/lib/payments/mercadopagoService.ts
 import { MercadoPagoConfig, Preference } from 'mercadopago';
-import { executeQuery, withTransaction } from '../db/postgres';
+import { executeQuery } from '../db/postgres';
 import type { PoolClient } from 'pg';
 import { checkCheckoutPreferenceAllowed } from '../env/runtimeEnv';
+import {
+  getMercadoPagoAccessToken,
+  resolveSandboxSafePayerEmail,
+  resolvePreferenceInitPoint,
+} from '../mercadopago';
 
 /**
  * Interface representing billing and customer details for payment preferences
@@ -62,8 +67,7 @@ export interface CreatePreferenceResult {
  * Initializes the official Mercado Pago Preference Client
  */
 function getPreferenceClient(): Preference {
-  const rawToken = process.env.MP_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN || '';
-  const accessToken = rawToken.trim();
+  const accessToken = getMercadoPagoAccessToken();
   if (!accessToken) {
     throw new Error('CONFIG_ERROR: MP_ACCESS_TOKEN no está configurado o está vacío en las variables de entorno.');
   }
@@ -324,9 +328,10 @@ export async function createOrderPaymentPreference(
       mpItems[0].unit_price += diff;
     }
 
-    // 4. Build Customer Payer details
-    const customerEmail =
+    // 4. Build Customer Payer details (Sanitizing payer email in Sandbox mode to prevent environment mismatch)
+    const rawCustomerEmail =
       billingDetails?.customerEmail || order.customer_email || 'contacto@optihub.cl';
+    const customerEmail = resolveSandboxSafePayerEmail(rawCustomerEmail);
     const customerName =
       billingDetails?.customerName || order.customer_name || 'Cliente B2B OptiHub';
     const customerPhone =
@@ -349,28 +354,29 @@ export async function createOrderPaymentPreference(
       back_urls: {
         success: validateAndResolveBackUrl(
           customBackUrls?.success,
-          `${siteUrl}/checkout/resultado?status=approved`,
+          `${siteUrl}/checkout/resultado?status=approved&ref=${cleanOrderId}`,
           siteUrl
         ),
         failure: validateAndResolveBackUrl(
           customBackUrls?.failure,
-          `${siteUrl}/checkout/resultado?status=rejected`,
+          `${siteUrl}/checkout/resultado?status=failure&ref=${cleanOrderId}`,
           siteUrl
         ),
         pending: validateAndResolveBackUrl(
           customBackUrls?.pending,
-          `${siteUrl}/checkout/resultado?status=pending`,
+          `${siteUrl}/checkout/resultado?status=pending&ref=${cleanOrderId}`,
           siteUrl
         ),
       },
       auto_return: 'approved' as const,
-      external_reference: orderId,
+      external_reference: cleanOrderId,
       notification_url: `${siteUrl}/api/webhooks/mercadopago`,
       statement_descriptor: 'OptiHub B2B',
       metadata: {
-        order_id: orderId,
+        order_id: cleanOrderId,
         user_id: userId,
         business_rut: businessRut || null,
+        customer_email: rawCustomerEmail,
       },
       expires: true,
       expiration_date_to: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
@@ -416,7 +422,7 @@ export async function createOrderPaymentPreference(
     }
 
     const preferenceId = preferenceResponse!.id;
-    const initPoint = preferenceResponse!.init_point;
+    const initPoint = resolvePreferenceInitPoint(preferenceResponse!);
     const sandboxInitPoint = preferenceResponse!.sandbox_init_point;
 
     if (!preferenceId || !initPoint) {

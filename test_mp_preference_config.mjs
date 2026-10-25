@@ -298,3 +298,56 @@ test('5. Static source code check: no silent production fallback in create-prefe
     'route.ts must validate rawSiteUrl without mutating it to production'
   );
 });
+
+
+test('6. Sandbox TEST- environment consistency, payer.email sanitization, and sandbox_init_point resolution', async () => {
+  const {
+    isMercadoPagoSandboxMode,
+    validateMercadoPagoEnvironmentConsistency,
+    resolveSandboxSafePayerEmail,
+    resolvePreferenceInitPoint,
+  } = await import('./frontend/lib/mercadopago.ts');
+
+  const testToken = 'TEST-1234567890-010101-abcdef-987654321';
+  const prodToken = 'APP_USR-1234567890-010101-abcdef-987654321';
+  const testPubKey = 'TEST-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const prodPubKey = 'APP_USR-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+
+  // 1. Sandbox detection with TEST- credentials
+  assert.equal(isMercadoPagoSandboxMode(testToken, testPubKey), true);
+  assert.equal(isMercadoPagoSandboxMode(prodToken, prodPubKey), false);
+
+  // 2. Environment consistency validation detects TEST- vs APP_USR- mismatch
+  const validTestEnv = validateMercadoPagoEnvironmentConsistency(testToken, testPubKey);
+  assert.equal(validTestEnv.valid, true);
+  assert.equal(validTestEnv.isSandbox, true);
+
+  const mismatchEnv = validateMercadoPagoEnvironmentConsistency(testToken, prodPubKey);
+  assert.equal(mismatchEnv.valid, false);
+  assert.ok(mismatchEnv.warning.includes('Conflicto de credenciales Mercado Pago'));
+
+  // 3. Sandbox payer.email sanitization prevents "Una de las partes con la que intentas hacer el pago es de prueba"
+  const sanitizedEmail = resolveSandboxSafePayerEmail('optica.real@cliente.cl', testToken);
+  assert.ok(
+    sanitizedEmail.endsWith('@testuser.com'),
+    `Expected @testuser.com email in sandbox mode, got: ${sanitizedEmail}`
+  );
+
+  // In production mode, customer email is preserved as-is
+  const prodEmail = resolveSandboxSafePayerEmail('optica.real@cliente.cl', prodToken);
+  assert.equal(prodEmail, 'optica.real@cliente.cl');
+
+  // 4. resolvePreferenceInitPoint prioritizes sandbox_init_point in Sandbox mode
+  const mockPrefResponse = {
+    init_point: 'https://www.mercadopago.cl/checkout/v1/redirect?pref_id=prod-123',
+    sandbox_init_point: 'https://sandbox.mercadopago.cl/checkout/v1/redirect?pref_id=sand-123',
+  };
+  assert.equal(
+    resolvePreferenceInitPoint(mockPrefResponse, testToken),
+    'https://sandbox.mercadopago.cl/checkout/v1/redirect?pref_id=sand-123'
+  );
+  assert.equal(
+    resolvePreferenceInitPoint(mockPrefResponse, prodToken),
+    'https://www.mercadopago.cl/checkout/v1/redirect?pref_id=prod-123'
+  );
+});
