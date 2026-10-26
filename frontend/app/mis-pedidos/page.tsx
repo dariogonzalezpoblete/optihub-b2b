@@ -3,9 +3,21 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { Package, Clock, ExternalLink, ChevronRight, AlertCircle, ShoppingBag, Truck, ChevronLeft, Plane, Building2, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import {
+  Package,
+  Clock,
+  ChevronRight,
+  ShoppingBag,
+  Truck,
+  ChevronLeft,
+  Plane,
+  Building2,
+  ShieldCheck,
+  CheckCircle2,
+  Receipt,
+  ArrowRight
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
 import type { Order } from '@/lib/catalog/types';
 import { parseOrderTracking } from '@/lib/trackingUtils';
 
@@ -61,9 +73,9 @@ export default function MisPedidosPage() {
 
   if (!isLoggedIn || !user) {
     return (
-      <div className="min-h-screen pt-24 pb-12 flex items-center justify-center bg-slate-950">
-        <div className="animate-pulse flex items-center gap-2 text-slate-400">
-          <Clock className="w-5 h-5" />
+      <div className="min-h-screen pt-28 pb-16 flex items-center justify-center bg-[#FAF9F6]">
+        <div className="animate-pulse flex items-center gap-3 text-[#7A7873] text-sm">
+          <Clock className="w-4 h-4 text-[#9E7D4F]" />
           <span>Verificando sesión...</span>
         </div>
       </div>
@@ -80,88 +92,119 @@ export default function MisPedidosPage() {
       delivered: 'Entregado',
       cancelled: 'Cancelado',
       refunded: 'Reembolsado',
-      requires_attention: 'En Revisión (Stock)',
+      requires_attention: 'En Revisión',
     };
     return map[status] || status;
   };
 
-  const getStatusColor = (status: string) => {
-    if (['delivered'].includes(status)) return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-    if (['paid', 'preparing', 'shipped'].includes(status)) return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-    if (['cancelled', 'refunded'].includes(status)) return 'bg-rose-500/20 text-rose-400 border-rose-500/30';
-    if (['requires_attention'].includes(status)) return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-    return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+  const getStatusBadgeClass = (status: string) => {
+    if (['delivered'].includes(status)) {
+      return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+    }
+    if (['paid', 'preparing', 'shipped'].includes(status)) {
+      return 'bg-blue-50 text-blue-800 border-blue-200';
+    }
+    if (['cancelled', 'refunded'].includes(status)) {
+      return 'bg-rose-50 text-rose-800 border-rose-200';
+    }
+    if (['requires_attention'].includes(status)) {
+      return 'bg-amber-50 text-amber-800 border-amber-200';
+    }
+    return 'bg-[#FAF6EF] text-[#9E7D4F] border-[#EADFC9]';
   };
 
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <main className="min-h-screen pt-24 pb-20 bg-slate-950">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+    <main className="min-h-screen pt-28 pb-24 bg-[#FAF9F6]">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        {/* Encabezado Editorial */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 pb-8 border-b border-[#E5E4DF]">
           <div>
-            <h1 className="text-3xl font-black text-white flex items-center gap-3">
-              <Package className="w-8 h-8 text-emerald-400" />
-              {isAdmin ? 'Gestión Maestra de Pedidos' : 'Mis Pedidos B2B'}
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FAF6EF] border border-[#EADFC9] text-[#9E7D4F] text-[11px] font-semibold uppercase tracking-[0.18em] mb-3">
+              <Package className="w-3.5 h-3.5" />
+              <span>{isAdmin ? 'Panel Maestro' : 'Gestión B2B'}</span>
+            </div>
+            
+            <h1 className="font-editorial font-serif text-3xl sm:text-4xl lg:text-5xl font-semibold text-[#111111] tracking-tight">
+              {isAdmin ? 'Gestión Maestra de Pedidos' : 'Mis Pedidos Mayoristas'}
             </h1>
-            <p className="text-slate-400 mt-2">
+            
+            <p className="text-[#575551] text-sm sm:text-base mt-2 max-w-2xl leading-relaxed">
               {isAdmin 
-                ? 'Supervisión y control de pedidos de clientes ópticos, seguimiento logístico y estados.' 
-                : 'Historial de compras y estado de tus importaciones.'}
+                ? 'Supervisión centralizada de compras mayoristas, seguimiento logístico desde origen y despacho a ópticas en Chile.' 
+                : 'Consulte el estado en tiempo real de sus importaciones, detalle de facturación electrónica y guías de transporte.'}
             </p>
           </div>
+
           {isAdmin && (
-            <div className="self-start sm:self-center px-3.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-black uppercase tracking-wider flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4" />
-              Panel de Administrador (Todas las Ópticas)
+            <div className="shrink-0 px-4 py-2 rounded-xl bg-[#FFFFFF] border border-[#E5E4DF] text-[#111111] text-xs font-semibold uppercase tracking-wider flex items-center gap-2.5 shadow-sm">
+              <ShieldCheck className="w-4 h-4 text-[#9E7D4F]" />
+              <span>Acceso Administrador (Todas las Ópticas)</span>
             </div>
           )}
         </div>
 
+        {/* Estado de Carga */}
         {loading ? (
           <div className="space-y-4">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-32 bg-slate-900/50 rounded-2xl animate-pulse border border-slate-800" />
+            {[1, 2, 3].map((i) => (
+              <div 
+                key={i} 
+                className="h-36 bg-[#FFFFFF] rounded-2xl animate-pulse border border-[#E5E4DF]" 
+              />
             ))}
           </div>
         ) : orders.length === 0 ? (
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center">
-            <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
-              <ShoppingBag className="w-10 h-10 text-slate-500" />
+          /* Estado Vacío */
+          <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl p-12 sm:p-16 text-center max-w-xl mx-auto shadow-sm">
+            <div className="w-20 h-20 bg-[#FAF9F6] border border-[#E5E4DF] rounded-2xl flex items-center justify-center mx-auto mb-6 text-[#9E7D4F]">
+              <ShoppingBag className="w-10 h-10" />
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">No tienes pedidos aún</h2>
-            <p className="text-slate-400 mb-8 max-w-md mx-auto">
-              Cuando realices tu primera compra al por mayor, aparecerá aquí con todo el detalle de facturación y seguimiento.
+            <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#9E7D4F] block mb-2">
+              Sin Órdenes Registradas
+            </span>
+            <h2 className="font-editorial font-serif text-2xl sm:text-3xl font-semibold text-[#111111] mb-3">
+              No registra pedidos aún
+            </h2>
+            <p className="text-[#575551] text-sm mb-8 leading-relaxed">
+              Cuando realice su primera compra mayorista de armazones, podrá revisar aquí todo el detalle de facturación electrónica SII y el seguimiento del embarque.
             </p>
             <Link 
               href="/catalogo"
-              className="inline-flex items-center gap-2 bg-emerald-500 text-slate-950 px-6 py-3 rounded-xl font-bold hover:bg-emerald-400 transition"
+              className="inline-flex items-center gap-2 bg-[#111111] hover:bg-[#222222] text-[#FFFFFF] px-7 py-3.5 rounded-xl font-semibold text-xs uppercase tracking-widest transition shadow-sm"
             >
-              Explorar Catálogo
+              <span>Explorar Catálogo</span>
+              <ArrowRight className="w-4 h-4 text-[#B89768]" />
             </Link>
           </div>
         ) : (
-          <div className="space-y-6">
+          /* Listado de Pedidos */
+          <div className="space-y-5">
             {orders.map((order) => {
               const tracking = parseOrderTracking(order);
 
               return (
                 <div 
                   key={order.id} 
-                  className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-6 transition-all group"
+                  className="bg-[#FFFFFF] border border-[#E5E4DF] hover:border-[#C8C5BD] rounded-2xl p-6 transition-all duration-200 group shadow-sm hover:shadow-md"
                 >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div className="space-y-3 flex-1">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <span className="text-lg font-black text-white font-mono">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                    <div className="space-y-3.5 flex-1">
+                      
+                      {/* Fila Superior: Referencia + Estado + Etapa */}
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span className="text-sm font-bold text-[#111111] font-mono tracking-tight bg-[#FAF9F6] border border-[#E5E4DF] px-3 py-1 rounded-lg">
                           #{order.id.split('-')[0].toUpperCase()}
                         </span>
-                        <span className={`px-2.5 py-1 text-xs font-bold rounded-lg border ${getStatusColor(order.status)}`}>
+
+                        <span className={`px-3 py-1 text-[11px] font-semibold rounded-lg border uppercase tracking-wider ${getStatusBadgeClass(order.status)}`}>
                           {getStatusLabel(order.status)}
                         </span>
                         
                         {/* Píldora de Etapa de Importación */}
-                        <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#FAF6EF] border border-[#EADFC9] text-[#9E7D4F] text-[11px] font-semibold">
                           {tracking.currentStageKey === 'logistica_usa' && <Building2 className="w-3.5 h-3.5" />}
                           {tracking.currentStageKey === 'viajando' && <Plane className="w-3.5 h-3.5" />}
                           {tracking.currentStageKey === 'desaduanamiento' && <ShieldCheck className="w-3.5 h-3.5" />}
@@ -171,65 +214,74 @@ export default function MisPedidosPage() {
                         </div>
 
                         {tracking.trackingNumber && (
-                          <span className="px-2.5 py-1 text-xs font-mono font-semibold rounded-lg bg-slate-800 border border-slate-700 text-slate-300">
-                            {tracking.courier ? `${tracking.courier}: ` : ''}{tracking.trackingNumber}
+                          <span className="px-3 py-1 text-[11px] font-mono font-medium rounded-lg bg-[#FAF9F6] border border-[#E5E4DF] text-[#575551]">
+                            {tracking.courier ? `${tracking.courier}: ` : 'Guía: '}{tracking.trackingNumber}
                           </span>
                         )}
                       </div>
 
                       {/* Información de Cliente Óptico (Vista Administrador) */}
                       {isAdmin && (
-                        <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs">
-                          <span className="font-bold text-white flex items-center gap-1.5">
-                            <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <div className="p-3.5 bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-[#575551]">
+                          <span className="font-semibold text-[#111111] flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-[#9E7D4F]" />
                             {order.business_name || 'Óptica Cliente'}
                           </span>
                           {order.business_rut && (
-                            <span className="text-slate-400 font-mono">
-                              RUT: <strong className="text-slate-300">{order.business_rut}</strong>
+                            <span className="font-mono">
+                              RUT: <strong className="text-[#111111]">{order.business_rut}</strong>
                             </span>
                           )}
                           {(order.customer_name || order.customer_phone || order.customer_email) && (
-                            <span className="text-slate-400">
-                              Contacto: <strong className="text-slate-300">{order.customer_name}</strong> {order.customer_phone ? `(${order.customer_phone})` : order.customer_email ? `(${order.customer_email})` : ''}
+                            <span>
+                              Contacto: <strong className="text-[#111111]">{order.customer_name}</strong> {order.customer_phone ? `(${order.customer_phone})` : order.customer_email ? `(${order.customer_email})` : ''}
                             </span>
                           )}
                           {order.shipping_commune && (
-                            <span className="text-slate-500">
-                              Envío: {order.shipping_commune}{order.shipping_region ? `, ${order.shipping_region}` : ''}
+                            <span>
+                              Destino: <strong className="text-[#111111]">{order.shipping_commune}</strong>{order.shipping_region ? `, ${order.shipping_region}` : ''}
                             </span>
                           )}
                         </div>
                       )}
                       
-                      <div className="flex flex-wrap gap-4 text-sm text-slate-400">
+                      {/* Metadatos Rápidos */}
+                      <div className="flex flex-wrap items-center gap-5 text-xs text-[#7A7873]">
                         <div className="flex items-center gap-1.5">
-                          <Clock className="w-4 h-4" />
-                          {new Date(order.created_at).toLocaleDateString('es-CL')}
+                          <Clock className="w-3.5 h-3.5 text-[#9E7D4F]" />
+                          <span>{new Date(order.created_at).toLocaleDateString('es-CL', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <Package className="w-4 h-4" />
-                          {order.total_amount > 0 ? 'Pedido B2B' : 'Cotización'}
+                          <Package className="w-3.5 h-3.5 text-[#9E7D4F]" />
+                          <span>{order.total_amount > 0 ? 'Compra Mayorista' : 'Cotización'}</span>
                         </div>
-                        <div className="text-xs text-slate-400">
+                        <div className="flex items-center gap-1.5 text-[#575551]">
+                          <Receipt className="w-3.5 h-3.5 text-[#9E7D4F]" />
+                          <span>Factura Electrónica SII</span>
+                        </div>
+                        <div className="text-[#9E7D4F] font-medium">
                           {tracking.stageInfo.location}
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-auto border-t md:border-t-0 border-slate-800 pt-4 md:pt-0">
-                      <div className="text-left md:text-right">
-                        <p className="text-xs text-slate-500 font-semibold mb-0.5 uppercase tracking-wider">Total (Neto + IVA)</p>
-                        <p className="text-xl font-black text-white">
+                    {/* Lado Derecho: Monto y Acción */}
+                    <div className="flex items-center justify-between lg:justify-end gap-6 pt-4 lg:pt-0 border-t lg:border-t-0 border-[#E5E4DF]">
+                      <div className="text-left lg:text-right">
+                        <span className="text-[10px] font-semibold text-[#7A7873] uppercase tracking-[0.16em] block">
+                          Total Facturado (IVA incl.)
+                        </span>
+                        <span className="text-xl sm:text-2xl font-bold font-mono text-[#111111]">
                           ${order.total_amount.toLocaleString('es-CL')}
-                        </p>
+                        </span>
                       </div>
                       
                       <Link 
                         href={`/mis-pedidos/${order.id}`}
-                        className="flex items-center justify-center w-12 h-12 rounded-xl bg-slate-800 text-emerald-400 group-hover:bg-emerald-500 group-hover:text-slate-950 transition"
+                        className="inline-flex items-center justify-center gap-2 bg-[#FAF9F6] group-hover:bg-[#111111] text-[#111111] group-hover:text-[#FFFFFF] border border-[#E5E4DF] group-hover:border-[#111111] px-4 py-3 rounded-xl font-semibold text-xs uppercase tracking-wider transition-all duration-200 shadow-sm"
                       >
-                        <ChevronRight className="w-6 h-6" />
+                        <span className="hidden sm:inline">Detalle</span>
+                        <ChevronRight className="w-4 h-4 text-[#9E7D4F] group-hover:text-[#B89768]" />
                       </Link>
                     </div>
                   </div>
@@ -237,26 +289,27 @@ export default function MisPedidosPage() {
               );
             })}
 
+            {/* Paginación */}
             {totalPages > 1 && (
-              <div className="flex justify-center items-center gap-4 mt-8">
+              <div className="flex justify-center items-center gap-4 mt-10 pt-6 border-t border-[#E5E4DF]">
                 <button
                   disabled={page <= 1}
                   onClick={() => setPage(page - 1)}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg disabled:opacity-50 hover:bg-slate-700 transition font-bold text-sm"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-[#FFFFFF] border border-[#E5E4DF] text-[#111111] rounded-xl disabled:opacity-40 hover:bg-[#FAF9F6] transition font-semibold text-xs uppercase tracking-wider shadow-sm"
                 >
-                  <ChevronLeft className="w-4 h-4" />
-                  Anterior
+                  <ChevronLeft className="w-4 h-4 text-[#9E7D4F]" />
+                  <span>Anterior</span>
                 </button>
-                <span className="text-sm text-slate-400 font-semibold">
-                  Página <span className="text-white">{page}</span> de {totalPages}
+                <span className="text-xs text-[#575551] font-medium">
+                  Página <strong className="text-[#111111]">{page}</strong> de {totalPages}
                 </span>
                 <button
                   disabled={page >= totalPages}
                   onClick={() => setPage(page + 1)}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg disabled:opacity-50 hover:bg-slate-700 transition font-bold text-sm"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-[#FFFFFF] border border-[#E5E4DF] text-[#111111] rounded-xl disabled:opacity-40 hover:bg-[#FAF9F6] transition font-semibold text-xs uppercase tracking-wider shadow-sm"
                 >
-                  Siguiente
-                  <ChevronRight className="w-4 h-4" />
+                  <span>Siguiente</span>
+                  <ChevronRight className="w-4 h-4 text-[#9E7D4F]" />
                 </button>
               </div>
             )}
