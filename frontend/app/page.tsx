@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
-import HeroSpotlight from '@/components/home/HeroSpotlight';
 import RecentlyViewed from '@/components/catalog/RecentlyViewed';
 
 interface MarcoDestacado {
@@ -89,80 +88,77 @@ export default function Home() {
   return (
     <div className="bg-[#F7F6F2] text-[#111111] overflow-x-hidden">
       
-      {/* 1. SECCIÓN HERO EDITORIAL */}
-      <section className="relative pt-6 sm:pt-10 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+      {/* 1. SECCIÓN HERO EDITORIAL CENTRADA */}
+      <section className="relative pt-4 sm:pt-8 pb-10 sm:pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl sm:rounded-4xl p-6 sm:p-12 lg:p-16 shadow-xs relative overflow-hidden flex flex-col items-center text-center">
           
-          {/* Mensaje Central B2B (7 columnas) */}
-          <div className="lg:col-span-7 bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl p-8 sm:p-12 flex flex-col justify-between shadow-xs">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#FAF9F6] border border-[#E5E4DF] text-[#9E7D4F] text-xs font-semibold tracking-wider uppercase mb-6">
-                <Sparkles className="w-3.5 h-3.5 text-[#B89768]" />
-                <span>Distribución Exclusiva B2B para Ópticas</span>
-              </div>
+          {/* Sutil resplandor dorado editorial de fondo */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 max-w-4xl h-56 bg-gradient-to-b from-[#B89768]/10 via-[#B89768]/5 to-transparent blur-3xl pointer-events-none -z-0" />
 
-              <h1 className="font-editorial text-4xl sm:text-5xl lg:text-6xl font-normal text-[#111111] tracking-tight leading-[1.08]">
-                Catálogo Mayorista de Armazones de <span className="text-[#B89768] italic font-serif">Alta Gama</span>
-              </h1>
-
-              <p className="mt-6 text-[#575551] text-base sm:text-lg font-normal leading-relaxed max-w-xl">
-                Importación directa consolidada desde EE.UU. con inventario autenticado en origen. Precios netos en CLP, factura electrónica SII y compra mínima de <strong className="text-[#111111] font-semibold">10 unidades combinables</strong> entre cualquier modelo y firma.
-              </p>
-            </div>
-
-            {/* CTAs y Métricas */}
-            <div className="mt-10 pt-8 border-t border-[#E5E4DF] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-                <Link
-                  href="/catalogo"
-                  className="btn-primary w-full sm:w-auto text-center"
-                >
-                  <span>Explorar Catálogo</span>
-                  <ArrowRight className="w-4 h-4 ml-1" />
-                </Link>
-
-                {!isLoggedIn && (
-                  <Link
-                    href="/registro"
-                    className="btn-secondary w-full sm:w-auto text-center"
-                  >
-                    <Building2 className="w-4 h-4 text-[#B89768] mr-1.5" />
-                    <span>Registrar Óptica</span>
-                  </Link>
-                )}
-              </div>
-
-              {/* Métricas clave */}
-              <div className="flex items-center gap-6 text-xs text-[#575551] font-semibold">
-                <div>
-                  <span className="block text-2xl font-bold text-[#111111] font-tech">10 un.</span>
-                  <span className="text-[10px] text-[#82807A] uppercase tracking-wider font-medium">Mínimo Combinable</span>
-                </div>
-                <div className="w-px h-8 bg-[#E5E4DF]" />
-                <div>
-                  <span className="block text-2xl font-bold text-[#B89768] font-tech">10-15</span>
-                  <span className="text-[10px] text-[#82807A] uppercase tracking-wider font-medium">Días Entrega</span>
-                </div>
-              </div>
-            </div>
+          {/* Badge B2B Centrado */}
+          <div className="relative z-10 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#FAF9F6] border border-[#E5E4DF] text-[#9E7D4F] text-xs font-semibold tracking-wider uppercase mb-5 sm:mb-7 shadow-2xs">
+            <Sparkles className="w-3.5 h-3.5 text-[#B89768]" />
+            <span>Distribución Exclusiva B2B para Ópticas</span>
           </div>
 
-          {/* Vitrina Interactiva de Monturas (5 columnas) */}
-          <div className="lg:col-span-5 min-h-[460px]">
-            <HeroSpotlight />
+          {/* Título Principal Centrado y Expandido */}
+          <h1 className="relative z-10 font-editorial text-3xl sm:text-5xl lg:text-6xl xl:text-7xl font-normal text-[#111111] tracking-tight leading-[1.12] sm:leading-[1.08] max-w-4xl mx-auto">
+            Catálogo Mayorista de Armazones de <span className="text-[#B89768] italic font-serif">Alta Gama</span>
+          </h1>
+
+          {/* Bajada Descriptiva Equilibrada */}
+          <p className="relative z-10 mt-5 sm:mt-7 text-[#575551] text-sm sm:text-base lg:text-lg font-normal leading-relaxed max-w-2xl mx-auto px-1 sm:px-0">
+            Importación directa consolidada desde EE.UU. con inventario autenticado en origen. Precios netos en CLP, factura electrónica SII y compra mínima de <strong className="text-[#111111] font-semibold">10 unidades combinables</strong> entre cualquier modelo y firma.
+          </p>
+
+          {/* Botones de Acción / CTAs Adaptativos */}
+          <div className="relative z-10 mt-8 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full sm:w-auto">
+            <Link
+              href="/catalogo"
+              className="btn-primary w-full sm:w-auto text-center px-8 py-3.5 text-xs sm:text-sm shadow-sm hover:shadow-md transition-all"
+            >
+              <span>Explorar Catálogo Mayorista</span>
+              <ArrowRight className="w-4 h-4 ml-1.5" />
+            </Link>
+
+            {!isLoggedIn && (
+              <Link
+                href="/registro"
+                className="btn-secondary w-full sm:w-auto text-center px-6 py-3.5 text-xs sm:text-sm"
+              >
+                <Building2 className="w-4 h-4 text-[#B89768] mr-2" />
+                <span>Registrar Óptica</span>
+              </Link>
+            )}
+          </div>
+
+          {/* Métricas y Garantías B2B Centradas (Responsive 3 columnas) */}
+          <div className="relative z-10 mt-10 sm:mt-12 pt-6 sm:pt-8 border-t border-[#E5E4DF] w-full max-w-3xl grid grid-cols-3 gap-2 sm:gap-6 text-center">
+            <div className="flex flex-col items-center">
+              <span className="block text-xl sm:text-3xl font-bold text-[#111111] font-tech leading-none mb-1">10 un.</span>
+              <span className="text-[9px] sm:text-[11px] text-[#82807A] uppercase tracking-wider font-medium">Mínimo Combinable</span>
+            </div>
+            <div className="flex flex-col items-center border-x border-[#E5E4DF] px-1 sm:px-2">
+              <span className="block text-xl sm:text-3xl font-bold text-[#B89768] font-tech leading-none mb-1">10-15</span>
+              <span className="text-[9px] sm:text-[11px] text-[#82807A] uppercase tracking-wider font-medium">Días Entrega</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="block text-xl sm:text-3xl font-bold text-[#111111] font-tech leading-none mb-1">100%</span>
+              <span className="text-[9px] sm:text-[11px] text-[#82807A] uppercase tracking-wider font-medium">Factura SII</span>
+            </div>
           </div>
 
         </div>
       </section>
 
       {/* 2. LÍNEAS PRINCIPALES (OFTÁLMICOS Y SOLARES) */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-8 pb-4 border-b border-[#E5E4DF]">
+      <section className="py-8 sm:py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 sm:gap-4 mb-6 sm:mb-8 pb-4 border-b border-[#E5E4DF]">
           <div>
             <span className="text-xs font-bold text-[#B89768] uppercase tracking-widest block mb-1">
               Curaduría por Especialidad
             </span>
-            <h2 className="font-editorial text-3xl font-semibold text-[#111111] tracking-tight">
+            <h2 className="font-editorial text-2xl sm:text-3xl font-semibold text-[#111111] tracking-tight">
               Líneas para Vitrina Óptica
             </h2>
           </div>
@@ -174,11 +170,11 @@ export default function Home() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
           {/* Card Monturas Ópticas */}
           <Link
             href="/catalogo?tipo=optico"
-            className="group relative rounded-3xl overflow-hidden min-h-[380px] sm:min-h-[440px] p-8 sm:p-12 flex flex-col justify-end border border-[#E5E4DF] shadow-md hover:shadow-2xl hover:border-[#B89768] transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+            className="group relative rounded-3xl overflow-hidden min-h-[340px] sm:min-h-[440px] p-6 sm:p-10 lg:p-12 flex flex-col justify-end border border-[#E5E4DF] shadow-md hover:shadow-2xl hover:border-[#B89768] transition-all duration-300 hover:scale-[1.01] cursor-pointer"
           >
             <div className="absolute inset-0 -z-10 overflow-hidden">
               <Image
@@ -189,18 +185,20 @@ export default function Home() {
                 className="object-cover object-center group-hover:scale-108 transition-transform duration-700 ease-out"
                 sizes="(max-width: 768px) 100vw, 50vw"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/25 group-hover:from-black/90 transition-colors duration-300" />
+              {/* Capa de oscurecimiento dual permanente para nitidez y contraste editorial */}
+              <div className="absolute inset-0 bg-black/45 group-hover:bg-black/55 transition-colors duration-500" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent transition-opacity duration-500" />
             </div>
 
             <div className="relative z-10">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-white/90 text-[11px] font-semibold tracking-widest uppercase mb-3">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/30 text-white text-[11px] font-semibold tracking-widest uppercase mb-2.5 sm:mb-3 shadow-xs">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#B89768]" />
                 Línea Oftálmica
               </div>
-              <h3 className="font-editorial text-4xl sm:text-5xl font-semibold text-white tracking-tight drop-shadow-md">
+              <h3 className="font-editorial text-3xl sm:text-4xl lg:text-5xl font-semibold text-white tracking-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
                 Monturas Ópticas
               </h3>
-              <div className="mt-4 flex items-center gap-2 text-xs font-bold text-white/95 uppercase tracking-widest group-hover:text-[#B89768] transition-colors">
+              <div className="mt-3 sm:mt-4 flex items-center gap-2 text-xs font-bold text-white uppercase tracking-widest group-hover:text-[#B89768] transition-colors drop-shadow-sm">
                 <span>Explorar Catálogo</span>
                 <ArrowRight className="w-4 h-4 text-[#B89768] group-hover:translate-x-1.5 transition-transform duration-300" />
               </div>
@@ -210,7 +208,7 @@ export default function Home() {
           {/* Card Gafas de Sol */}
           <Link
             href="/catalogo?tipo=sol"
-            className="group relative rounded-3xl overflow-hidden min-h-[380px] sm:min-h-[440px] p-8 sm:p-12 flex flex-col justify-end border border-[#E5E4DF] shadow-md hover:shadow-2xl hover:border-[#B89768] transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+            className="group relative rounded-3xl overflow-hidden min-h-[340px] sm:min-h-[440px] p-6 sm:p-10 lg:p-12 flex flex-col justify-end border border-[#E5E4DF] shadow-md hover:shadow-2xl hover:border-[#B89768] transition-all duration-300 hover:scale-[1.01] cursor-pointer"
           >
             <div className="absolute inset-0 -z-10 overflow-hidden">
               <Image
@@ -221,18 +219,20 @@ export default function Home() {
                 className="object-cover object-center group-hover:scale-108 transition-transform duration-700 ease-out"
                 sizes="(max-width: 768px) 100vw, 50vw"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/25 group-hover:from-black/90 transition-colors duration-300" />
+              {/* Capa de oscurecimiento dual permanente para nitidez y contraste editorial */}
+              <div className="absolute inset-0 bg-black/45 group-hover:bg-black/55 transition-colors duration-500" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent transition-opacity duration-500" />
             </div>
 
             <div className="relative z-10">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-white/90 text-[11px] font-semibold tracking-widest uppercase mb-3">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/30 text-white text-[11px] font-semibold tracking-widest uppercase mb-2.5 sm:mb-3 shadow-xs">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#B89768]" />
                 Línea Solar
               </div>
-              <h3 className="font-editorial text-4xl sm:text-5xl font-semibold text-white tracking-tight drop-shadow-md">
+              <h3 className="font-editorial text-3xl sm:text-4xl lg:text-5xl font-semibold text-white tracking-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
                 Gafas de Sol
               </h3>
-              <div className="mt-4 flex items-center gap-2 text-xs font-bold text-white/95 uppercase tracking-widest group-hover:text-[#B89768] transition-colors">
+              <div className="mt-3 sm:mt-4 flex items-center gap-2 text-xs font-bold text-white uppercase tracking-widest group-hover:text-[#B89768] transition-colors drop-shadow-sm">
                 <span>Explorar Catálogo</span>
                 <ArrowRight className="w-4 h-4 text-[#B89768] group-hover:translate-x-1.5 transition-transform duration-300" />
               </div>
