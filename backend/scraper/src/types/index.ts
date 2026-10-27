@@ -75,6 +75,91 @@ export interface ScraperOptions {
   authStatePath: string;
   stockOnly?: boolean;
   allBrands?: boolean;
+  pricingOverrides?: {
+    dolar?: number;
+    fleteUsd?: number;
+    fleteLocalClp?: number;
+    adValoremRate?: number;
+    ivaRate?: number;
+    marginPercentage?: number;
+    customMultiplier?: number;
+  };
+}
+
+export interface ProductStockPriceUpdate {
+  id_ext: string;
+  stock: number;
+  precio_usd: number;
+  precio_neto_clp: number;
+  precio_bruto_clp: number;
+  ganancia_clp: number;
+  costo_flete_usd: number;
+  costo_cif_clp: number;
+  ad_valorem_clp: number;
+  costo_despacho_local_clp: number;
+  costo_total_chile_clp: number;
+}
+
+export interface ExistingProductRecord {
+  id_ext: string;
+  stock: number;
+  precio_usd?: number;
+  precio_neto_clp?: number;
+  precio_bruto_clp?: number;
+  imagen_principal?: string;
+  imagenes_secundarias?: string;
+  marca?: string;
+  modelo?: string;
+}
+
+export interface SyncReportItem {
+  id_ext: string;
+  status: 'updated' | 'unchanged' | 'out_of_stock';
+  oldStock?: number;
+  newStock?: number;
+  oldPriceNeto?: number;
+  newPriceNeto?: number;
+  oldPriceUsd?: number;
+  newPriceUsd?: number;
+  changeReason?: string;
+}
+
+export interface BrandSyncReport {
+  brand: string;
+  totalScanned: number;
+  updated: number;
+  outOfStock: number;
+  unchanged: number;
+  items: SyncReportItem[];
+}
+
+export interface FastSyncSummary {
+  timestamp: string;
+  durationSeconds: number;
+  brandsProcessed: string[];
+  totalScanned: number;
+  totalUpdated: number;
+  totalOutOfStock: number;
+  totalUnchanged: number;
+  brandReports: BrandSyncReport[];
+}
+
+export interface FastSyncOptions {
+  brands?: string[];
+  allBrands?: boolean;
+  headless?: boolean;
+  maxPages?: number;
+  dryRun?: boolean;
+  authStatePath?: string;
+  pricingOverrides?: {
+    dolar?: number;
+    fleteUsd?: number;
+    fleteLocalClp?: number;
+    adValoremRate?: number;
+    ivaRate?: number;
+    marginPercentage?: number;
+    customMultiplier?: number;
+  };
 }
 
 export interface InterceptedPayload {

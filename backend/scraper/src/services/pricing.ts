@@ -7,6 +7,8 @@ export interface PricingOverrides {
   fleteLocalClp?: number;
   adValoremRate?: number;
   ivaRate?: number;
+  marginPercentage?: number;
+  customMultiplier?: number;
 }
 
 /**
@@ -42,9 +44,15 @@ export function calculateB2BPricing(priceUsd: number, overrides?: PricingOverrid
   const costoTotalChile = cifClp + adValoremClp + fleteLocal;
   const costoOrigenClp = priceUsd * dolar;
 
-  // 2. Commercial Pricing Tiers
+  // 2. Commercial Pricing Tiers & Margins
   let precioVentaNetoRaw: number;
-  if (costoOrigenClp < 20000) {
+  if (typeof overrides?.marginPercentage === 'number' && overrides.marginPercentage > 0) {
+    // Custom percentage markup over landed cost (e.g. 35% margin)
+    precioVentaNetoRaw = costoTotalChile * (1 + overrides.marginPercentage / 100);
+  } else if (typeof overrides?.customMultiplier === 'number' && overrides.customMultiplier > 0) {
+    // Custom flat USD multiplier (e.g. 2000 CLP per USD)
+    precioVentaNetoRaw = priceUsd * overrides.customMultiplier;
+  } else if (costoOrigenClp < 20000) {
     precioVentaNetoRaw = priceUsd * 2500.0;
   } else if (costoOrigenClp <= 70000) {
     precioVentaNetoRaw = priceUsd * 1900.0;

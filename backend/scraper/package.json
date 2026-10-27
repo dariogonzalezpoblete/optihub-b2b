@@ -7,9 +7,12 @@
     "build": "tsc",
     "start": "tsx src/index.ts",
     "scrape": "tsx src/index.ts",
-    "sync:stock": "tsx src/index.ts --stock-only --all-brands",
-    "sync:stock:headless": "tsx src/index.ts --stock-only --all-brands --headless",
-    "test": "tsx test/pricing.test.ts && tsx test/interceptor.test.ts && tsx test/imageOptimizer.test.ts"
+    "sync:fast": "tsx src/fastSync.ts",
+    "sync:fast:headless": "tsx src/fastSync.ts --headless",
+    "sync:stock": "tsx src/fastSync.ts",
+    "sync:stock:headless": "tsx src/fastSync.ts --headless",
+    "sync:stock-prices": "tsx src/fastSync.ts --all-brands --headless",
+    "test": "tsx test/pricing.test.ts && tsx test/interceptor.test.ts && tsx test/imageOptimizer.test.ts && tsx test/fastSync.test.ts"
   },
   "keywords": [
     "optihub",

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ShoppingBag, LogOut, User } from 'lucide-react';
+import { ShoppingBag, LogOut, User, ShieldCheck } from 'lucide-react';
 import { OptiHubEmblem } from '@/components/ui/OptiHubLogo';
 import { useCartStore } from '@/store/useCartStore';
 import { useAuth } from '@/context/AuthContext';
@@ -72,6 +72,20 @@ export default function Navbar() {
             <>
               {isLoggedIn ? (
                 <div className="flex items-center gap-1.5 pl-1 sm:pl-2">
+                  {user?.email && ['multifocuslimitada@gmail.com', 'dario.joda.2007@gmail.com', 'admin@optihub.cl', 'contacto@optihub.cl'].includes(user.email.toLowerCase().trim()) && (
+                    <Link
+                      href="/admin"
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold transition-colors border ${
+                        pathname.startsWith('/admin')
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
+                          : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                      }`}
+                      title="Panel Maestro de Administración"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Admin</span>
+                    </Link>
+                  )}
                   <Link
                     href="/mis-pedidos"
                     className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-xs font-medium transition-colors border ${

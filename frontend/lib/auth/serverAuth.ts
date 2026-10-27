@@ -6,7 +6,12 @@ import type { User } from '@supabase/supabase-js';
  * Lista explícita de correos autorizados para funciones administrativas en OptiHub B2B.
  * Mantiene compatibilidad con el administrador legítimo de la plataforma.
  */
-const DEFAULT_ADMIN_EMAILS = ['multifocuslimitada@gmail.com'];
+const DEFAULT_ADMIN_EMAILS = [
+  'multifocuslimitada@gmail.com',
+  'dario.joda.2007@gmail.com',
+  'contacto@optihub.cl',
+  'admin@optihub.cl'
+];
 
 export function getAuthorizedAdminEmails(): string[] {
   const admins = new Set<string>(DEFAULT_ADMIN_EMAILS.map((e) => e.toLowerCase().trim()));
@@ -39,7 +44,15 @@ export function getAuthorizedAdminEmails(): string[] {
  * - No evalúa parámetros URL, body ni metadatos modificables por el cliente.
  */
 export function isUserAdmin(user: User | null | undefined): boolean {
-  if (!user || !user.email) return false;
+  if (!user) return false;
+  if (
+    user.app_metadata?.role === 'admin' ||
+    user.user_metadata?.role === 'admin' ||
+    user.user_metadata?.is_admin === true
+  ) {
+    return true;
+  }
+  if (!user.email) return false;
   const normalizedEmail = user.email.toLowerCase().trim();
   const allowed = getAuthorizedAdminEmails();
   return allowed.includes(normalizedEmail);

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import product, order
+from app.routers import product, order, sync
 
 app = FastAPI(title="OptiHub B2B API", version="1.0")
 
@@ -16,6 +16,7 @@ app.add_middleware(
 # Registro de routers con el prefijo /api obligatorio
 app.include_router(product.router, prefix="/api", tags=["Products"])
 app.include_router(order.router, prefix="/api", tags=["Orders"])
+app.include_router(sync.router, prefix="/api", tags=["Sync"])
 
 @app.get("/")
 def root():

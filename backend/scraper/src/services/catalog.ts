@@ -4,7 +4,14 @@ import { ImageOptimizer } from './imageOptimizer';
 import { SupabaseService } from './supabase';
 import { SessionManager } from './auth';
 import { calculateB2BPricing } from './pricing';
-import { OptiHubProduct, ScraperOptions } from '../types';
+import {
+  OptiHubProduct,
+  ScraperOptions,
+  ProductStockPriceUpdate,
+  ExistingProductRecord,
+  BrandSyncReport,
+  SyncReportItem,
+} from '../types';
 import { CONFIG } from '../config';
 import { Logger } from '../utils/logger';
 
@@ -13,6 +20,7 @@ export class CatalogRunner {
   private imageOptimizer: ImageOptimizer;
   private supabaseService?: SupabaseService;
   private sessionManager?: SessionManager;
+  private brandSyncReports: Map<string, BrandSyncReport> = new Map();
 
   constructor(
     interceptor: NetworkInterceptor,
@@ -24,6 +32,14 @@ export class CatalogRunner {
     this.imageOptimizer = imageOptimizer;
     this.supabaseService = supabaseService;
     this.sessionManager = sessionManager;
+  }
+
+  public getBrandSyncReports(): Map<string, BrandSyncReport> {
+    return this.brandSyncReports;
+  }
+
+  public getLastReportForBrand(brand: string): BrandSyncReport | undefined {
+    return this.brandSyncReports.get(brand);
   }
 
   /**
@@ -45,10 +61,7 @@ export class CatalogRunner {
     this.interceptor.reset(brand);
 
     // 1. Preload existing Supabase records for this brand
-    let existingCache = new Map<
-      string,
-      { stock: number; imagen_principal?: string; imagenes_secundarias?: string }
-    >();
+    let existingCache = new Map<string, ExistingProductRecord>();
     if (this.supabaseService && this.supabaseService.isConfigured()) {
       existingCache = await this.supabaseService.getExistingBrandRecords(brand);
     }
@@ -119,7 +132,145 @@ export class CatalogRunner {
     const cookieHeader = this.sessionManager ? this.sessionManager.getCookieHeader() : '';
 
     // ─────────────────────────────────────────────────────────────
-    // 3. CLASSIFICATION: STOCK-ONLY VS REPAIR SECONDARY VS NEW
+    // 3. FAST SYNC BRANCH (STOCK AND PRICES ONLY)
+    // ─────────────────────────────────────────────────────────────
+    if (options.stockOnly) {
+      Logger.info(`\n⚡ MODO RÁPIDO: Sincronizando exclusivamente Stock y Precios para '${brand}'...`);
+
+      const itemsToUpdate: ProductStockPriceUpdate[] = [];
+      const reportItems: SyncReportItem[] = [];
+      let unchangedCount = 0;
+
+      for (const prod of scannedProducts.values()) {
+        const existing = existingCache.get(prod.id_ext);
+        if (!existing) {
+          // En modo rápido solo actualizamos productos existentes para proteger galería y descripciones
+          continue;
+        }
+
+        const pricing = calculateB2BPricing(prod.precio_usd, options.pricingOverrides);
+        const newStock = Math.min(50, Math.max(0, prod.stock));
+        const prevStock = existing.stock ?? 0;
+        const prevPriceNeto = existing.precio_neto_clp ?? 0;
+        const prevPriceUsd = existing.precio_usd ?? 0;
+
+        const stockChanged = prevStock !== newStock;
+        const priceChanged =
+          Math.abs(prevPriceNeto - pricing.precio_neto_clp) >= 1 ||
+          Math.abs(prevPriceUsd - prod.precio_usd) >= 0.01;
+
+        if (stockChanged || priceChanged) {
+          itemsToUpdate.push({
+            id_ext: prod.id_ext,
+            stock: newStock,
+            precio_usd: prod.precio_usd,
+            precio_neto_clp: pricing.precio_neto_clp,
+            precio_bruto_clp: pricing.precio_bruto_clp,
+            ganancia_clp: pricing.ganancia_clp,
+            costo_flete_usd: pricing.costo_flete_usd,
+            costo_cif_clp: pricing.costo_cif_clp,
+            ad_valorem_clp: pricing.ad_valorem_clp,
+            costo_despacho_local_clp: pricing.costo_despacho_local_clp,
+            costo_total_chile_clp: pricing.costo_total_chile_clp,
+          });
+
+          const reasons: string[] = [];
+          if (stockChanged) reasons.push(`stock ${prevStock} -> ${newStock}`);
+          if (priceChanged) reasons.push(`precio neto $${prevPriceNeto} -> $${pricing.precio_neto_clp} (USD $${prevPriceUsd} -> $${prod.precio_usd})`);
+
+          reportItems.push({
+            id_ext: prod.id_ext,
+            status: 'updated',
+            oldStock: prevStock,
+            newStock,
+            oldPriceNeto: prevPriceNeto,
+            newPriceNeto: pricing.precio_neto_clp,
+            oldPriceUsd: prevPriceUsd,
+            newPriceUsd: prod.precio_usd,
+            changeReason: reasons.join('; '),
+          });
+        } else {
+          unchangedCount++;
+          reportItems.push({
+            id_ext: prod.id_ext,
+            status: 'unchanged',
+            oldStock: prevStock,
+            newStock,
+            oldPriceNeto: prevPriceNeto,
+            newPriceNeto: pricing.precio_neto_clp,
+            oldPriceUsd: prevPriceUsd,
+            newPriceUsd: prod.precio_usd,
+          });
+        }
+      }
+
+      // 1. Bulk update masivo de stock y precios calculados
+      if (itemsToUpdate.length > 0 && !options.dryRun && this.supabaseService?.isConfigured()) {
+        Logger.info(`Actualizando de forma masiva (bulk update) stock y precios para ${itemsToUpdate.length} productos...`);
+        await this.supabaseService.updateStockAndPricingBatch(itemsToUpdate);
+      } else if (options.dryRun && itemsToUpdate.length > 0) {
+        Logger.info(`[DRY-RUN] Simulación: Se actualizaría stock y precios de ${itemsToUpdate.length} productos.`);
+      }
+
+      // 2. Conciliación controlada: productos en DB que ya no aparecen en el proveedor quedan con stock 0 (sin borrar)
+      let outOfStockCount = 0;
+      if (!options.dryRun && this.supabaseService?.isConfigured()) {
+        const outRes = await this.supabaseService.markOutOfStockBatch(brand, scannedIds, existingCache);
+        outOfStockCount = outRes.markedCount;
+        for (const outId of outRes.outOfStockIds) {
+          const rec = existingCache.get(outId);
+          reportItems.push({
+            id_ext: outId,
+            status: 'out_of_stock',
+            oldStock: rec?.stock,
+            newStock: 0,
+            oldPriceNeto: rec?.precio_neto_clp,
+            newPriceNeto: rec?.precio_neto_clp,
+            oldPriceUsd: rec?.precio_usd,
+            newPriceUsd: rec?.precio_usd,
+            changeReason: 'Producto no presente en web de proveedor: marcado sin stock (0)',
+          });
+        }
+      } else if (options.dryRun) {
+        for (const [idExt, rec] of existingCache.entries()) {
+          if (!scannedIds.has(idExt) && rec.stock > 0) {
+            outOfStockCount++;
+            reportItems.push({
+              id_ext: idExt,
+              status: 'out_of_stock',
+              oldStock: rec.stock,
+              newStock: 0,
+              changeReason: '[DRY-RUN] Marcado stock 0 por ausencia en proveedor',
+            });
+          }
+        }
+      }
+
+      const brandReport: BrandSyncReport = {
+        brand,
+        totalScanned: scannedIds.size,
+        updated: itemsToUpdate.length,
+        outOfStock: outOfStockCount,
+        unchanged: unchangedCount,
+        items: reportItems,
+      };
+
+      this.brandSyncReports.set(brand, brandReport);
+
+      console.log('\n┌────────────────────────────────────────────────────────────┐');
+      console.log(`│ 📊 REPORTE DE SINCRONIZACIÓN RÁPIDA: ${brand.toUpperCase().padEnd(21)} │`);
+      console.log('├────────────────────────────────────────────────────────────┤');
+      console.log(`│ • Total SKUs escaneados:     ${String(scannedIds.size).padEnd(28)} │`);
+      console.log(`│ • Se actualizaron:           ${String(itemsToUpdate.length + ' productos').padEnd(28)} │`);
+      console.log(`│ • Productos sin stock (0):   ${String(outOfStockCount + ' productos').padEnd(28)} │`);
+      console.log(`│ • Productos sin cambios:     ${String(unchangedCount + ' productos').padEnd(28)} │`);
+      console.log('└────────────────────────────────────────────────────────────┘\n');
+
+      return Array.from(scannedProducts.values());
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 4. CLASIFICACIÓN PARA INGESTA COMPLETA DE CATÁLOGO
     // ─────────────────────────────────────────────────────────────
     const itemsStockOnly: Array<{ id_ext: string; stock: number }> = [];
     const itemsNeedingSecondaryImg: OptiHubProduct[] = [];
@@ -128,17 +279,13 @@ export class CatalogRunner {
     for (const prod of allValid) {
       const existing = existingCache.get(prod.id_ext);
       if (existing) {
-        if (options.stockOnly) {
+        const hasSecImg = existing.imagenes_secundarias && existing.imagenes_secundarias.trim().length > 5;
+        if (hasSecImg) {
           itemsStockOnly.push({ id_ext: prod.id_ext, stock: Math.min(50, Math.max(0, prod.stock)) });
         } else {
-          const hasSecImg = existing.imagenes_secundarias && existing.imagenes_secundarias.trim().length > 5;
-          if (hasSecImg) {
-            itemsStockOnly.push({ id_ext: prod.id_ext, stock: Math.min(50, Math.max(0, prod.stock)) });
-          } else {
-            itemsNeedingSecondaryImg.push(prod);
-          }
+          itemsNeedingSecondaryImg.push(prod);
         }
-      } else if (!options.stockOnly) {
+      } else {
         itemsBrandNew.push(prod);
       }
     }
@@ -151,7 +298,7 @@ export class CatalogRunner {
     );
 
     // ─────────────────────────────────────────────────────────────
-    // 4. ACTUALIZACIÓN EXCLUSIVA DE STOCK
+    // 5. ACTUALIZACIÓN EXCLUSIVA DE STOCK
     // ─────────────────────────────────────────────────────────────
     if (itemsStockOnly.length > 0 && !options.dryRun && this.supabaseService?.isConfigured()) {
       Logger.info(`Actualizando stock únicamente para ${itemsStockOnly.length} productos completos...`);
@@ -161,7 +308,7 @@ export class CatalogRunner {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 5. ENRIQUECER FOTO SECUNDARIA EN ÍTEMS EXISTENTES INCOMPLETOS
+    // 6. ENRIQUECER FOTO SECUNDARIA EN ÍTEMS EXISTENTES INCOMPLETOS
     // ─────────────────────────────────────────────────────────────
     if (itemsNeedingSecondaryImg.length > 0) {
       Logger.info(`\n🖼️ Enriqueciendo imágenes secundarias para ${itemsNeedingSecondaryImg.length} productos existentes...`);
@@ -191,7 +338,6 @@ export class CatalogRunner {
                   });
                 }
               } else {
-                // If no secondary image available at source, just update stock
                 if (!options.dryRun && this.supabaseService?.isConfigured()) {
                   await this.supabaseService.updateProductPartial(prod.id_ext, { stock: Math.min(50, Math.max(0, prod.stock)) });
                 }
@@ -206,7 +352,7 @@ export class CatalogRunner {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 6. INGESTA COMPLETA DE PRODUCTOS NUEVOS
+    // 7. INGESTA COMPLETA DE PRODUCTOS NUEVOS
     // ─────────────────────────────────────────────────────────────
     const enrichedNewProducts: OptiHubProduct[] = [];
 
@@ -225,7 +371,6 @@ export class CatalogRunner {
         Logger.info(`Progreso productos nuevos: ${enrichedNewProducts.length}/${itemsBrandNew.length}`);
       }
 
-      // Upsert full records for new products
       if (!options.dryRun && this.supabaseService?.isConfigured()) {
         Logger.info(`Insertando ${enrichedNewProducts.length} productos nuevos en Supabase...`);
         await this.supabaseService.upsertBatch(enrichedNewProducts);
@@ -235,10 +380,10 @@ export class CatalogRunner {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 7. CONCILIACIÓN DE DISCONTINUADOS (STOCK = 0)
+    // 8. CONCILIACIÓN CONTROLADA DE DISCONTINUADOS (STOCK = 0)
     // ─────────────────────────────────────────────────────────────
     if (!options.dryRun && this.supabaseService?.isConfigured()) {
-      await this.supabaseService.syncOutOfStock(brand, scannedIds);
+      await this.supabaseService.markOutOfStockBatch(brand, scannedIds, existingCache);
     }
 
     const finalSummaryList = [
