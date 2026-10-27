@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { useCartStore } from "@/store/useCartStore";
 import { useAuth } from "@/context/AuthContext";
@@ -41,6 +42,7 @@ interface Props {
   allFacetItems?: any[];
 }
 export default function CatalogoClient({ initialMarcos, totalCount, currentPage, totalPages, allFacetItems }: Props) {
+  const router = useRouter();
   const [marcos, setMarcos] = useState<Marco[]>(initialMarcos);
   const [loading, setLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<EnrichedMarco | null>(null);
@@ -150,9 +152,8 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
   }, [results]);
 
   const openProduct = useCallback((m: EnrichedMarco) => {
-    setSelectedProduct(m);
-    setActiveImage(m.imagen_principal);
-  }, []);
+    router.push('/producto/' + encodeURIComponent(m.marca) + '/' + encodeURIComponent(m.modelo) + (m.id_ext ? '?sku=' + encodeURIComponent(m.id_ext) : ''));
+  }, [router]);
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
@@ -398,13 +399,7 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
           </div>
         </div>
 
-        {/* Modal de Vista Rapida (Quick View) */}
-        <QuickViewModal 
-          variants={selectedProduct ? groupedResults.find((g: EnrichedMarco[]) => g?.[0]?.modelo === selectedProduct.modelo && g?.[0]?.marca === selectedProduct.marca) || [selectedProduct] : []}
-          initialVariantId={selectedProduct?.id_ext}
-          isOpen={!!selectedProduct} 
-          onClose={() => setSelectedProduct(null)} 
-        />
+        
 
       </div>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import Image from 'next/image';
 import { Lock, TrendingUp } from 'lucide-react';
 import type { EnrichedMarco, FacetOption } from '@/lib/catalog/types';
@@ -10,12 +11,12 @@ import { getRotationBadge, calculateRetailProjection } from '@/lib/catalog/brand
 interface ProductCardProps {
   variants: EnrichedMarco[];
   isLoggedIn: boolean;
-  onOpen: (m: EnrichedMarco) => void;
   idx: number;
   materialLabels: FacetOption[];
+  onOpen?: (m: EnrichedMarco) => void;
 }
 
-export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materialLabels }: ProductCardProps) {
+export default function ProductCard({ variants, isLoggedIn, idx, materialLabels }: ProductCardProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   useEffect(() => {
@@ -31,15 +32,17 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
     ? active.imagen_principal.trim() 
     : '/placeholder.png';
 
+  const productHref = `/producto/${encodeURIComponent(active?.marca || '')}/${encodeURIComponent(active?.modelo || '')}${active?.id_ext ? `?sku=${encodeURIComponent(active.id_ext)}` : ''}`;
+
   return (
     <div 
       className="card-product group animate-slide-up flex flex-col justify-between bg-[#FFFFFF] border border-[#E5E4DF] hover:border-[#B89768] transition-all duration-300"
       style={{ animationDelay: `${Math.min(idx, 8) * 30}ms` }}
     >
-      {/* ZONA DE IMAGEN Y BADGES EDITORIALES */}
-      <div 
-        className="relative h-60 bg-[#FFFFFF] flex items-center justify-center p-6 overflow-hidden cursor-pointer"
-        onClick={() => active?.id_ext && onOpen(active)}
+      {/* ZONA DE IMAGEN Y BADGES EDITORIALES - ENLACE DIRECTO A PRODUCTO */}
+      <Link 
+        href={productHref}
+        className="relative h-60 bg-[#FFFFFF] flex items-center justify-center p-6 overflow-hidden cursor-pointer block"
       >
         <Image 
           unoptimized 
@@ -76,18 +79,18 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
 
         {/* Halo sutil al hover */}
         <div className="absolute inset-0 bg-[#B89768]/0 group-hover:bg-[#B89768]/[0.02] transition duration-300 pointer-events-none" />
-      </div>
+      </Link>
 
       {/* ZONA DE INFORMACIÓN Y FICHA TÉCNICA */}
       <div className="p-5 space-y-3.5 flex-1 flex flex-col justify-between bg-[#FFFFFF] z-10 relative border-t border-[#E5E4DF]">
         <div>
           <div className="flex justify-between items-start gap-2">
-            <h3 
-              className="font-editorial text-xl font-semibold text-[#111111] leading-snug hover:text-[#B89768] transition-colors line-clamp-2 cursor-pointer tracking-tight"
-              onClick={() => active?.id_ext && onOpen(active)}
+            <Link 
+              href={productHref}
+              className="font-editorial text-xl font-semibold text-[#111111] leading-snug hover:text-[#B89768] transition-colors line-clamp-2 tracking-tight block"
             >
               {active?.modelo || 'Modelo'}
-            </h3>
+            </Link>
             <span className="text-[10px] text-[#575551] font-tech flex-shrink-0 bg-[#FAF9F6] px-2 py-0.5 rounded border border-[#E5E4DF]">
               COL {active?.codigo_color || 'N/A'}
             </span>
@@ -117,6 +120,7 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
                       type="button"
                       onClick={(e) => { 
                         e.stopPropagation(); 
+                        e.preventDefault();
                         setSelectedIndex(i); 
                       }}
                       className={`relative w-8 h-8 rounded-lg border overflow-hidden bg-[#FAF9F6] transition-all flex items-center justify-center ${
@@ -161,7 +165,7 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
           </div>
         )}
 
-        {/* PIE DE TARJETA: PRECIO NETO Y STOCK B2B */}
+        {/* PIE DE TARJETA: PRECIO NETO, STOCK B2B Y ENLACE A FICHA */}
         <div className="pt-3 border-t border-[#E5E4DF] flex justify-between items-end">
           {isLoggedIn ? (
             <div>
@@ -179,16 +183,20 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
             </span>
           )}
 
-          {isLoggedIn && (
-            <div className="text-right">
-              <span className="text-[9px] text-[#82807A] block uppercase font-bold tracking-wider mb-0.5">
-                Stock Origen
-              </span>
+          <div className="flex flex-col items-end gap-1.5">
+            {isLoggedIn && (
               <span className="badge-stock">
                 {activeStock >= 50 ? '50+ un.' : `${activeStock} un.`}
               </span>
-            </div>
-          )}
+            )}
+            <Link 
+              href={productHref}
+              className="text-[11px] font-semibold text-[#111111] hover:text-[#B89768] transition-colors flex items-center gap-1 group/btn"
+            >
+              <span>Ver Ficha</span>
+              <span className="group-hover/btn:translate-x-0.5 transition-transform">→</span>
+            </Link>
+          </div>
         </div>
       </div>
     </div>

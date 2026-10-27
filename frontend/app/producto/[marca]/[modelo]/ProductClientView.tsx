@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { useCartStore, getValidStock, getProductCartKey } from '@/store/useCartStore';
@@ -23,6 +23,8 @@ interface Props {
 
 export default function ProductClientView({ variants, baseProduct }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const skuFromUrl = searchParams?.get('sku');
   const { isLoggedIn } = useAuth();
   const cart = useCartStore((state) => state.cart);
   const addToCart = useCartStore((state) => state.addToCart);
@@ -43,7 +45,8 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
 
   useEffect(() => {
     setB2bVariants(variants);
-    setActiveVariant(baseProduct);
+    const targetInitial = (skuFromUrl && variants?.find(v => v.id_ext === skuFromUrl)) || baseProduct;
+    setActiveVariant(targetInitial);
 
     if (!isLoggedIn || !variants || variants.length === 0) {
       return;

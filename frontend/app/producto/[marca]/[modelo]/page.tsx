@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Metadata } from 'next';
 import { supabase } from '@/lib/supabaseClient';
 import { notFound } from 'next/navigation';
@@ -212,7 +213,7 @@ export default async function ProductPage({ params }: Props) {
       />
 
       <div className="min-h-screen bg-[#F7F6F2] text-[#111111] pt-6 pb-20">
-        <ProductClientView variants={variants} baseProduct={baseProduct} />
+        <Suspense fallback={<div className="min-h-[400px]" />}><ProductClientView variants={variants} baseProduct={baseProduct} /></Suspense>
 
         {/* Interlinking interno para escalabilidad de Googlebot */}
         <RelatedProducts
