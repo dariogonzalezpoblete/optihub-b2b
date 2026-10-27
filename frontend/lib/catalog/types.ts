@@ -108,6 +108,7 @@ export interface FilterState {
   calibre: string[];
   sort: SortKey;
   page?: number;
+  tipo?: string;
 }
 
 export interface FacetOption {

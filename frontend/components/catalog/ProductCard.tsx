@@ -134,7 +134,8 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
                     title={`${v.color || v.codigo_color} (SKU: ${v.id_ext})`}
                   >
                     <Image 
-                      unoptimized 
+                      unoptimized
+                      loading="eager"
                       src={v.imagen_principal || "/placeholder.png"} 
                       className="object-cover p-0.5" 
                       alt={v.codigo_color || "Color"} 

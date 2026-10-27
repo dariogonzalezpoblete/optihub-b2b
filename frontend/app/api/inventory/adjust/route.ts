@@ -5,11 +5,24 @@ import { formatInventoryErrorResponse } from '@/lib/inventory/errors';
 import type { AdjustStockInput } from '@/lib/inventory/types';
 import { authenticateServerRequest } from '@/lib/auth/serverAuth';
 import { checkBusinessMutationAllowed } from '@/lib/env/runtimeEnv';
+import { z } from 'zod'; // Zod for payload validation
 
 export const dynamic = 'force-dynamic';
 
 const MAX_QUANTITY_DELTA = 100000;
 const VALID_TYPES = new Set(['RETURN', 'ADJUSTMENT', 'SALE']);
+
+// Zod schema for the incoming payload
+const AdjustStockSchema = z.object({
+  productId: z.string().min(1, { message: 'productId is required' }).trim(),
+  quantityDelta: z.number()
+    .int()
+    .refine((n) => n !== 0, { message: 'quantityDelta must be non‑zero' })
+    .refine((n) => Math.abs(n) <= MAX_QUANTITY_DELTA, { message: 'quantityDelta out of range' }),
+  type: z.enum(['RETURN', 'ADJUSTMENT', 'SALE']).optional(),
+  notes: z.string().optional(),
+  orderId: z.string().optional(),
+});
 
 export async function handleAdjustStock(
   req: Request,
@@ -25,11 +38,11 @@ export async function handleAdjustStock(
       return auth.response;
     }
 
-    // 2. Control de autorización: exclusivo para administradores
+    // 2. Sólo administradores pueden ajustar inventario
     if (!auth.isAdmin) {
       return NextResponse.json(
         {
-          error: 'Acceso denegado: Se requieren permisos administrativos para ajustar el inventario.',
+          error: 'Acceso denegado: Se requieren permisos administrativos.',
           code: 'FORBIDDEN',
           statusCode: 403,
           timestamp: new Date().toISOString(),
@@ -38,19 +51,20 @@ export async function handleAdjustStock(
       );
     }
 
-    // 3. Control de aislamiento de entorno: bloqueado en Preview para proteger la base compartida
+    // 3. Bloqueo en entornos preview para evitar mutaciones en BD compartida
     const envGuard = checkBusinessMutationAllowed('adjust_inventory', options);
     if (!envGuard.allowed) {
       return envGuard.response;
     }
 
-    let body: AdjustStockInput;
+    // 4. Parsear y validar JSON con Zod
+    let rawBody: any;
     try {
-      body = await req.json();
-    } catch {
+      rawBody = await req.json();
+    } catch (e) {
       return NextResponse.json(
         {
-          error: 'Cuerpo de solicitud inválido. Se espera formato JSON.',
+          error: 'Cuerpo de solicitud no es JSON válido.',
           code: 'INVALID_JSON_BODY',
           statusCode: 400,
           timestamp: new Date().toISOString(),
@@ -59,11 +73,14 @@ export async function handleAdjustStock(
       );
     }
 
-    if (!body || typeof body !== 'object') {
+    const parseResult = AdjustStockSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      // Log detailed validation errors server‑side
+      console.error('[AdjustStock] Zod validation error:', parseResult.error.format());
       return NextResponse.json(
         {
-          error: 'El cuerpo de la solicitud no puede estar vacío.',
-          code: 'EMPTY_BODY',
+          error: 'Datos de solicitud inválidos.',
+          code: 'VALIDATION_ERROR',
           statusCode: 400,
           timestamp: new Date().toISOString(),
         },
@@ -71,71 +88,15 @@ export async function handleAdjustStock(
       );
     }
 
-    const productId = typeof body.productId === 'string' ? body.productId.trim() : '';
-    if (!productId) {
-      return NextResponse.json(
-        {
-          error: 'El campo "productId" es obligatorio y debe ser una cadena no vacía.',
-          code: 'MISSING_PRODUCT_ID',
-          statusCode: 400,
-          timestamp: new Date().toISOString(),
-        },
-        { status: 400 }
-      );
-    }
+    const body: AdjustStockInput = parseResult.data;
 
-    if (
-      typeof body.quantityDelta !== 'number' ||
-      !Number.isFinite(body.quantityDelta) ||
-      !Number.isInteger(body.quantityDelta) ||
-      body.quantityDelta === 0
-    ) {
-      return NextResponse.json(
-        {
-          error: 'El campo "quantityDelta" debe ser un número entero diferente de cero.',
-          code: 'INVALID_QUANTITY_DELTA',
-          statusCode: 400,
-          timestamp: new Date().toISOString(),
-        },
-        { status: 400 }
-      );
-    }
-
-    if (Math.abs(body.quantityDelta) > MAX_QUANTITY_DELTA) {
-      return NextResponse.json(
-        {
-          error: `El campo "quantityDelta" excede el límite máximo permitido (±${MAX_QUANTITY_DELTA}).`,
-          code: 'QUANTITY_DELTA_OUT_OF_RANGE',
-          statusCode: 400,
-          timestamp: new Date().toISOString(),
-        },
-        { status: 400 }
-      );
-    }
-
-    let movementType: 'RETURN' | 'ADJUSTMENT' | 'SALE' = 'ADJUSTMENT';
-    if (body.type) {
-      const normalizedType = String(body.type).toUpperCase().trim();
-      if (!VALID_TYPES.has(normalizedType)) {
-        return NextResponse.json(
-          {
-            error: 'El campo "type" debe ser uno de los siguientes: RETURN, ADJUSTMENT, SALE.',
-            code: 'INVALID_MOVEMENT_TYPE',
-            statusCode: 400,
-            timestamp: new Date().toISOString(),
-          },
-          { status: 400 }
-        );
-      }
-      movementType = normalizedType as 'RETURN' | 'ADJUSTMENT' | 'SALE';
-    }
-
+    // 5. Normalizar campos y construir payload sanitizado
     const sanitizedInput: AdjustStockInput = {
-      productId,
+      productId: body.productId,
       quantityDelta: body.quantityDelta,
-      type: movementType,
-      notes: typeof body.notes === 'string' ? body.notes.trim() : undefined,
-      orderId: typeof body.orderId === 'string' ? body.orderId.trim() : undefined,
+      type: body.type ?? 'ADJUSTMENT',
+      notes: body.notes?.trim(),
+      orderId: body.orderId?.trim(),
     };
 
     const adjustFn =
@@ -146,6 +107,8 @@ export async function handleAdjustStock(
 
     return NextResponse.json(result, { status: 200 });
   } catch (error: unknown) {
+    // Garantizar que cualquier excepción interna se traduce a mensaje genérico
+    console.error('[AdjustStock] Excepción inesperada:', error);
     return formatInventoryErrorResponse(error);
   }
 }

@@ -56,6 +56,12 @@ export default async function CatalogoPage({
   const limit = Math.max(1, Math.min(limitStr, 120));
   const q = (params.q as string) || '';
   const sort = (params.sort as string) || 'relevancia';
+  const rawTipo = ((params.tipo as string) || (params.categoria as string) || '').toLowerCase();
+  const tipo = rawTipo === 'optico' || rawTipo === 'oftalmico' || rawTipo === 'opticos' || rawTipo === 'oftalmicos'
+    ? 'optico'
+    : rawTipo === 'sol' || rawTipo === 'solares'
+    ? 'sol'
+    : '';
 
   // 2. Consulta optimizada en una sola llamada de metadatos globales para facetas
   const { data: allFacetItems } = await supabase
@@ -78,6 +84,13 @@ export default async function CatalogoPage({
   if (q) {
     const cleanQ = q.trim();
     query = query.or(`modelo.ilike.%${cleanQ}%,marca.ilike.%${cleanQ}%,id_ext.ilike.%${cleanQ}%`);
+  }
+
+  // 4.1 Filtro por Categoría / Tipo (Monturas Ópticas vs Gafas de Sol)
+  if (tipo === 'optico') {
+    query = query.or('color.ilike.%demo%,color.ilike.%clear%');
+  } else if (tipo === 'sol') {
+    query = query.or('color.ilike.%smoke%,color.ilike.%gradient%,color.ilike.%mirror%,color.ilike.%polarized%,color.ilike.%tint%,color.ilike.%brown%');
   }
 
   const parseList = (str: string | string[] | undefined) => {

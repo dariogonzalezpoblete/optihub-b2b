@@ -149,7 +149,7 @@ export interface DeductStockForOrderResult {
 export interface AdjustStockInput {
   productId: string;
   quantityDelta: number; // Positive to add stock, negative to reduce
-  type: 'RETURN' | 'ADJUSTMENT' | 'SALE';
+  type?: 'RETURN' | 'ADJUSTMENT' | 'SALE';
   notes?: string;
   orderId?: string;
 }

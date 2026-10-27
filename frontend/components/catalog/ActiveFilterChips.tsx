@@ -18,6 +18,7 @@ interface ActiveFilterChipsProps {
   onRemove: (facet: FacetKey, key: string) => void;
   onClearQuery: () => void;
   onClearAll: () => void;
+  onRemoveTipo?: () => void;
 }
 
 export default function ActiveFilterChips({
@@ -26,6 +27,7 @@ export default function ActiveFilterChips({
   onRemove,
   onClearQuery,
   onClearAll,
+  onRemoveTipo,
 }: ActiveFilterChipsProps) {
   const chips = FACET_KEYS.flatMap((f) =>
     state[f].map((key) => ({
@@ -35,10 +37,23 @@ export default function ActiveFilterChips({
     }))
   );
 
-  if (!chips.length && !state.q.trim()) return null;
+  if (!chips.length && !state.q.trim() && !state.tipo) return null;
 
   return (
     <div className="flex flex-wrap items-center gap-2 animate-fade-in">
+      {/* Chip de Tipo / Línea (Monturas Ópticas vs Gafas de Sol) */}
+      {state.tipo && (
+        <button
+          type="button"
+          onClick={() => (onRemoveTipo ? onRemoveTipo() : onClearAll())}
+          className="group inline-flex items-center gap-1.5 bg-[#F7F3EB] border border-[#B89768]/50 text-[#9E7D4F] text-xs font-semibold pl-3 pr-2 py-1.5 rounded-full hover:border-[#B89768] transition shadow-2xs"
+          title="Quitar filtro de línea"
+        >
+          <span className="text-[#B89768]">Línea:</span> {state.tipo === 'optico' ? 'Monturas Ópticas' : 'Gafas de Sol'}
+          <X className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+        </button>
+      )}
+
       {state.q.trim() && (
         <button
           type="button"

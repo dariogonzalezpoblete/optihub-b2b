@@ -31,6 +31,7 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
   const [b2bVariants, setB2bVariants] = useState<EnrichedMarco[]>(variants);
   const [activeVariant, setActiveVariant] = useState<EnrichedMarco>(baseProduct);
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
+  const [imgLoaded, setImgLoaded] = useState<boolean>(false);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [isAdding, setIsAdding] = useState(false);
   const [stockWarning, setStockWarning] = useState<string>('');
@@ -78,23 +79,38 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [variantIdsKey, isLoggedIn]);
+  }, [variantIdsKey, isLoggedIn, baseProduct]);
+
+  const handleSelectVariant = (variant: EnrichedMarco) => {
+    if (variant.id_ext === activeVariant.id_ext) return;
+    setActiveVariant(variant);
+    setActiveImageIndex(0);
+    setImgLoaded(false);
+  };
 
   const currentImages = useMemo(() => {
-    const list = [activeVariant.imagen_principal].filter(Boolean) as string[];
-    if (activeVariant.imagenes_secundarias) {
-      list.push(activeVariant.imagenes_secundarias);
+    if (!activeVariant) return [];
+    const list: string[] = [];
+    if (activeVariant.imagen_principal && activeVariant.imagen_principal.trim()) {
+      list.push(activeVariant.imagen_principal.trim());
     }
-    return list;
-  }, [activeVariant.imagen_principal, activeVariant.imagenes_secundarias]);
+    if (activeVariant.imagenes_secundarias && activeVariant.imagenes_secundarias.trim()) {
+      const parts = activeVariant.imagenes_secundarias
+        .split(/[,;]/)
+        .map(s => s.trim())
+        .filter(Boolean);
+      list.push(...parts);
+    }
+    return Array.from(new Set(list));
+  }, [activeVariant?.imagen_principal, activeVariant?.imagenes_secundarias]);
 
-  const currentImageUrl = currentImages[activeImageIndex] || currentImages[0];
+  const currentImageUrl = currentImages[activeImageIndex] || currentImages[0] || activeVariant?.imagen_principal;
 
   useEffect(() => {
     if (baseProduct) {
       addRecentItem(baseProduct);
     }
-  }, [baseProduct?.id_ext, addRecentItem]);
+  }, [baseProduct, addRecentItem]);
 
   const handleQuantityChange = (id_ext: string, val: string, maxStock: number, remainingStock: number) => {
     let num = parseInt(val, 10);
@@ -171,40 +187,69 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
         
         {/* Columna Izquierda: Galería de Imágenes & Ficha Técnica */}
         <div className="lg:col-span-7 flex flex-col gap-6">
+          {/* Contenedor Principal de Imagen con Transición Suave */}
           <div className="aspect-[4/3] bg-[#FFFFFF] rounded-2xl border border-[#E5E4DF] flex items-center justify-center p-8 sm:p-12 relative overflow-hidden group shadow-sm">
+            {!imgLoaded && currentImageUrl && (
+              <div className="absolute inset-8 bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl animate-pulse flex items-center justify-center z-0">
+                <span className="text-[11px] text-[#888888] font-mono uppercase tracking-wider">Cargando imagen...</span>
+              </div>
+            )}
+
             {currentImageUrl ? (
               <Image 
                 unoptimized
+                key={`${activeVariant.id_ext}-${activeImageIndex}-${currentImageUrl}`}
                 src={currentImageUrl} 
-                alt={`${activeVariant.marca} ${activeVariant.modelo}`}
+                alt={`${activeVariant.marca} ${activeVariant.modelo} ${activeVariant.color || ''}`}
                 fill
                 sizes="(max-width: 1024px) 100vw, 60vw"
-                className="object-contain p-6 sm:p-10 transition-transform duration-500 group-hover:scale-105"
+                className={`object-contain p-6 sm:p-10 transition-all duration-300 group-hover:scale-105 ${
+                  imgLoaded ? 'opacity-100' : 'opacity-0'
+                }`}
                 priority
+                loading="eager"
+                onLoad={() => setImgLoaded(true)}
               />
             ) : (
               <div className="text-[#888888] text-xs">Sin fotografía disponible</div>
             )}
             
-            <div className="absolute top-4 left-4 bg-[#F7F6F2] border border-[#E5E4DF] px-3 py-1 rounded-full text-[11px] font-medium text-[#111111]">
-              {activeVariant.color || 'Color Único'}
+            {/* Badge flotante de Color en la foto */}
+            <div className="absolute top-4 left-4 z-10 bg-[#FAF9F6]/95 backdrop-blur-xs border border-[#E5E4DF] px-3.5 py-1.5 rounded-full text-[11px] font-medium text-[#111111] shadow-2xs">
+              {activeVariant.color || activeVariant.codigo_color || 'Color Único'}
             </div>
           </div>
 
-          {/* Thumbnails si existen varias tomas */}
+          {/* Thumbnails si existen varias tomas / ángulos (Eager Loading para carga instantánea) */}
           {currentImages.length > 1 && (
-            <div className="flex gap-3 overflow-x-auto pb-1">
+            <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-thin">
               {currentImages.map((img, idx) => (
                 <button
-                  key={idx}
-                  onClick={() => setActiveImageIndex(idx)}
+                  key={`${activeVariant.id_ext}-thumb-${idx}`}
+                  type="button"
+                  onClick={() => {
+                    if (idx !== activeImageIndex) {
+                      setActiveImageIndex(idx);
+                      setImgLoaded(false);
+                    }
+                  }}
                   className={`relative w-20 h-20 bg-[#FFFFFF] rounded-xl border overflow-hidden flex-shrink-0 transition-all ${
                     idx === activeImageIndex 
-                      ? 'border-[#B89768] ring-2 ring-[#B89768]/20' 
-                      : 'border-[#E5E4DF] opacity-70 hover:opacity-100'
+                      ? 'border-[#B89768] ring-2 ring-[#B89768]/30 shadow-xs scale-102' 
+                      : 'border-[#E5E4DF] opacity-70 hover:opacity-100 hover:border-[#82807A]'
                   }`}
+                  title={`Vista ${idx + 1}`}
                 >
-                  <Image unoptimized src={img} alt="Vista" fill sizes="80px" className="object-contain p-2" />
+                  <Image 
+                    unoptimized 
+                    priority
+                    loading="eager"
+                    src={img} 
+                    alt={`Vista ${idx + 1}`} 
+                    fill 
+                    sizes="80px" 
+                    className="object-contain p-2" 
+                  />
                 </button>
               ))}
             </div>
@@ -274,9 +319,80 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                 Variantes y Stock Mayorista
               </h3>
               <span className="text-[11px] text-[#888888] font-mono">
-                {variants.length} {variants.length === 1 ? 'color' : 'colores'}
+                {b2bVariants.length} {b2bVariants.length === 1 ? 'color' : 'colores'}
               </span>
             </div>
+
+            {/* SELECTOR RÁPIDO DE COLORES (SWATCHES ESTILO E-COMMERCE GRANDE) */}
+            {b2bVariants.length > 1 && (
+              <div className="p-5 sm:p-6 pb-4 border-b border-[#E5E4DF] bg-[#FAF9F6]">
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-xs font-semibold text-[#111111] uppercase tracking-wider">
+                    Color seleccionado:{' '}
+                    <span className="font-bold text-[#B89768] normal-case">
+                      {activeVariant.color || activeVariant.codigo_color || 'Estándar'}
+                    </span>
+                  </span>
+                  <span className="text-[11px] text-[#888888] font-mono">
+                    COL {activeVariant.codigo_color || 'N/A'} • SKU: {activeVariant.id_ext}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-2.5">
+                  {b2bVariants.map((v) => {
+                    const isSelected = v.id_ext === activeVariant.id_ext;
+                    return (
+                      <button
+                        key={`swatch-detail-${v.id_ext}`}
+                        type="button"
+                        onClick={() => handleSelectVariant(v)}
+                        className={`group relative flex items-center gap-2.5 px-3 py-1.5 rounded-xl border transition-all text-left ${
+                          isSelected
+                            ? 'border-[#B89768] bg-[#FDFBF7] ring-1 ring-[#B89768]/50 shadow-xs scale-[1.02]'
+                            : 'border-[#E5E4DF] bg-[#FFFFFF] hover:border-[#B89768]/50 hover:bg-[#FAF9F6]'
+                        }`}
+                        title={`${v.color || v.codigo_color} (SKU: ${v.id_ext})`}
+                      >
+                        {/* Miniatura del color con carga prioritaria */}
+                        <div className={`relative w-8 h-8 rounded-lg overflow-hidden bg-[#FAF9F6] border flex-shrink-0 ${
+                          isSelected ? 'border-[#B89768]' : 'border-[#E5E4DF]'
+                        }`}>
+                          {v.imagen_principal ? (
+                            <Image
+                              unoptimized
+                              priority
+                              loading="eager"
+                              src={v.imagen_principal}
+                              alt={v.color || v.codigo_color || 'Variante'}
+                              fill
+                              sizes="32px"
+                              className="object-contain p-0.5"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-[9px] font-mono font-bold text-[#888888]">
+                              {v.codigo_color || 'N/A'}
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <span className={`block text-xs font-bold leading-tight ${isSelected ? 'text-[#111111]' : 'text-[#555555]'}`}>
+                            {v.color || v.codigo_color}
+                          </span>
+                          <span className="block text-[10px] text-[#888888] font-mono leading-none mt-0.5">
+                            {v.codigo_color ? `COL ${v.codigo_color}` : v.id_ext}
+                          </span>
+                        </div>
+
+                        {isSelected && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#B89768] ml-1" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             
             {!isLoggedIn ? (
               <div className="p-8 sm:p-10 text-center flex-1 flex flex-col justify-center items-center">
@@ -320,30 +436,61 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                     const remainingStock = Math.max(0, maxStock - inCart);
                     const outOfStock = maxStock <= 0;
                     const isMaxInCart = !outOfStock && remainingStock <= 0;
+                    const isSelected = v.id_ext === activeVariant.id_ext;
 
                     return (
                       <div 
                         key={v.id_ext} 
-                        className={`grid grid-cols-1 sm:grid-cols-12 gap-3 items-center bg-[#FFFFFF] p-3 rounded-xl border transition-all ${
-                          outOfStock 
+                        onClick={() => handleSelectVariant(v)}
+                        className={`grid grid-cols-1 sm:grid-cols-12 gap-3 items-center p-3 rounded-xl border transition-all cursor-pointer ${
+                          isSelected
+                            ? 'border-[#B89768] bg-[#FDFBF7] ring-1 ring-[#B89768]/40 shadow-xs'
+                            : outOfStock 
                             ? 'border-[#E5E4DF] opacity-50 bg-[#F9F9F8]' 
                             : isMaxInCart 
-                            ? 'border-[#B89768]/60 bg-[#FDFBF7]' 
-                            : 'border-[#E5E4DF] hover:border-[#B89768]/50'
+                            ? 'border-[#B89768]/40 bg-[#FAF9F6]' 
+                            : 'border-[#E5E4DF] bg-[#FFFFFF] hover:border-[#B89768]/50 hover:bg-[#FAF9F6]'
                         }`}
                       >
-                        <div className="col-span-1 sm:col-span-5 flex items-center gap-2.5">
-                          {v.codigo_color && (
-                            <div className="w-7 h-7 rounded-md bg-[#F7F6F2] border border-[#E5E4DF] flex items-center justify-center text-[10px] font-mono font-bold text-[#666666]">
-                              {v.codigo_color}
+                        {/* Miniatura + Color / Acabado */}
+                        <div className="col-span-1 sm:col-span-5 flex items-center gap-3">
+                          <div className={`relative w-10 h-10 rounded-lg overflow-hidden bg-[#FFFFFF] border flex-shrink-0 ${
+                            isSelected ? 'border-[#B89768]' : 'border-[#E5E4DF]'
+                          }`}>
+                            {v.imagen_principal ? (
+                              <Image
+                                unoptimized
+                                priority
+                                loading="eager"
+                                src={v.imagen_principal}
+                                alt={v.color || v.codigo_color || 'Variante'}
+                                fill
+                                sizes="40px"
+                                className="object-contain p-0.5"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-[9px] font-mono font-bold text-[#888888]">
+                                {v.codigo_color || 'N/A'}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="font-semibold text-xs text-[#111111] truncate">{v.color || 'Estándar'}</p>
+                              {isSelected && (
+                                <span className="inline-flex items-center gap-1 text-[9px] bg-[#B89768] text-white px-1.5 py-0.2 rounded-full font-semibold uppercase tracking-wider shrink-0">
+                                  <Check className="w-2.5 h-2.5" /> Viendo
+                                </span>
+                              )}
                             </div>
-                          )}
-                          <div>
-                            <p className="font-semibold text-xs text-[#111111]">{v.color || 'Estándar'}</p>
-                            <p className="text-[10px] text-[#888888] font-mono">SKU: {v.id_ext}</p>
+                            <p className="text-[10px] text-[#888888] font-mono truncate">
+                              {v.codigo_color ? `COL ${v.codigo_color} • ` : ''}SKU: {v.id_ext}
+                            </p>
                           </div>
                         </div>
                         
+                        {/* Precio Neto */}
                         <div className="col-span-1 sm:col-span-3 text-left sm:text-center">
                           <span className="sm:hidden text-xs text-[#888888] mr-2">Precio:</span>
                           <span className="font-mono font-bold text-[#111111] text-sm">
@@ -353,6 +500,7 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                           </span>
                         </div>
                         
+                        {/* Stock */}
                         <div className="col-span-1 sm:col-span-2 text-left sm:text-center">
                           <span className="sm:hidden text-xs text-[#888888] mr-2">Stock en origen:</span>
                           {outOfStock ? (
@@ -374,7 +522,11 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                           )}
                         </div>
                         
-                        <div className="col-span-1 sm:col-span-2 flex justify-start sm:justify-center">
+                        {/* Cantidad Input: stopPropagation para no cambiar de variante al escribir */}
+                        <div 
+                          className="col-span-1 sm:col-span-2 flex justify-start sm:justify-center"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <input 
                             type="number"
                             min="0"
@@ -383,7 +535,7 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                             value={quantities[v.id_ext] || ''}
                             placeholder="0"
                             onChange={(e) => handleQuantityChange(v.id_ext, e.target.value, maxStock, remainingStock)}
-                            className="w-16 bg-[#FFFFFF] border border-[#D0CEBE] rounded-lg py-1 px-2 text-center text-[#111111] font-mono font-bold text-xs focus:outline-none focus:border-[#B89768] disabled:opacity-40"
+                            className="w-16 bg-[#FFFFFF] border border-[#D0CEBE] rounded-lg py-1 px-2 text-center text-[#111111] font-mono font-bold text-xs focus:outline-none focus:border-[#B89768] disabled:opacity-40 shadow-2xs"
                           />
                         </div>
                       </div>

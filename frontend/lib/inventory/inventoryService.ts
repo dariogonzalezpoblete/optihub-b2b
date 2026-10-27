@@ -504,8 +504,9 @@ export async function adjustOrReplenishStockAtomic(
   }
 
   const validTypes = ['RETURN', 'ADJUSTMENT', 'SALE'];
-  if (!validTypes.includes(params.type)) {
-    throw new Error(`Tipo de movimiento inválido "${params.type}". Permitidos: ${validTypes.join(', ')}`);
+  const movementType = params.type ?? 'ADJUSTMENT';
+  if (!validTypes.includes(movementType)) {
+    throw new Error(`Tipo de movimiento inválido "${movementType}". Permitidos: ${validTypes.join(', ')}`);
   }
 
   const executeCoreLogic = async (client: PoolClient): Promise<AdjustStockResult> => {
@@ -553,12 +554,12 @@ export async function adjustOrReplenishStockAtomic(
       RETURNING *
     `;
 
-    const notes = params.notes || `Ajuste manual de stock (${params.type}): delta ${params.quantityDelta}`;
+    const notes = params.notes || `Ajuste manual de stock (${movementType}): delta ${params.quantityDelta}`;
     const { rows: movRows } = await client.query<InventoryMovementRecord>(insertMovement, [
       productId,
       params.orderId || null,
       params.quantityDelta,
-      params.type,
+      movementType,
       notes,
     ]);
 

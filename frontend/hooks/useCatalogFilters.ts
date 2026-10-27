@@ -22,6 +22,12 @@ export function useCatalogFilters() {
 
   const state = useMemo<FilterState>(() => {
     const sortParam = searchParams.get('sort') as SortKey | null;
+    const rawTipo = (searchParams.get('tipo') || searchParams.get('categoria') || '').toLowerCase();
+    const tipo = rawTipo === 'optico' || rawTipo === 'oftalmico' || rawTipo === 'opticos' || rawTipo === 'oftalmicos'
+      ? 'optico'
+      : rawTipo === 'sol' || rawTipo === 'solares'
+      ? 'sol'
+      : '';
     return {
       q: searchParams.get('q') ?? '',
       page: Number(searchParams.get('page')) || 1,
@@ -32,6 +38,7 @@ export function useCatalogFilters() {
       forma: parseList(searchParams.get('forma')),
       calibre: parseList(searchParams.get('calibre')),
       sort: sortParam && SORT_KEYS.includes(sortParam) ? sortParam : 'relevancia',
+      tipo,
     };
   }, [searchParams]);
 
@@ -43,6 +50,7 @@ export function useCatalogFilters() {
         if (next[f].length) params.set(f, next[f].join(','));
       }
       if (next.sort !== 'relevancia') params.set('sort', next.sort);
+      if (next.tipo) params.set('tipo', next.tipo);
       if (next.page && next.page > 1) params.set('page', next.page.toString());
       else params.delete('page');
       const qs = params.toString();
@@ -70,12 +78,13 @@ export function useCatalogFilters() {
   const setQuery = useCallback((q: string) => commit({ ...state, q, page: 1 }), [state, commit]);
   const setSort = useCallback((sort: SortKey) => commit({ ...state, sort, page: 1 }), [state, commit]);
   const setPage = useCallback((page: number) => commit({ ...state, page }), [state, commit]);
+  const setTipo = useCallback((tipo: string) => commit({ ...state, tipo, page: 1 }), [state, commit]);
 
   const clearAll = useCallback(
     () =>
-      commit({ q: '', marca: [], color: [], genero: [], material: [], forma: [], calibre: [], sort: state.sort }),
+      commit({ q: '', marca: [], color: [], genero: [], material: [], forma: [], calibre: [], sort: state.sort, tipo: '' }),
     [state.sort, commit]
   );
 
-  return { state, toggle, setFacet, setQuery, setSort, setPage, clearAll };
+  return { state, toggle, setFacet, setQuery, setSort, setPage, setTipo, clearAll };
 }

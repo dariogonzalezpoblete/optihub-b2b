@@ -175,83 +175,69 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Card Oftálmicos */}
-          <div className="group relative rounded-3xl overflow-hidden border border-[#E5E4DF] min-h-[340px] p-8 sm:p-10 flex flex-col justify-between shadow-xs hover:border-[#B89768] transition-all duration-500 bg-[#FFFFFF]">
-            <div className="absolute inset-0 -z-10">
+          {/* Card Monturas Ópticas */}
+          <Link
+            href="/catalogo?tipo=optico"
+            className="group relative rounded-3xl overflow-hidden min-h-[380px] sm:min-h-[440px] p-8 sm:p-12 flex flex-col justify-end border border-[#E5E4DF] shadow-md hover:shadow-2xl hover:border-[#B89768] transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+          >
+            <div className="absolute inset-0 -z-10 overflow-hidden">
               <Image
-                src="https://images.unsplash.com/photo-1591076482161-42ce6da69f67?auto=format&fit=crop&w=1200&q=80"
-                alt="Monturas Oftálmicas Recetables"
+                src="https://images.unsplash.com/photo-1591076482161-42ce6da69f67?auto=format&fit=crop&w=1200&q=85"
+                alt="Monturas Ópticas"
                 fill
-                className="object-cover object-center group-hover:scale-105 transition-transform duration-700 brightness-[0.4]"
+                priority
+                className="object-cover object-center group-hover:scale-108 transition-transform duration-700 ease-out"
                 sizes="(max-width: 768px) 100vw, 50vw"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#111111] via-[#111111]/70 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/25 group-hover:from-black/90 transition-colors duration-300" />
             </div>
 
-            <div>
-              <span className="inline-block px-3 py-1 rounded-full bg-[#FFFFFF]/90 text-[#111111] text-[10px] font-bold tracking-wider uppercase mb-4 backdrop-blur-md">
-                Uso Clínico y Receta
-              </span>
-              <h3 className="font-editorial text-3xl sm:text-4xl font-normal text-white tracking-tight leading-tight">
-                Monturas Oftálmicas
+            <div className="relative z-10">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-white/90 text-[11px] font-semibold tracking-widest uppercase mb-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#B89768]" />
+                Línea Oftálmica
+              </div>
+              <h3 className="font-editorial text-4xl sm:text-5xl font-semibold text-white tracking-tight drop-shadow-md">
+                Monturas Ópticas
               </h3>
-              <p className="text-[#E5E4DF] text-sm mt-3 leading-relaxed max-w-md font-sans">
-                Armazones graduables en acetato de celulosa, titanio y aleaciones ligeras diseñados para cristales de alta gama.
-              </p>
+              <div className="mt-4 flex items-center gap-2 text-xs font-bold text-white/95 uppercase tracking-widest group-hover:text-[#B89768] transition-colors">
+                <span>Explorar Catálogo</span>
+                <ArrowRight className="w-4 h-4 text-[#B89768] group-hover:translate-x-1.5 transition-transform duration-300" />
+              </div>
             </div>
+          </Link>
 
-            <div className="pt-6 border-t border-white/20 flex items-center justify-between">
-              <span className="text-[10px] text-white/80 font-mono">
-                Acetato Premium • Titanio
-              </span>
-              <Link
-                href="/catalogo?q=optico"
-                className="inline-flex items-center gap-2 text-xs font-bold text-white hover:text-[#B89768] uppercase tracking-wider transition"
-              >
-                <span>Explorar oftálmicos</span>
-                <ArrowRight className="w-4 h-4 text-[#B89768]" />
-              </Link>
-            </div>
-          </div>
-
-          {/* Card Solares */}
-          <div className="group relative rounded-3xl overflow-hidden border border-[#E5E4DF] min-h-[340px] p-8 sm:p-10 flex flex-col justify-between shadow-xs hover:border-[#B89768] transition-all duration-500 bg-[#FFFFFF]">
-            <div className="absolute inset-0 -z-10">
+          {/* Card Gafas de Sol */}
+          <Link
+            href="/catalogo?tipo=sol"
+            className="group relative rounded-3xl overflow-hidden min-h-[380px] sm:min-h-[440px] p-8 sm:p-12 flex flex-col justify-end border border-[#E5E4DF] shadow-md hover:shadow-2xl hover:border-[#B89768] transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+          >
+            <div className="absolute inset-0 -z-10 overflow-hidden">
               <Image
-                src="https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=1200&q=80"
-                alt="Gafas de Sol Premium Mayoristas"
+                src="https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=1200&q=85"
+                alt="Gafas de Sol"
                 fill
-                className="object-cover object-center group-hover:scale-105 transition-transform duration-700 brightness-[0.4]"
+                priority
+                className="object-cover object-center group-hover:scale-108 transition-transform duration-700 ease-out"
                 sizes="(max-width: 768px) 100vw, 50vw"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#111111] via-[#111111]/70 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/25 group-hover:from-black/90 transition-colors duration-300" />
             </div>
 
-            <div>
-              <span className="inline-block px-3 py-1 rounded-full bg-[#FFFFFF]/90 text-[#111111] text-[10px] font-bold tracking-wider uppercase mb-4 backdrop-blur-md">
-                Protección UV400
-              </span>
-              <h3 className="font-editorial text-3xl sm:text-4xl font-normal text-white tracking-tight leading-tight">
-                Lentes de Sol
+            <div className="relative z-10">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-white/90 text-[11px] font-semibold tracking-widest uppercase mb-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#B89768]" />
+                Línea Solar
+              </div>
+              <h3 className="font-editorial text-4xl sm:text-5xl font-semibold text-white tracking-tight drop-shadow-md">
+                Gafas de Sol
               </h3>
-              <p className="text-[#E5E4DF] text-sm mt-3 leading-relaxed max-w-md font-sans">
-                Gafas solares con cristales polarizados y protección total contra radiación solar de firmas mundiales.
-              </p>
+              <div className="mt-4 flex items-center gap-2 text-xs font-bold text-white/95 uppercase tracking-widest group-hover:text-[#B89768] transition-colors">
+                <span>Explorar Catálogo</span>
+                <ArrowRight className="w-4 h-4 text-[#B89768] group-hover:translate-x-1.5 transition-transform duration-300" />
+              </div>
             </div>
-
-            <div className="pt-6 border-t border-white/20 flex items-center justify-between">
-              <span className="text-[10px] text-white/80 font-mono">
-                Polarizados • UV400
-              </span>
-              <Link
-                href="/catalogo?q=sol"
-                className="inline-flex items-center gap-2 text-xs font-bold text-white hover:text-[#B89768] uppercase tracking-wider transition"
-              >
-                <span>Explorar solares</span>
-                <ArrowRight className="w-4 h-4 text-[#B89768]" />
-              </Link>
-            </div>
-          </div>
+          </Link>
         </div>
       </section>
 

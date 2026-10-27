@@ -72,6 +72,26 @@ function relevance(m: EnrichedMarco, tokens: string[]): number {
 // Filtros
 // ---------------------------------------------------------------------------
 
+
+export function isOpticalProduct(m: { color?: string; modelo?: string }): boolean {
+  const c = (m.color || '').toLowerCase();
+  if (c.includes('demo') || c.includes('clear') || c.includes('receta') || c.includes('opti')) return true;
+  const sunKeywords = ['smoke', 'gradient', 'mirror', 'polarized', 'polariz', 'tint', 'flash', 'g-15', 'sunglass'];
+  if (sunKeywords.some(kw => c.includes(kw))) return false;
+  const parts = c.split('/');
+  if (parts.length > 1) {
+    const lensPart = parts[1].trim();
+    if (lensPart.includes('clear') || lensPart.includes('demo')) return true;
+    const lensColors = ['brown', 'grey', 'gray', 'green', 'blue', 'violet', 'rose', 'yellow', 'orange', 'red'];
+    if (lensColors.some(lc => lensPart.includes(lc))) return false;
+  }
+  return true;
+}
+
+export function isSunProduct(m: { color?: string; modelo?: string }): boolean {
+  return !isOpticalProduct(m);
+}
+
 function matchesFacets(m: EnrichedMarco, state: FilterState, exclude?: FacetKey): boolean {
   for (const f of FACET_KEYS) {
     if (f === exclude) continue;
@@ -87,7 +107,16 @@ export function applyFilters(
   canSeePrices: boolean
 ): EnrichedMarco[] {
   const tokens = queryTokens(state.q);
-  const filtered = list.filter((m) => matchesQuery(m, tokens) && matchesFacets(m, state));
+  const filtered = list.filter((m) => {
+    if (!matchesQuery(m, tokens)) return false;
+    if (!matchesFacets(m, state)) return false;
+    if (state.tipo === 'optico' || state.tipo === 'oftalmico') {
+      if (!isOpticalProduct(m)) return false;
+    } else if (state.tipo === 'sol' || state.tipo === 'solares') {
+      if (!isSunProduct(m)) return false;
+    }
+    return true;
+  });
 
   const sort = !canSeePrices && (state.sort.startsWith('precio') || state.sort === 'stock') ? 'relevancia' : state.sort;
   const sorted = [...filtered];
@@ -217,7 +246,7 @@ export function getFacets(list: EnrichedMarco[], state: FilterState): Facets {
 }
 
 export function countActiveFilters(state: FilterState): number {
-  return FACET_KEYS.reduce((sum, f) => sum + state[f].length, 0);
+  return FACET_KEYS.reduce((sum, f) => sum + state[f].length, 0) + (state.tipo ? 1 : 0);
 }
 
 // ---------------------------------------------------------------------------

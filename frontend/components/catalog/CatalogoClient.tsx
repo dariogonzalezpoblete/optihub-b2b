@@ -60,7 +60,7 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
   const getMontoNeto = useCartStore((state) => state.getMontoNeto);
 
   // Filtros sincronizados con la URL
-  const { state: filters, toggle, setFacet, setQuery, setSort, clearAll, setPage } = useCatalogFilters();
+  const { state: filters, toggle, setFacet, setQuery, setSort, clearAll, setPage, setTipo } = useCatalogFilters();
 
   useEffect(() => {
     setMounted(true);
@@ -323,6 +323,7 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
                 onRemove={toggle}
                 onClearQuery={() => setQuery("")}
                 onClearAll={() => clearAll()}
+                onRemoveTipo={() => setTipo("")}
               />
             </div>
 
@@ -400,6 +401,7 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
         {/* Modal de Vista Rapida (Quick View) */}
         <QuickViewModal 
           variants={selectedProduct ? groupedResults.find((g: EnrichedMarco[]) => g[0].modelo === selectedProduct.modelo && g[0].marca === selectedProduct.marca) || [selectedProduct] : []}
+          initialVariantId={selectedProduct?.id_ext}
           isOpen={!!selectedProduct} 
           onClose={() => setSelectedProduct(null)} 
         />
