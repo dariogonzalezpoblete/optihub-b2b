@@ -189,26 +189,17 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
         <div className="lg:col-span-7 flex flex-col gap-6">
           {/* Contenedor Principal de Imagen con Transición Suave */}
           <div className="aspect-[4/3] bg-[#FFFFFF] rounded-2xl border border-[#E5E4DF] flex items-center justify-center p-8 sm:p-12 relative overflow-hidden group shadow-sm">
-            {!imgLoaded && currentImageUrl && (
-              <div className="absolute inset-8 bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl animate-pulse flex items-center justify-center z-0">
-                <span className="text-[11px] text-[#888888] font-mono uppercase tracking-wider">Cargando imagen...</span>
-              </div>
-            )}
-
             {currentImageUrl ? (
               <Image 
                 unoptimized
-                key={`${activeVariant.id_ext}-${activeImageIndex}-${currentImageUrl}`}
+                key={`${activeVariant?.id_ext || 'main'}-${activeImageIndex}-${currentImageUrl}`}
                 src={currentImageUrl} 
-                alt={`${activeVariant.marca} ${activeVariant.modelo} ${activeVariant.color || ''}`}
+                alt={`${activeVariant?.marca || ''} ${activeVariant?.modelo || ''} ${activeVariant?.color || ''}`.trim() || 'Fotografía de producto'}
                 fill
                 sizes="(max-width: 1024px) 100vw, 60vw"
-                className={`object-contain p-6 sm:p-10 transition-all duration-300 group-hover:scale-105 ${
-                  imgLoaded ? 'opacity-100' : 'opacity-0'
-                }`}
+                className="object-contain p-6 sm:p-10 transition-all duration-300 group-hover:scale-105"
                 priority
                 loading="eager"
-                onLoad={() => setImgLoaded(true)}
               />
             ) : (
               <div className="text-[#888888] text-xs">Sin fotografía disponible</div>
@@ -216,7 +207,7 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
             
             {/* Badge flotante de Color en la foto */}
             <div className="absolute top-4 left-4 z-10 bg-[#FAF9F6]/95 backdrop-blur-xs border border-[#E5E4DF] px-3.5 py-1.5 rounded-full text-[11px] font-medium text-[#111111] shadow-2xs">
-              {activeVariant.color || activeVariant.codigo_color || 'Color Único'}
+              {activeVariant?.color || activeVariant?.codigo_color || 'Color Único'}
             </div>
           </div>
 
@@ -225,30 +216,29 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
             <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-thin">
               {currentImages.map((img, idx) => (
                 <button
-                  key={`${activeVariant.id_ext}-thumb-${idx}`}
+                  key={`${activeVariant?.id_ext || 'angle'}-thumb-${idx}`}
                   type="button"
                   onClick={() => {
                     if (idx !== activeImageIndex) {
                       setActiveImageIndex(idx);
-                      setImgLoaded(false);
                     }
                   }}
-                  className={`relative w-20 h-20 bg-[#FFFFFF] rounded-xl border overflow-hidden flex-shrink-0 transition-all ${
+                  className={`relative w-20 h-20 bg-[#FFFFFF] rounded-xl border overflow-hidden flex-shrink-0 transition-all flex items-center justify-center ${
                     idx === activeImageIndex 
                       ? 'border-[#B89768] ring-2 ring-[#B89768]/30 shadow-xs scale-102' 
                       : 'border-[#E5E4DF] opacity-70 hover:opacity-100 hover:border-[#82807A]'
                   }`}
                   title={`Vista ${idx + 1}`}
                 >
-                  <Image 
-                    unoptimized 
-                    priority
-                    loading="eager"
+                  <img 
                     src={img} 
                     alt={`Vista ${idx + 1}`} 
-                    fill 
-                    sizes="80px" 
-                    className="object-contain p-2" 
+                    loading="eager"
+                    decoding="async"
+                    className="w-full h-full object-contain p-2"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
+                    }}
                   />
                 </button>
               ))}
@@ -339,11 +329,12 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                 </div>
 
                 <div className="flex flex-wrap gap-2.5">
-                  {b2bVariants.map((v) => {
-                    const isSelected = v.id_ext === activeVariant.id_ext;
+                  {b2bVariants.map((v, i) => {
+                    const isSelected = v.id_ext === activeVariant?.id_ext;
+                    const swatchSrc = v.imagen_principal && v.imagen_principal.trim() ? v.imagen_principal.trim() : '/placeholder.png';
                     return (
                       <button
-                        key={`swatch-detail-${v.id_ext}`}
+                        key={`swatch-detail-${v.id_ext || i}`}
                         type="button"
                         onClick={() => handleSelectVariant(v)}
                         className={`group relative flex items-center gap-2.5 px-3 py-1.5 rounded-xl border transition-all text-left ${
@@ -351,33 +342,27 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                             ? 'border-[#B89768] bg-[#FDFBF7] ring-1 ring-[#B89768]/50 shadow-xs scale-[1.02]'
                             : 'border-[#E5E4DF] bg-[#FFFFFF] hover:border-[#B89768]/50 hover:bg-[#FAF9F6]'
                         }`}
-                        title={`${v.color || v.codigo_color} (SKU: ${v.id_ext})`}
+                        title={`${v.color || v.codigo_color || 'Variante'} (SKU: ${v.id_ext})`}
                       >
                         {/* Miniatura del color con carga prioritaria */}
-                        <div className={`relative w-8 h-8 rounded-lg overflow-hidden bg-[#FAF9F6] border flex-shrink-0 ${
+                        <div className={`relative w-8 h-8 rounded-lg overflow-hidden bg-[#FAF9F6] border flex-shrink-0 flex items-center justify-center ${
                           isSelected ? 'border-[#B89768]' : 'border-[#E5E4DF]'
                         }`}>
-                          {v.imagen_principal ? (
-                            <Image
-                              unoptimized
-                              priority
-                              loading="eager"
-                              src={v.imagen_principal}
-                              alt={v.color || v.codigo_color || 'Variante'}
-                              fill
-                              sizes="32px"
-                              className="object-contain p-0.5"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[9px] font-mono font-bold text-[#888888]">
-                              {v.codigo_color || 'N/A'}
-                            </div>
-                          )}
+                          <img 
+                            src={swatchSrc} 
+                            alt={v.color || v.codigo_color || 'Variante'} 
+                            loading="eager"
+                            decoding="async"
+                            className="w-full h-full object-contain p-0.5"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
+                            }}
+                          />
                         </div>
 
                         <div>
                           <span className={`block text-xs font-bold leading-tight ${isSelected ? 'text-[#111111]' : 'text-[#555555]'}`}>
-                            {v.color || v.codigo_color}
+                            {v.color || v.codigo_color || 'Variante'}
                           </span>
                           <span className="block text-[10px] text-[#888888] font-mono leading-none mt-0.5">
                             {v.codigo_color ? `COL ${v.codigo_color}` : v.id_ext}
@@ -430,17 +415,18 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                 </div>
                 
                 <div className="space-y-2.5 mb-6">
-                  {b2bVariants.map((v) => {
+                  {b2bVariants.map((v, i) => {
                     const maxStock = getValidStock(v.stock);
                     const inCart = cart.find(item => getProductCartKey(item.producto) === v.id_ext)?.cantidad || 0;
                     const remainingStock = Math.max(0, maxStock - inCart);
                     const outOfStock = maxStock <= 0;
                     const isMaxInCart = !outOfStock && remainingStock <= 0;
-                    const isSelected = v.id_ext === activeVariant.id_ext;
+                    const isSelected = v.id_ext === activeVariant?.id_ext;
+                    const rowImgSrc = v.imagen_principal && v.imagen_principal.trim() ? v.imagen_principal.trim() : '/placeholder.png';
 
                     return (
                       <div 
-                        key={v.id_ext} 
+                        key={v.id_ext || `row-${i}`} 
                         onClick={() => handleSelectVariant(v)}
                         className={`grid grid-cols-1 sm:grid-cols-12 gap-3 items-center p-3 rounded-xl border transition-all cursor-pointer ${
                           isSelected
@@ -454,25 +440,19 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                       >
                         {/* Miniatura + Color / Acabado */}
                         <div className="col-span-1 sm:col-span-5 flex items-center gap-3">
-                          <div className={`relative w-10 h-10 rounded-lg overflow-hidden bg-[#FFFFFF] border flex-shrink-0 ${
+                          <div className={`relative w-10 h-10 rounded-lg overflow-hidden bg-[#FFFFFF] border flex-shrink-0 flex items-center justify-center ${
                             isSelected ? 'border-[#B89768]' : 'border-[#E5E4DF]'
                           }`}>
-                            {v.imagen_principal ? (
-                              <Image
-                                unoptimized
-                                priority
-                                loading="eager"
-                                src={v.imagen_principal}
-                                alt={v.color || v.codigo_color || 'Variante'}
-                                fill
-                                sizes="40px"
-                                className="object-contain p-0.5"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-[9px] font-mono font-bold text-[#888888]">
-                                {v.codigo_color || 'N/A'}
-                              </div>
-                            )}
+                            <img 
+                              src={rowImgSrc} 
+                              alt={v.color || v.codigo_color || 'Variante'} 
+                              loading="eager"
+                              decoding="async"
+                              className="w-full h-full object-contain p-0.5"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
+                              }}
+                            />
                           </div>
 
                           <div className="min-w-0 flex-1">

@@ -22,25 +22,22 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
   const addToCart = useCartStore((state) => state.addToCart);
 
   const [activeVariantId, setActiveVariantId] = useState<string | null>(null);
-  const activeVariant = variants.find(v => v.id_ext === activeVariantId) || variants[0];
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
-  const [imgLoaded, setImgLoaded] = useState<boolean>(false);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [isAdding, setIsAdding] = useState(false);
   const [stockWarning, setStockWarning] = useState<string>('');
 
-  // Initialize variant and reset state on modal open
+  // Sincronizar ID de variante inicial y resetear estados al abrir el modal
   useEffect(() => {
-    if (isOpen && variants.length > 0) {
+    if (isOpen && variants && variants.length > 0) {
       const initialId = initialVariantId && variants.some(v => v.id_ext === initialVariantId)
         ? initialVariantId
-        : variants[0].id_ext;
+        : variants[0]?.id_ext || null;
       setActiveVariantId(initialId);
       setActiveImageIndex(0);
-      setImgLoaded(false);
       setQuantities({});
       setStockWarning('');
-      document.body.style.overflow = 'hidden'; // Lock scroll
+      document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
       setStockWarning('');
@@ -50,16 +47,20 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
     };
   }, [isOpen, variants, initialVariantId]);
 
-  if (!isOpen || variants.length === 0) return null;
+  if (!isOpen || !variants || variants.length === 0) return null;
 
   const baseProduct = variants[0];
+  if (!baseProduct) return null;
+
+  const activeVariant = (variants && variants.find(v => v.id_ext === activeVariantId)) || (variants && variants[0]);
+  if (!activeVariant) return null;
+
   const dims = baseProduct._dims;
 
   const handleSelectVariant = (id: string) => {
     if (id === activeVariantId) return;
     setActiveVariantId(id);
     setActiveImageIndex(0);
-    setImgLoaded(false);
   };
 
   const currentImages = useMemo(() => {
@@ -72,13 +73,17 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
       const parts = activeVariant.imagenes_secundarias
         .split(/[,;]/)
         .map(s => s.trim())
-        .filter(Boolean);
+        .filter(s => s && s.startsWith('http'));
       list.push(...parts);
     }
     return Array.from(new Set(list));
   }, [activeVariant]);
 
-  const currentImageUrl = currentImages[activeImageIndex] || currentImages[0] || activeVariant?.imagen_principal;
+  const currentImageUrl = currentImages[activeImageIndex] || currentImages[0] || (activeVariant?.imagen_principal && activeVariant.imagen_principal.trim()) || "/placeholder.png";
+
+  const retail = useMemo(() => {
+    return activeVariant?.precio_neto_clp ? calculateRetailProjection(activeVariant.precio_neto_clp) : null;
+  }, [activeVariant?.precio_neto_clp]);
 
   const handleQuantityChange = (id_ext: string, val: string, maxStock: number, remainingStock: number) => {
     let num = parseInt(val, 10);
@@ -131,6 +136,8 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
     }, 600);
   };
 
+  const rotationBadge = getRotationBadge(baseProduct.marca);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       <div 
@@ -152,30 +159,17 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
           <div className="flex flex-col items-center w-full">
             {/* Imagen Principal con Transición Suave */}
             <div className="aspect-[4/3] w-full flex items-center justify-center mb-4 relative group bg-[#FFFFFF] rounded-2xl border border-[#E5E4DF] p-4 overflow-hidden shadow-2xs">
-              {!imgLoaded && currentImageUrl && (
-                <div className="absolute inset-4 bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl animate-pulse flex items-center justify-center z-0">
-                  <span className="text-[10px] text-[#82807A] font-tech uppercase tracking-wider">Cargando foto...</span>
-                </div>
-              )}
-
-              {currentImageUrl ? (
-                <Image 
-                  unoptimized 
-                  key={`${activeVariant.id_ext}-${activeImageIndex}-${currentImageUrl}`}
-                  src={currentImageUrl} 
-                  alt={`${activeVariant.marca} ${activeVariant.modelo} ${activeVariant.color || ''}`} 
-                  fill
-                  priority
-                  loading="eager"
-                  sizes="(max-width: 768px) 100vw, 40vw"
-                  className={`object-contain p-4 transition-all duration-300 group-hover:scale-105 ${
-                    imgLoaded ? 'opacity-100' : 'opacity-0'
-                  }`}
-                  onLoad={() => setImgLoaded(true)}
-                />
-              ) : (
-                <div className="text-[#82807A] text-xs">Sin fotografía disponible</div>
-              )}
+              <Image 
+                unoptimized 
+                key={`${activeVariant.id_ext}-${activeImageIndex}-${currentImageUrl}`}
+                src={currentImageUrl} 
+                alt={`${activeVariant.marca || ''} ${activeVariant.modelo || ''} ${activeVariant.color || ''}`.trim() || 'Foto de armazón'} 
+                fill
+                priority
+                loading="eager"
+                sizes="(max-width: 768px) 100vw, 40vw"
+                className="object-contain p-4 transition-all duration-300 group-hover:scale-105"
+              />
 
               {/* Badge flotante de Color en la foto */}
               <div className="absolute top-3 left-3 z-10 bg-[#FAF9F6]/95 backdrop-blur-xs border border-[#E5E4DF] px-3 py-1 rounded-full text-[11px] font-medium text-[#111111] shadow-2xs">
@@ -190,28 +184,23 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                   <button
                     key={`${activeVariant.id_ext}-view-${idx}`}
                     type="button"
-                    onClick={() => {
-                      if (idx !== activeImageIndex) {
-                        setActiveImageIndex(idx);
-                        setImgLoaded(false);
-                      }
-                    }}
-                    className={`relative w-14 h-14 rounded-xl border overflow-hidden flex-shrink-0 transition-all bg-[#FFFFFF] ${
+                    onClick={() => setActiveImageIndex(idx)}
+                    className={`relative w-14 h-14 rounded-xl border overflow-hidden flex-shrink-0 transition-all bg-[#FFFFFF] flex items-center justify-center ${
                       idx === activeImageIndex 
                         ? 'border-[#B89768] ring-2 ring-[#B89768]/30 shadow-xs scale-102' 
                         : 'border-[#E5E4DF] opacity-70 hover:opacity-100 hover:border-[#82807A]'
                     }`}
                     title={`Vista ${idx + 1}`}
                   >
-                    <Image 
-                      unoptimized 
-                      priority
-                      loading="eager"
+                    <img 
                       src={img} 
                       alt={`Vista ${idx + 1}`} 
-                      fill 
-                      sizes="56px" 
-                      className="object-contain p-1" 
+                      loading="eager"
+                      decoding="async"
+                      className="w-full h-full object-contain p-1"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
+                      }}
                     />
                   </button>
                 ))}
@@ -227,7 +216,7 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
             <div className="flex items-center justify-between text-xs text-[#575551]">
               <span className="flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-[#82807A]" /> Entrega: 10 a 15 días hábiles</span>
               <Link 
-                href={`/producto/${encodeURIComponent(baseProduct.marca)}/${encodeURIComponent(baseProduct.modelo)}`} 
+                href={`/producto/${encodeURIComponent(baseProduct.marca || '')}/${encodeURIComponent(baseProduct.modelo || '')}`} 
                 className="text-[#111111] hover:text-[#B89768] hover:underline font-bold"
               >
                 Ficha completa →
@@ -243,10 +232,10 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
               <span className="badge-brand">
                 {baseProduct.marca}
               </span>
-              {getRotationBadge(baseProduct.marca) && (
+              {rotationBadge && (
                 <span className="inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full border border-[#E5E4DF] bg-[#FAF9F6] text-[#575551]">
-                  <span>{getRotationBadge(baseProduct.marca)?.icon}</span>
-                  <span>{getRotationBadge(baseProduct.marca)?.label}</span>
+                  <span>{rotationBadge.icon}</span>
+                  <span>{rotationBadge.label}</span>
                 </span>
               )}
             </div>
@@ -255,7 +244,7 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
             <p className="text-[#575551] text-xs mt-1">Material: {baseProduct.material || 'Estándar'} • Género: {baseProduct.genero || 'Unisex'}</p>
 
             {/* Calculadora de Margen Retail en Modal para la variante activa */}
-            {isLoggedIn && activeVariant.precio_neto_clp && (
+            {isLoggedIn && retail && activeVariant.precio_neto_clp && (
               <div className="mt-4 bg-[#FAF9F6] rounded-2xl p-3.5 border border-[#E5E4DF] flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div>
                   <span className="text-[#82807A] block text-[10px] uppercase font-bold tracking-wider">Costo Mayorista</span>
@@ -266,12 +255,12 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                 <div>
                   <span className="text-[#82807A] block text-[10px] uppercase font-bold tracking-wider">PVP Sugerido Óptica</span>
                   <span className="text-[#111111] font-bold font-tech">
-                    ${calculateRetailProjection(activeVariant.precio_neto_clp).pvpSugerido.toLocaleString('es-CL')} CLP
+                    ${retail.pvpSugerido.toLocaleString('es-CL')} CLP
                   </span>
                 </div>
                 <div className="bg-[#F7F3EB] border border-[#B89768]/30 px-3 py-1.5 rounded-xl text-[#9E7D4F] font-bold text-[11px] flex items-center gap-1.5">
                   <TrendingUp className="w-3.5 h-3.5 text-[#B89768]" />
-                  <span>Margen ~{calculateRetailProjection(activeVariant.precio_neto_clp).margenPorcentaje}% (+${calculateRetailProjection(activeVariant.precio_neto_clp).gananciaPorUnidad.toLocaleString('es-CL')}/un)</span>
+                  <span>Margen ~{retail.margenPorcentaje}% (+${retail.gananciaPorUnidad.toLocaleString('es-CL')}/un)</span>
                 </div>
               </div>
             )}
@@ -289,7 +278,7 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
 
           <div className="p-6 md:p-8 flex-1 bg-[#FFFFFF] flex flex-col">
             {/* SELECTOR RÁPIDO DE COLORES (SWATCHES ESTILO E-COMMERCE GRANDE) */}
-            {variants.length > 1 && (
+            {variants && variants.length > 1 && (
               <div className="mb-6 pb-5 border-b border-[#E5E4DF]">
                 <div className="flex items-center justify-between mb-2.5">
                   <span className="text-xs font-semibold text-[#111111] uppercase tracking-wider">
@@ -304,11 +293,12 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  {variants.map((v) => {
+                  {variants.map((v, i) => {
                     const isSelected = v.id_ext === activeVariant.id_ext;
+                    const swatchSrc = v.imagen_principal && v.imagen_principal.trim() ? v.imagen_principal.trim() : '/placeholder.png';
                     return (
                       <button
-                        key={`swatch-${v.id_ext}`}
+                        key={`swatch-${v.id_ext || i}`}
                         type="button"
                         onClick={() => handleSelectVariant(v.id_ext)}
                         className={`group relative flex items-center gap-2 px-2.5 py-1.5 rounded-xl border transition-all text-left ${
@@ -316,33 +306,27 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                             ? 'border-[#B89768] bg-[#FDFBF7] ring-1 ring-[#B89768]/50 shadow-xs scale-[1.02]'
                             : 'border-[#E5E4DF] bg-[#FAF9F6] hover:border-[#B89768]/50 hover:bg-[#FFFFFF]'
                         }`}
-                        title={`${v.color || v.codigo_color} (SKU: ${v.id_ext})`}
+                        title={`${v.color || v.codigo_color || 'Variante'} (SKU: ${v.id_ext})`}
                       >
                         {/* Miniatura del color con carga prioritaria */}
-                        <div className={`relative w-8 h-8 rounded-lg overflow-hidden bg-[#FFFFFF] border flex-shrink-0 ${
+                        <div className={`relative w-8 h-8 rounded-lg overflow-hidden bg-[#FFFFFF] border flex-shrink-0 flex items-center justify-center ${
                           isSelected ? 'border-[#B89768]' : 'border-[#E5E4DF]'
                         }`}>
-                          {v.imagen_principal ? (
-                            <Image
-                              unoptimized
-                              priority
-                              loading="eager"
-                              src={v.imagen_principal}
-                              alt={v.color || v.codigo_color || 'Variante'}
-                              fill
-                              sizes="32px"
-                              className="object-contain p-0.5"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[9px] font-mono font-bold text-[#82807A]">
-                              {v.codigo_color || 'N/A'}
-                            </div>
-                          )}
+                          <img 
+                            src={swatchSrc} 
+                            alt={v.color || v.codigo_color || 'Variante'} 
+                            loading="eager"
+                            decoding="async"
+                            className="w-full h-full object-contain p-0.5"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
+                            }}
+                          />
                         </div>
 
                         <div className="pr-1">
                           <span className={`block text-xs font-bold leading-tight ${isSelected ? 'text-[#111111]' : 'text-[#575551]'}`}>
-                            {v.color || v.codigo_color}
+                            {v.color || v.codigo_color || 'Variante'}
                           </span>
                           <span className="block text-[10px] text-[#82807A] font-tech leading-none mt-0.5">
                             {v.codigo_color ? `COL ${v.codigo_color}` : v.id_ext}
@@ -380,6 +364,7 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                     const isOut = maxStock <= 0;
                     const isMaxInCart = !isOut && remainingStock <= 0;
                     const isSelected = v.id_ext === activeVariant.id_ext;
+                    const rowImgSrc = v.imagen_principal && v.imagen_principal.trim() ? v.imagen_principal.trim() : '/placeholder.png';
 
                     return (
                       <div 
@@ -397,25 +382,19 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                       >
                         {/* Miniatura de la variante y textos */}
                         <div className="flex items-center gap-3 flex-1 min-w-0 pr-2">
-                          <div className={`relative w-10 h-10 rounded-lg overflow-hidden bg-[#FFFFFF] border flex-shrink-0 ${
+                          <div className={`relative w-10 h-10 rounded-lg overflow-hidden bg-[#FFFFFF] border flex-shrink-0 flex items-center justify-center ${
                             isSelected ? 'border-[#B89768]' : 'border-[#E5E4DF]'
                           }`}>
-                            {v.imagen_principal ? (
-                              <Image
-                                unoptimized
-                                priority
-                                loading="eager"
-                                src={v.imagen_principal}
-                                alt={v.color || v.codigo_color || 'Variante'}
-                                fill
-                                sizes="40px"
-                                className="object-contain p-0.5"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-[9px] font-mono font-bold text-[#82807A]">
-                                {v.codigo_color || 'N/A'}
-                              </div>
-                            )}
+                            <img 
+                              src={rowImgSrc} 
+                              alt={v.color || v.codigo_color || 'Variante'} 
+                              loading="eager"
+                              decoding="async"
+                              className="w-full h-full object-contain p-0.5"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
+                              }}
+                            />
                           </div>
 
                           <div className="min-w-0 flex-1">

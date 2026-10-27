@@ -17,18 +17,19 @@ interface ProductCardProps {
 
 export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materialLabels }: ProductCardProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [imgLoaded, setImgLoaded] = useState(false);
 
   useEffect(() => {
     setSelectedIndex(0);
-    setImgLoaded(false);
   }, [variants]);
 
-  const active = variants[selectedIndex] || variants[0];
-  const activeStock = getValidStock(active.stock);
-  const materialLabel = materialLabels.find((o) => o.key === active._k.material)?.label ?? active.material;
-  const rotationBadge = getRotationBadge(active.marca);
-  const retail = calculateRetailProjection(active.precio_neto_clp);
+  const active = (variants && variants[selectedIndex]) || (variants && variants[0]) || ({} as EnrichedMarco);
+  const activeStock = getValidStock(active?.stock);
+  const materialLabel = materialLabels?.find((o) => o.key === active?._k?.material)?.label ?? active?.material;
+  const rotationBadge = active?.marca ? getRotationBadge(active.marca) : null;
+  const retail = calculateRetailProjection(active?.precio_neto_clp);
+  const mainImgSrc = active?.imagen_principal && active.imagen_principal.trim() 
+    ? active.imagen_principal.trim() 
+    : '/placeholder.png';
 
   return (
     <div 
@@ -38,32 +39,23 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
       {/* ZONA DE IMAGEN Y BADGES EDITORIALES */}
       <div 
         className="relative h-60 bg-[#FFFFFF] flex items-center justify-center p-6 overflow-hidden cursor-pointer"
-        onClick={() => onOpen(active)}
+        onClick={() => active?.id_ext && onOpen(active)}
       >
-        {/* Skeleton Loader mientras carga la foto */}
-        {!imgLoaded && (
-          <div className="absolute inset-4 bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl animate-pulse flex items-center justify-center">
-            <span className="text-[10px] text-[#82807A] font-tech tracking-wider uppercase">Cargando Armazón...</span>
-          </div>
-        )}
-
         <Image 
           unoptimized 
-          key={active.id_ext}
-          src={active.imagen_principal || "/placeholder.png"} 
-          alt={`${active.marca} ${active.modelo} ${active.color}`}
+          key={active?.id_ext || `prod-${idx}`}
+          src={mainImgSrc} 
+          alt={`${active?.marca || ''} ${active?.modelo || ''} ${active?.color || ''}`.trim() || 'Armazón'}
           fill
+          priority={idx < 6}
           sizes="(max-width: 768px) 100vw, 33vw"
-          className={`object-contain p-4 group-hover:scale-105 transition-all duration-500 ease-out ${
-            imgLoaded ? 'opacity-100' : 'opacity-0'
-          }`}
-          onLoad={() => setImgLoaded(true)}
+          className="object-contain p-4 group-hover:scale-105 transition-all duration-300 ease-out"
         />
         
         {/* Badges Superiores: Marca con Tipografía Editorial y Rotación */}
         <div className="absolute top-3.5 left-3.5 z-10 flex flex-col gap-1.5 items-start">
           <span className="badge-brand">
-            {active.marca}
+            {active?.marca || 'Marca'}
           </span>
 
           {/* Badge de Rotación B2B */}
@@ -76,7 +68,7 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
         </div>
         
         {/* Calibre Técnico Monospaciado */}
-        {active._dims && (
+        {active?._dims && (
           <span className="absolute top-3.5 right-3.5 z-10 text-[10px] font-tech text-[#575551] bg-[#FFFFFF]/95 border border-[#E5E4DF] px-2 py-0.5 rounded-md shadow-xs backdrop-blur-sm">
             {active._dims.calibre}{active._dims.puente ? `□${active._dims.puente}` : ' mm'}
           </span>
@@ -92,58 +84,61 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
           <div className="flex justify-between items-start gap-2">
             <h3 
               className="font-editorial text-xl font-semibold text-[#111111] leading-snug hover:text-[#B89768] transition-colors line-clamp-2 cursor-pointer tracking-tight"
-              onClick={() => onOpen(active)}
+              onClick={() => active?.id_ext && onOpen(active)}
             >
-              {active.modelo}
+              {active?.modelo || 'Modelo'}
             </h3>
             <span className="text-[10px] text-[#575551] font-tech flex-shrink-0 bg-[#FAF9F6] px-2 py-0.5 rounded border border-[#E5E4DF]">
-              COL {active.codigo_color || 'N/A'}
+              COL {active?.codigo_color || 'N/A'}
             </span>
           </div>
           
           <div className="flex justify-between items-center mt-2">
             <p className="text-[11px] text-[#82807A] font-tech">
-              SKU: <span className="text-[#111111] font-medium">{active.id_ext}</span>
+              SKU: <span className="text-[#111111] font-medium">{active?.id_ext || '-'}</span>
             </p>
-            {active.material && (
+            {active?.material && (
               <p className="text-[10px] text-[#575551] uppercase tracking-wider font-medium">{materialLabel}</p>
             )}
           </div>
 
           {/* SELECTOR RÁPIDO DE VARIANTES (SWATCHES EDITORIALES) */}
-          {variants.length > 1 && (
+          {variants && variants.length > 1 && (
             <div className="mt-3.5 pt-3 border-t border-[#EFECE6]">
               <p className="text-[10px] text-[#82807A] mb-2 font-medium tracking-wide uppercase">
                 {variants.length} Acabados Disponibles:
               </p>
               <div className="flex flex-wrap gap-2">
-                {variants.map((v, i) => (
-                  <button
-                    key={v.id_ext}
-                    type="button"
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      setSelectedIndex(i); 
-                      setImgLoaded(false);
-                    }}
-                    className={`relative w-8 h-8 rounded-lg border overflow-hidden bg-[#FFFFFF] transition-all ${
-                      i === selectedIndex 
-                        ? 'border-[#B89768] ring-1 ring-[#B89768] shadow-xs scale-105' 
-                        : 'border-[#E5E4DF] opacity-70 hover:opacity-100 hover:border-[#82807A]'
-                    }`}
-                    title={`${v.color || v.codigo_color} (SKU: ${v.id_ext})`}
-                  >
-                    <Image 
-                      unoptimized
-                      loading="eager"
-                      src={v.imagen_principal || "/placeholder.png"} 
-                      className="object-cover p-0.5" 
-                      alt={v.codigo_color || "Color"} 
-                      fill
-                      sizes="32px"
-                    />
-                  </button>
-                ))}
+                {variants.map((v, i) => {
+                  const swatchSrc = v?.imagen_principal && v.imagen_principal.trim() ? v.imagen_principal.trim() : '/placeholder.png';
+                  return (
+                    <button
+                      key={v?.id_ext || `swatch-${i}`}
+                      type="button"
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setSelectedIndex(i); 
+                      }}
+                      className={`relative w-8 h-8 rounded-lg border overflow-hidden bg-[#FAF9F6] transition-all flex items-center justify-center ${
+                        i === selectedIndex 
+                          ? 'border-[#B89768] ring-1 ring-[#B89768] shadow-xs scale-105' 
+                          : 'border-[#E5E4DF] opacity-75 hover:opacity-100 hover:border-[#82807A]'
+                      }`}
+                      title={`${v?.color || v?.codigo_color || 'Variante'} (SKU: ${v?.id_ext})`}
+                    >
+                      <img 
+                        src={swatchSrc} 
+                        alt={v?.codigo_color || v?.color || 'Color'} 
+                        loading="eager"
+                        decoding="async"
+                        className="w-full h-full object-contain p-0.5"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
+                        }}
+                      />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -174,7 +169,7 @@ export default function ProductCard({ variants, isLoggedIn, onOpen, idx, materia
                 Precio Neto B2B (+IVA)
               </span>
               <span className="text-[#111111] font-bold text-xl leading-none font-tech">
-                ${active.precio_neto_clp?.toLocaleString('es-CL')} <span className="text-xs font-normal text-[#82807A]">CLP</span>
+                ${active?.precio_neto_clp?.toLocaleString('es-CL')} <span className="text-xs font-normal text-[#82807A]">CLP</span>
               </span>
             </div>
           ) : (

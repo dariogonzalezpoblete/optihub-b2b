@@ -400,7 +400,7 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
 
         {/* Modal de Vista Rapida (Quick View) */}
         <QuickViewModal 
-          variants={selectedProduct ? groupedResults.find((g: EnrichedMarco[]) => g[0].modelo === selectedProduct.modelo && g[0].marca === selectedProduct.marca) || [selectedProduct] : []}
+          variants={selectedProduct ? groupedResults.find((g: EnrichedMarco[]) => g?.[0]?.modelo === selectedProduct.modelo && g?.[0]?.marca === selectedProduct.marca) || [selectedProduct] : []}
           initialVariantId={selectedProduct?.id_ext}
           isOpen={!!selectedProduct} 
           onClose={() => setSelectedProduct(null)} 
