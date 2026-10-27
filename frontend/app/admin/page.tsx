@@ -816,13 +816,18 @@ export default function AdminMasterPage() {
         {activeTab === 'sync' && (
           <div className="space-y-6">
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl space-y-6">
-              <div>
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  ⚡ Actualización Rápida de Stock y Precios
-                </h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  Extrae costos actuales y stock disponible de la web del proveedor. Compara contra Supabase y ejecuta un bulk update sin descargar imágenes ni tocar descripciones.
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                    ⚡ Actualización Rápida de Precios y Stock
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Recalcula y sincroniza landed cost CIF, aranceles y margen B2B directamente en Supabase sin descargar imágenes ni tocar descripciones.
+                  </p>
+                </div>
+                <div className="text-[11px] font-mono px-3 py-1 rounded bg-slate-800 text-amber-300 border border-slate-700 self-start sm:self-auto">
+                  ☁️ Modo Cloud Supabase Activo
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -894,11 +899,14 @@ export default function AdminMasterPage() {
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-800 flex justify-end">
+              <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <span className="text-[11px] text-slate-400">
+                  💡 Para raspar la web del proveedor en vivo con navegador Playwright, usa en terminal: <code className="bg-slate-800 text-amber-300 px-1.5 py-0.5 rounded font-mono">npm run sync:fast</code>
+                </span>
                 <button
                   onClick={handleRunFastSync}
                   disabled={syncLoading}
-                  className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition shadow flex items-center gap-2"
+                  className="w-full sm:w-auto px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition shadow flex items-center justify-center gap-2"
                 >
                   {syncLoading ? (
                     <>
@@ -907,7 +915,7 @@ export default function AdminMasterPage() {
                     </>
                   ) : (
                     <>
-                      <span>⚡ Sincronizar Stock y Precios Ahora</span>
+                      <span>⚡ Sincronizar Precios y Reglas B2B Ahora</span>
                     </>
                   )}
                 </button>
