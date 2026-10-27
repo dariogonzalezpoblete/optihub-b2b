@@ -121,7 +121,7 @@ export default function AdminMasterPage() {
   const [orderToast, setOrderToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Sync / Scraper State
-  const [syncBrand, setSyncBrand] = useState('Guess');
+  const [syncBrand, setSyncBrand] = useState('TODAS');
   const [syncHeadless, setSyncHeadless] = useState(true);
   const [syncDryRun, setSyncDryRun] = useState(false);
   const [syncDolar, setSyncDolar] = useState('950');
@@ -129,9 +129,11 @@ export default function AdminMasterPage() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null);
   const [syncToast, setSyncToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [catalogTotal, setCatalogTotal] = useState<number>(1097);
+  const [availableBrands, setAvailableBrands] = useState<{ name: string; count: number }[]>([]);
 
   // Scraper Core Full State
-  const [scraperBrand, setScraperBrand] = useState('Guess');
+  const [scraperBrand, setScraperBrand] = useState('TODAS');
   const [scraperPages, setScraperPages] = useState('5');
   const [scraperHeadless, setScraperHeadless] = useState(true);
   const [scraperLoading, setScraperLoading] = useState(false);
@@ -166,7 +168,7 @@ export default function AdminMasterPage() {
     }
   }, [session?.access_token, fetchOrders]);
 
-  // Load latest sync report on mount
+  // Load latest sync report and catalog stats on mount
   useEffect(() => {
     async function loadLatestSync() {
       try {
@@ -175,6 +177,12 @@ export default function AdminMasterPage() {
           const data = await res.json();
           if (data.latest_summary) {
             setSyncSummary(data.latest_summary);
+          }
+          if (typeof data.total_catalog_products === 'number') {
+            setCatalogTotal(data.total_catalog_products);
+          }
+          if (Array.isArray(data.brands) && data.brands.length > 0) {
+            setAvailableBrands(data.brands);
           }
         }
       } catch {}
@@ -815,14 +823,48 @@ export default function AdminMasterPage() {
         {/* ════════════════════════════════════════════════════════════════ */}
         {activeTab === 'sync' && (
           <div className="space-y-6">
+            {/* Banner Informativo de Ejecución */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-900/90 border border-amber-500/30 rounded-xl p-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-amber-400 font-semibold text-sm mb-1.5">
+                    <span>☁️ Opción 1: Recálculo Inmediato Cloud (Desde esta Web)</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Aplica la cotización del dólar, aranceles de importación (6% CIF) y margen comercial a los <strong>{catalogTotal.toLocaleString('es-CL')} productos</strong> en Supabase en menos de 1 segundo. Ideal para ajustar precios masivos al instante sin esperar.
+                  </p>
+                </div>
+                <div className="mt-3 text-[11px] font-mono text-amber-300/80">
+                  ⚡ Se ejecuta directamente con el botón amarillo inferior.
+                </div>
+              </div>
+
+              <div className="bg-slate-900/90 border border-blue-500/30 rounded-xl p-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-blue-400 font-semibold text-sm mb-1.5">
+                    <span>🖥️ Opción 2: Extracción en Vivo desde NYWD (Sin Terminal ni IDE)</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Para navegar la web del proveedor en tiempo real, saltar Captchas con tu sesión y cotejar el stock/precios unitarios reales, tienes en tu Escritorio el lanzador directo:
+                  </p>
+                  <div className="mt-2 p-2 bg-slate-950 border border-slate-800 rounded text-xs font-mono text-blue-300">
+                    📂 Escritorio &gt; <strong>⚡ Sincronizar-Stock-NYWD.bat</strong>
+                  </div>
+                </div>
+                <div className="mt-3 text-[11px] font-mono text-slate-400">
+                  👆 Solo haz doble clic en tu escritorio; no requiere abrir Visual Studio Code ni consolas.
+                </div>
+              </div>
+            </div>
+
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                    ⚡ Actualización Rápida de Precios y Stock
+                    ⚡ Actualización de Precios y Reglas Comerciales
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
-                    Recalcula y sincroniza landed cost CIF, aranceles y margen B2B directamente en Supabase sin descargar imágenes ni tocar descripciones.
+                    Recalcula y sincroniza landed cost CIF, aranceles y margen B2B en Supabase ({catalogTotal.toLocaleString('es-CL')} productos registrados) sin tocar descripciones ni corromper imágenes.
                   </p>
                 </div>
                 <div className="text-[11px] font-mono px-3 py-1 rounded bg-slate-800 text-amber-300 border border-slate-700 self-start sm:self-auto">
@@ -841,9 +883,18 @@ export default function AdminMasterPage() {
                     disabled={syncLoading}
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
-                    {POPULAR_BRANDS.map((b) => (
-                      <option key={b} value={b}>{b === 'TODAS' ? '🌟 TODAS LAS MARCAS' : b}</option>
-                    ))}
+                    <option value="TODAS">🌟 TODAS LAS MARCAS ({catalogTotal.toLocaleString('es-CL')} productos)</option>
+                    {availableBrands.length > 0 ? (
+                      availableBrands.map((b) => (
+                        <option key={b.name} value={b.name}>
+                          {b.name} ({b.count} productos)
+                        </option>
+                      ))
+                    ) : (
+                      POPULAR_BRANDS.filter((b) => b !== 'TODAS').map((b) => (
+                        <option key={b} value={b}>{b}</option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -901,7 +952,7 @@ export default function AdminMasterPage() {
 
               <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
                 <span className="text-[11px] text-slate-400">
-                  💡 Para raspar la web del proveedor en vivo con navegador Playwright, usa en terminal: <code className="bg-slate-800 text-amber-300 px-1.5 py-0.5 rounded font-mono">npm run sync:fast</code>
+                  💡 Para sincronizar stock directamente raspando NYWD en vivo, abre en tu escritorio: <code className="bg-slate-800 text-amber-300 px-1.5 py-0.5 rounded font-mono">⚡ Sincronizar-Stock-NYWD.bat</code>
                 </span>
                 <button
                   onClick={handleRunFastSync}
@@ -911,11 +962,11 @@ export default function AdminMasterPage() {
                   {syncLoading ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Sincronizando...</span>
+                      <span>Sincronizando {syncBrand === 'TODAS' ? `los ${catalogTotal} productos` : syncBrand}...</span>
                     </>
                   ) : (
                     <>
-                      <span>⚡ Sincronizar Precios y Reglas B2B Ahora</span>
+                      <span>⚡ Recalcular Precios en la Nube ({syncBrand === 'TODAS' ? `${catalogTotal} productos` : syncBrand})</span>
                     </>
                   )}
                 </button>
@@ -993,9 +1044,18 @@ export default function AdminMasterPage() {
                     disabled={scraperLoading}
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
-                    {POPULAR_BRANDS.map((b) => (
-                      <option key={b} value={b}>{b === 'TODAS' ? '🌟 TODAS LAS MARCAS' : b}</option>
-                    ))}
+                    <option value="TODAS">🌟 TODAS LAS MARCAS ({catalogTotal.toLocaleString('es-CL')} productos)</option>
+                    {availableBrands.length > 0 ? (
+                      availableBrands.map((b) => (
+                        <option key={b.name} value={b.name}>
+                          {b.name} ({b.count} productos)
+                        </option>
+                      ))
+                    ) : (
+                      POPULAR_BRANDS.filter((b) => b !== 'TODAS').map((b) => (
+                        <option key={b} value={b}>{b}</option>
+                      ))
+                    )}
                   </select>
                 </div>
 

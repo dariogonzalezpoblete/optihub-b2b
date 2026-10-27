@@ -23,41 +23,48 @@ function getAdminSupabase() {
 
 export async function GET() {
   try {
-    // 1. If backend URL is explicitly configured, check status
-    if (BACKEND_API_URL) {
-      try {
-        const res = await fetch(`${BACKEND_API_URL}/api/sync/status`, {
-          cache: 'no-store',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          return NextResponse.json(data);
+    const supabase = getAdminSupabase();
+
+    // Fetch total products and brand counts
+    const { count: totalCount } = await supabase
+      .from('marcos')
+      .select('id_ext', { count: 'exact', head: true });
+
+    // Fetch unique brands
+    const { data: brandRows } = await supabase.from('marcos').select('marca');
+
+    const brandCounts: Record<string, number> = {};
+    if (brandRows) {
+      for (const row of brandRows) {
+        const m = (row.marca || '').trim();
+        if (m) {
+          brandCounts[m] = (brandCounts[m] || 0) + 1;
         }
-      } catch {}
+      }
     }
 
-    // 2. Check local report file if running locally
+    const brandList = Object.entries(brandCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // Check report file
+    let latestSummary = null;
     if (fs.existsSync(REPORT_FILE_PATH)) {
       try {
         const content = fs.readFileSync(REPORT_FILE_PATH, 'utf-8');
-        const summary = JSON.parse(content);
-        return NextResponse.json({
-          is_running: false,
-          has_last_summary: true,
-          latest_summary: summary,
-        });
+        latestSummary = JSON.parse(content);
       } catch {}
     }
 
     return NextResponse.json({
-      is_running: false,
-      has_last_summary: false,
-      latest_summary: null,
+      total_catalog_products: totalCount || 0,
+      brands: brandList,
+      has_last_summary: latestSummary !== null,
+      latest_summary: latestSummary,
     });
   } catch (error) {
     return NextResponse.json(
-      { error: (error as Error).message || 'Error consultando estado de sincronización' },
+      { error: (error as Error).message || 'Error consultando catálogo' },
       { status: 500 }
     );
   }
@@ -86,25 +93,36 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. NATIVE CLOUD SYNC DIRECTLY ON SUPABASE
-    // This allows Vercel to recalculate B2B pricing, landed costs, and margins instantly in the cloud
+    // 2. NATIVE CLOUD SYNC DIRECTLY ON SUPABASE (WITH PAGINATION)
+    // Ensures all 1,097+ products are completely processed without pagination truncation
     const supabase = getAdminSupabase();
-    const targetBrand = all_brands ? null : brand;
+    const isAll = all_brands || !brand || brand === 'TODAS' || brand === 'ALL';
+    const targetBrand = isAll ? null : brand;
     const dolarRate = typeof dolar === 'number' && dolar > 0 ? dolar : 950.0;
     const marginExtra = typeof margin_percentage === 'number' && margin_percentage > 0 ? margin_percentage : undefined;
 
-    let query = supabase
-      .from('marcos')
-      .select('id_ext, marca, modelo, stock, precio_usd, precio_neto_clp, precio_bruto_clp');
+    const products: any[] = [];
+    const pageSize = 1000;
+    let pageStart = 0;
 
-    if (targetBrand && targetBrand !== 'TODAS') {
-      query = query.ilike('marca', `%${targetBrand}%`);
-    }
+    while (true) {
+      let q = supabase
+        .from('marcos')
+        .select('id_ext, marca, modelo, stock, precio_usd, precio_neto_clp, precio_bruto_clp')
+        .range(pageStart, pageStart + pageSize - 1);
 
-    const { data: products, error: dbError } = await query.limit(2000);
+      if (targetBrand) {
+        q = q.ilike('marca', `%${targetBrand}%`);
+      }
 
-    if (dbError || !products) {
-      throw new Error(`Error consultando catálogo en Supabase: ${dbError?.message || 'Sin registros'}`);
+      const { data: pageData, error: dbError } = await q;
+      if (dbError) {
+        throw new Error(`Error consultando catálogo en Supabase: ${dbError.message}`);
+      }
+      if (!pageData || pageData.length === 0) break;
+      products.push(...pageData);
+      if (pageData.length < pageSize) break;
+      pageStart += pageSize;
     }
 
     const itemsToUpdate: Array<{ id_ext: string; payload: Record<string, any> }> = [];
@@ -122,7 +140,7 @@ export async function POST(req: NextRequest) {
           newStock: prod.stock || 0,
           oldPriceNeto: prod.precio_neto_clp,
           newPriceNeto: prod.precio_neto_clp,
-          changeReason: 'Sin precio USD de origen registrado',
+          changeReason: 'Sin precio USD de costo registrado',
         });
         continue;
       }
@@ -159,7 +177,7 @@ export async function POST(req: NextRequest) {
           newPriceNeto: newNeto,
           oldPriceUsd: priceUsd,
           newPriceUsd: priceUsd,
-          changeReason: `Recálculo B2B Dólar $${dolarRate}: $${prevNeto.toLocaleString('es-CL')} -> $${newNeto.toLocaleString('es-CL')}`,
+          changeReason: `Recálculo B2B (Dólar $${dolarRate}): $${prevNeto.toLocaleString('es-CL')} -> $${newNeto.toLocaleString('es-CL')}`,
         });
       } else {
         unchangedCount++;
@@ -223,8 +241,8 @@ export async function POST(req: NextRequest) {
       status: 'completed',
       mode: 'direct_cloud_sync',
       message: dry_run
-        ? `[SIMULACIÓN] Se calcularon ${products.length} productos: ${updatedCount} con nuevo precio B2B.`
-        : `Sincronización finalizada: ${updatedCount} productos actualizados en Supabase con dólar $${dolarRate}.`,
+        ? `[SIMULACIÓN] Se revisaron ${products.length} productos: ${updatedCount} con nuevo precio B2B.`
+        : `Sincronización finalizada: ${products.length} productos revisados (${updatedCount} actualizados, ${unchangedCount} sin cambios) con dólar $${dolarRate}.`,
       summary,
     });
   } catch (error) {
