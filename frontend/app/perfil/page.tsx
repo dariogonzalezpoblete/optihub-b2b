@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { formatRUT, isValidRUT } from '@/lib/utils/rut';
+import { REGIONES_CHILE, getCommunesForRegion } from '@/lib/data/chileRegions';
 import { Building2, User, Phone, MapPin, Save, AlertCircle, CheckCircle2 } from 'lucide-react';
 import type { Profile } from '@/lib/catalog/types';
 
@@ -58,6 +59,16 @@ export default function PerfilPage() {
     let value = e.target.value;
     if (e.target.name === 'rut') {
       value = formatRUT(value);
+    }
+    if (e.target.name === 'region') {
+      const newRegion = value;
+      const validCommunes = getCommunesForRegion(newRegion);
+      setProfile((prev) => ({
+        ...prev,
+        region: newRegion,
+        commune: validCommunes.includes(prev.commune || '') ? prev.commune : '',
+      }));
+      return;
     }
     setProfile(prev => ({ ...prev, [e.target.name]: value }));
   };
@@ -183,12 +194,39 @@ export default function PerfilPage() {
                 <input type="text" name="billing_address" value={profile.billing_address || ''} onChange={handleChange} className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition" />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-400">Comuna</label>
-                <input type="text" name="commune" value={profile.commune || ''} onChange={handleChange} className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition" />
+                <label className="text-sm font-bold text-slate-400">Región</label>
+                <select
+                  name="region"
+                  value={profile.region || ''}
+                  onChange={handleChange}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
+                >
+                  <option value="">Seleccione una región...</option>
+                  {REGIONES_CHILE.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-400">Región</label>
-                <input type="text" name="region" value={profile.region || ''} onChange={handleChange} className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition" />
+                <label className="text-sm font-bold text-slate-400">Comuna</label>
+                <select
+                  name="commune"
+                  value={profile.commune || ''}
+                  onChange={handleChange}
+                  disabled={!profile.region}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 disabled:bg-slate-900 disabled:text-slate-600 disabled:cursor-not-allowed rounded-xl px-4 py-3 text-white outline-none transition"
+                >
+                  <option value="">
+                    {profile.region ? 'Seleccione una comuna...' : 'Primero seleccione región'}
+                  </option>
+                  {getCommunesForRegion(profile.region).map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

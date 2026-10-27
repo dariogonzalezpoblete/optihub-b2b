@@ -318,7 +318,7 @@ function ActualizarPasswordForm() {
                       disabled={loading}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Mínimo 6 caracteres"
+                      placeholder="Mínimo 8 caracteres"
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 disabled:opacity-50 transition"
                     />
                   </div>
@@ -347,7 +347,7 @@ function ActualizarPasswordForm() {
                 <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs text-slate-400 space-y-1">
                   <p className="font-semibold text-slate-300">Requisitos de seguridad:</p>
                   <p className="text-[11px] text-slate-400">
-                    • Mínimo 6 caracteres (recomendado: números, mayúsculas y símbolos).
+                    • Mínimo 8 caracteres, al menos una mayúscula (A-Z), una minúscula (a-z) y un número (0-9).
                   </p>
                 </div>
 

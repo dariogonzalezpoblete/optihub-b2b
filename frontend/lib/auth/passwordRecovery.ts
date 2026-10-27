@@ -4,6 +4,8 @@
  * Permite ejecutar pruebas automatizadas sobre la lógica real sin depender de React DOM.
  */
 
+import { checkPasswordRules } from '@/lib/utils/password';
+
 export interface JwtClaims {
   sub?: string;
   email?: string;
@@ -134,13 +136,11 @@ export function validatePasswordInput(
   password: string,
   confirmPassword: string
 ): { valid: boolean; error?: string } {
-  if (!password || password.length < 6) {
-    return { valid: false, error: 'La contraseña debe tener al menos 6 caracteres.' };
-  }
-  if (password !== confirmPassword) {
-    return { valid: false, error: 'Las contraseñas no coinciden. Por favor verifica tus datos.' };
-  }
-  return { valid: true };
+  const result = checkPasswordRules(password, confirmPassword);
+  return {
+    valid: result.valid,
+    error: result.error,
+  };
 }
 
 /**

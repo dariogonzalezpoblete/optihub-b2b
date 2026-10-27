@@ -1,26 +1,22 @@
 /**
- * Valida un RUT chileno.
- * Acepta formatos como 12.345.678-5 o 12345678-5,
- * además de RUTs de prueba genéricos o formatos B2B flexibles para QA y testing.
+ * Utilidades de validación y formateo de RUT chileno.
+ * Implementa el algoritmo oficial Módulo 11 del Servicio de Impuestos Internos (SII)
+ * y Registro Civil de Chile.
  */
-export function isValidRUT(rut: string): boolean {
-  if (!rut || typeof rut !== 'string') return false;
 
-  const trimmed = rut.trim();
-  if (trimmed.length < 3) return false;
+/**
+ * Limpia cualquier caracter ajeno a números y la letra K.
+ */
+export function cleanRUT(rut: string): string {
+  if (!rut || typeof rut !== 'string') return '';
+  return rut.replace(/[^0-9kK]/g, '').toUpperCase();
+}
 
-  // Limpiar caracteres
-  const cleanRut = trimmed.replace(/[^0-9kK]/g, '').toUpperCase();
-  if (cleanRut.length < 2) return false;
-
-  // Extraer cuerpo y DV
-  const cuerpo = cleanRut.slice(0, -1);
-  const dv = cleanRut.slice(-1);
-
-  // Validar cuerpo numérico
-  if (!/^[0-9]+$/.test(cuerpo)) return false;
-
-  // 1. Calcular DV oficial (Módulo 11)
+/**
+ * Calcula el Dígito Verificador (DV) oficial mediante el algoritmo Módulo 11.
+ * @param cuerpo Cadena numérica con los dígitos base del RUT (sin puntos ni guion)
+ */
+export function calculateRUTdv(cuerpo: string): string {
   let suma = 0;
   let multiplicador = 2;
 
@@ -31,36 +27,81 @@ export function isValidRUT(rut: string): boolean {
   }
 
   const dvEsperado = 11 - (suma % 11);
-  let dvCalculado = dvEsperado.toString();
-  if (dvEsperado === 11) dvCalculado = '0';
-  if (dvEsperado === 10) dvCalculado = 'K';
-
-  if (dv === dvCalculado) {
-    return true;
-  }
-
-  // 2. Modo flexible QA / Pruebas B2B:
-  // Permite RUTs de prueba genéricos con estructura válida (6 a 9 dígitos de cuerpo + dígito verificador 0-9 o K)
-  // sin bloquear escenarios de testing (ej: 11.111.111-1, 12.345.678-9, 76.123.456-7, 76.543.210-K).
-  if (cuerpo.length >= 6 && cuerpo.length <= 9 && /^[0-9K]$/.test(dv)) {
-    return true;
-  }
-
-  return false;
+  if (dvEsperado === 11) return '0';
+  if (dvEsperado === 10) return 'K';
+  return dvEsperado.toString();
 }
 
 /**
- * Formatea un RUT a XX.XXX.XXX-X
+ * Valida un RUT chileno de manera estricta aplicando el algoritmo oficial Módulo 11.
+ * Rechaza cualquier RUT con dígito verificador inválido o longitud fuera de norma.
+ */
+export function isValidRUT(rut: string): boolean {
+  if (!rut || typeof rut !== 'string') return false;
+
+  const cleanRut = cleanRUT(rut);
+  // Un RUT chileno real tiene entre 7 caracteres (ej: 6 dígitos cuerpo + 1 DV) y 9 caracteres (8 dígitos cuerpo + 1 DV)
+  if (cleanRut.length < 7 || cleanRut.length > 9) return false;
+
+  const cuerpo = cleanRut.slice(0, -1);
+  const dv = cleanRut.slice(-1);
+
+  if (!/^[0-9]+$/.test(cuerpo)) return false;
+
+  const dvCalculado = calculateRUTdv(cuerpo);
+  return dv === dvCalculado;
+}
+
+/**
+ * Valida un RUT y devuelve un objeto descriptivo con el estado y motivo de error si no es válido.
+ */
+export function validateRUT(rut: string): { valid: boolean; formatted: string; error?: string } {
+  if (!rut || !rut.trim()) {
+    return { valid: false, formatted: '', error: 'El RUT es obligatorio.' };
+  }
+
+  const clean = cleanRUT(rut);
+  const formatted = formatRUT(clean);
+
+  if (clean.length < 7) {
+    return { valid: false, formatted, error: 'RUT incompleto (mínimo 7 dígitos con su verificador).' };
+  }
+
+  if (clean.length > 9) {
+    return { valid: false, formatted, error: 'RUT inválido (excede la longitud máxima permitida).' };
+  }
+
+  const cuerpo = clean.slice(0, -1);
+  const dv = clean.slice(-1);
+
+  if (!/^[0-9]+$/.test(cuerpo)) {
+    return { valid: false, formatted, error: 'El cuerpo del RUT solo debe contener dígitos numéricos.' };
+  }
+
+  const dvCalculado = calculateRUTdv(cuerpo);
+  if (dv !== dvCalculado) {
+    return {
+      valid: false,
+      formatted,
+      error: `Dígito verificador inválido (ingresó "${dv}", pero el dígito matemático correcto es "${dvCalculado}").`,
+    };
+  }
+
+  return { valid: true, formatted };
+}
+
+/**
+ * Formatea un RUT a formato estándar chileno con puntos y guion: XX.XXX.XXX-X
  */
 export function formatRUT(rut: string): string {
   if (!rut) return '';
-  const cleanRut = rut.replace(/[^0-9kK]/g, '').toUpperCase();
-  if (cleanRut.length < 2) return cleanRut;
+  const cleanRut = cleanRUT(rut);
+  if (cleanRut.length <= 1) return cleanRut;
 
   const dv = cleanRut.slice(-1);
   let cuerpo = cleanRut.slice(0, -1);
-  
+
   cuerpo = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  
+
   return `${cuerpo}-${dv}`;
 }

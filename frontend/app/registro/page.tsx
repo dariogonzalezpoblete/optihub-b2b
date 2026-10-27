@@ -1,11 +1,28 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth, OpticaMetadata } from '@/context/AuthContext';
-import { formatRUT, isValidRUT } from '@/lib/utils/rut';
-import { Glasses, Building2, User, Phone, MapPin, Mail, Lock, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { formatRUT, isValidRUT, cleanRUT } from '@/lib/utils/rut';
+import { checkPasswordRules } from '@/lib/utils/password';
+import { REGIONES_CHILE, getCommunesForRegion } from '@/lib/data/chileRegions';
+import {
+  Glasses,
+  Building2,
+  User,
+  Phone,
+  MapPin,
+  Mail,
+  Lock,
+  ArrowRight,
+  AlertCircle,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Check,
+  ShieldCheck,
+} from 'lucide-react';
 
 function RegisterForm() {
   const router = useRouter();
@@ -19,23 +36,42 @@ function RegisterForm() {
     rut_empresa: '',
     nombre_contacto: '',
     telefono: '',
-    ciudad: '',
+    region: 'Región Metropolitana de Santiago',
+    comuna: '',
     email: '',
     password: '',
     confirmPassword: '',
   });
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isLoggedIn) {
       router.push(redirectPath);
     }
   }, [isLoggedIn, redirectPath, router]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Comunas disponibles para la región seleccionada
+  const availableCommunes = useMemo(() => {
+    return getCommunesForRegion(formData.region);
+  }, [formData.region]);
+
+  // Si cambia la región y la comuna actual no pertenece a ella, resetear comuna
+  const handleRegionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newRegion = e.target.value;
+    const communes = getCommunesForRegion(newRegion);
+    setFormData((prev) => ({
+      ...prev,
+      region: newRegion,
+      comuna: communes.includes(prev.comuna) ? prev.comuna : '',
+    }));
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     let value = e.target.value;
     if (e.target.name === 'rut_empresa') {
       value = formatRUT(value);
@@ -46,22 +82,55 @@ function RegisterForm() {
     }));
   };
 
+  // Validación de RUT en tiempo real
+  const cleanRutStr = cleanRUT(formData.rut_empresa);
+  const isRutComplete = cleanRutStr.length >= 7;
+  const isRutValid = isRutComplete && isValidRUT(formData.rut_empresa);
+  const isRutInvalid = isRutComplete && !isRutValid;
+
+  // Validación de contraseña en tiempo real
+  const pwdRules = useMemo(() => {
+    return checkPasswordRules(formData.password, formData.confirmPassword);
+  }, [formData.password, formData.confirmPassword]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
+    // 1. Validar RUT con Algoritmo Módulo 11 estricto
     if (!isValidRUT(formData.rut_empresa)) {
-      setErrorMsg('El RUT ingresado no es válido. Por favor verifica el formato (ej: 76.543.210-K).');
+      setErrorMsg('El RUT ingresado no es válido. Debe ser un RUT chileno oficial con su dígito verificador correcto (Módulo 11).');
       return;
     }
 
+    // 2. Validar Región y Comuna
+    if (!formData.region) {
+      setErrorMsg('Por favor seleccione una región.');
+      return;
+    }
+    if (!formData.comuna) {
+      setErrorMsg('Por favor seleccione una comuna correspondiente a su región.');
+      return;
+    }
+
+    // 3. Validar Seguridad de Contraseña (Mayúscula, Minúscula, Número, 8+ caracteres)
+    if (!pwdRules.hasMinLength) {
+      setErrorMsg('La contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+    if (!pwdRules.hasUpper) {
+      setErrorMsg('La contraseña debe contener al menos una letra mayúscula (A-Z).');
+      return;
+    }
+    if (!pwdRules.hasLower) {
+      setErrorMsg('La contraseña debe contener al menos una letra minúscula (a-z).');
+      return;
+    }
+    if (!pwdRules.hasNumber) {
+      setErrorMsg('La contraseña debe contener al menos un número (0-9).');
+    }
     if (formData.password !== formData.confirmPassword) {
       setErrorMsg('Las contraseñas no coinciden.');
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      setErrorMsg('La contraseña debe tener al menos 6 caracteres.');
       return;
     }
 
@@ -72,7 +141,9 @@ function RegisterForm() {
       rut_empresa: formData.rut_empresa.trim(),
       nombre_contacto: formData.nombre_contacto.trim(),
       telefono: formData.telefono.trim(),
-      ciudad: formData.ciudad.trim(),
+      region: formData.region,
+      comuna: formData.comuna,
+      ciudad: `${formData.comuna}, ${formData.region}`,
     };
 
     try {
@@ -90,7 +161,7 @@ function RegisterForm() {
         }
       }
     } catch (err: any) {
-      setErrorMsg('Ocurrió un error inesperado. Por favor intenta de nuevo.');
+      setErrorMsg('Ocurrió un error inesperado al registrar la cuenta. Por favor intente nuevamente.');
     } finally {
       setLoading(false);
     }
@@ -152,6 +223,7 @@ function RegisterForm() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Fila 1: Nombre Óptica & RUT Empresa */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[11px] font-semibold text-[#111111] uppercase tracking-wider mb-2">
@@ -174,21 +246,42 @@ function RegisterForm() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-[#111111] uppercase tracking-wider mb-2">
-                  RUT de Empresa o Titular
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-[11px] font-semibold text-[#111111] uppercase tracking-wider">
+                    RUT de Empresa o Titular
+                  </label>
+                  {isRutValid && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                      <Check className="w-3 h-3 text-emerald-600" />
+                      Válido
+                    </span>
+                  )}
+                  {isRutInvalid && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-red-800 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md">
+                      <AlertCircle className="w-3 h-3 text-red-600" />
+                      DV Inválido
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   required
                   name="rut_empresa"
                   value={formData.rut_empresa}
                   onChange={handleChange}
-                  placeholder="Ej: 76.543.210-K"
-                  className="w-full bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl px-4 py-2.5 text-sm font-mono text-[#111111] placeholder-[#A8A6A0] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#B89768] transition"
+                  placeholder="Ej: 76.543.210-3"
+                  className={`w-full bg-[#FAF9F6] border rounded-xl px-4 py-2.5 text-sm font-mono text-[#111111] placeholder-[#A8A6A0] focus:outline-none focus:bg-[#FFFFFF] transition ${
+                    isRutInvalid
+                      ? 'border-red-400 focus:border-red-500 bg-red-50/20'
+                      : isRutValid
+                      ? 'border-emerald-400 focus:border-emerald-500'
+                      : 'border-[#E5E4DF] focus:border-[#B89768]'
+                  }`}
                 />
               </div>
             </div>
 
+            {/* Fila 2: Encargado & Teléfono */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[11px] font-semibold text-[#111111] uppercase tracking-wider mb-2">
@@ -224,33 +317,67 @@ function RegisterForm() {
                     name="telefono"
                     value={formData.telefono}
                     onChange={handleChange}
-                    placeholder="+56 9 9893 38537"
+                    placeholder="+56 9 9893 3853"
                     className="w-full bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#111111] placeholder-[#A8A6A0] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#B89768] transition"
                   />
                 </div>
               </div>
             </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-[#111111] uppercase tracking-wider mb-2">
-                Ciudad / Comuna (Chile)
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#82807A]">
-                  <MapPin className="w-4 h-4" />
+            {/* Fila 3: Región y Comuna en Cascada */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] font-semibold text-[#111111] uppercase tracking-wider mb-2">
+                  Región <span className="text-[#9E7D4F]">*</span>
+                </label>
+                <div className="relative">
+                  <select
+                    required
+                    name="region"
+                    value={formData.region}
+                    onChange={handleRegionChange}
+                    className="w-full bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl px-4 py-2.5 text-sm text-[#111111] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#B89768] transition"
+                  >
+                    <option value="">Seleccione una región...</option>
+                    {REGIONES_CHILE.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <input
-                  type="text"
-                  required
-                  name="ciudad"
-                  value={formData.ciudad}
-                  onChange={handleChange}
-                  placeholder="Ej: Providencia, Santiago"
-                  className="w-full bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#111111] placeholder-[#A8A6A0] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#B89768] transition"
-                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-[#111111] uppercase tracking-wider mb-2">
+                  Comuna <span className="text-[#9E7D4F]">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#82807A]">
+                    <MapPin className="w-4 h-4" />
+                  </div>
+                  <select
+                    required
+                    name="comuna"
+                    value={formData.comuna}
+                    onChange={handleChange}
+                    disabled={!formData.region}
+                    className="w-full bg-[#FAF9F6] border border-[#E5E4DF] disabled:bg-[#F2F1EC] disabled:text-[#A8A6A0] disabled:cursor-not-allowed rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#111111] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#B89768] transition"
+                  >
+                    <option value="">
+                      {formData.region ? 'Seleccione una comuna...' : 'Primero seleccione región'}
+                    </option>
+                    {availableCommunes.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
+            {/* Fila 4: Correo Electrónico Comercial */}
             <div>
               <label className="block text-[11px] font-semibold text-[#111111] uppercase tracking-wider mb-2">
                 Correo Electrónico Comercial
@@ -271,6 +398,7 @@ function RegisterForm() {
               </div>
             </div>
 
+            {/* Fila 5: Contraseñas con botón de visibilidad */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[11px] font-semibold text-[#111111] uppercase tracking-wider mb-2">
@@ -281,14 +409,22 @@ function RegisterForm() {
                     <Lock className="w-4 h-4" />
                   </div>
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     required
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    placeholder="Mínimo 6 caracteres"
-                    className="w-full bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#111111] placeholder-[#A8A6A0] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#B89768] transition"
+                    placeholder="Mínimo 8 caracteres"
+                    className="w-full bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl pl-10 pr-10 py-2.5 text-sm text-[#111111] placeholder-[#A8A6A0] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#B89768] transition"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#82807A] hover:text-[#111111] transition"
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 
@@ -301,22 +437,72 @@ function RegisterForm() {
                     <Lock className="w-4 h-4" />
                   </div>
                   <input
-                    type="password"
+                    type={showConfirmPassword ? 'text' : 'password'}
                     required
                     name="confirmPassword"
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     placeholder="Repita la contraseña"
-                    className="w-full bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#111111] placeholder-[#A8A6A0] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#B89768] transition"
+                    className="w-full bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl pl-10 pr-10 py-2.5 text-sm text-[#111111] placeholder-[#A8A6A0] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#B89768] transition"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#82807A] hover:text-[#111111] transition"
+                    aria-label={showConfirmPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
+            </div>
+
+            {/* Checklist de Requisitos de Contraseña en Tiempo Real */}
+            <div className="p-3.5 bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl space-y-1.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#575551] mb-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#9E7D4F]" />
+                <span>Requisitos de seguridad para la cuenta B2B:</span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+                <div className={`flex items-center gap-1.5 transition ${pwdRules.hasMinLength ? 'text-emerald-700 font-medium' : 'text-[#82807A]'}`}>
+                  <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] ${pwdRules.hasMinLength ? 'bg-emerald-100 text-emerald-700' : 'bg-[#E5E4DF] text-[#82807A]'}`}>
+                    {pwdRules.hasMinLength ? '✓' : '•'}
+                  </div>
+                  <span>Mínimo 8 caracteres</span>
+                </div>
+                <div className={`flex items-center gap-1.5 transition ${pwdRules.hasUpper ? 'text-emerald-700 font-medium' : 'text-[#82807A]'}`}>
+                  <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] ${pwdRules.hasUpper ? 'bg-emerald-100 text-emerald-700' : 'bg-[#E5E4DF] text-[#82807A]'}`}>
+                    {pwdRules.hasUpper ? '✓' : '•'}
+                  </div>
+                  <span>Al menos una mayúscula</span>
+                </div>
+                <div className={`flex items-center gap-1.5 transition ${pwdRules.hasLower ? 'text-emerald-700 font-medium' : 'text-[#82807A]'}`}>
+                  <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] ${pwdRules.hasLower ? 'bg-emerald-100 text-emerald-700' : 'bg-[#E5E4DF] text-[#82807A]'}`}>
+                    {pwdRules.hasLower ? '✓' : '•'}
+                  </div>
+                  <span>Al menos una minúscula</span>
+                </div>
+                <div className={`flex items-center gap-1.5 transition ${pwdRules.hasNumber ? 'text-emerald-700 font-medium' : 'text-[#82807A]'}`}>
+                  <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] ${pwdRules.hasNumber ? 'bg-emerald-100 text-emerald-700' : 'bg-[#E5E4DF] text-[#82807A]'}`}>
+                    {pwdRules.hasNumber ? '✓' : '•'}
+                  </div>
+                  <span>Al menos un número (0-9)</span>
+                </div>
+              </div>
+              {formData.confirmPassword.length > 0 && (
+                <div className={`pt-1 text-[11px] flex items-center gap-1.5 ${pwdRules.matchesConfirm ? 'text-emerald-700 font-medium' : 'text-red-600'}`}>
+                  <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] ${pwdRules.matchesConfirm ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                    {pwdRules.matchesConfirm ? '✓' : '✕'}
+                  </div>
+                  <span>{pwdRules.matchesConfirm ? 'Las contraseñas coinciden' : 'Las contraseñas no coinciden'}</span>
+                </div>
+              )}
             </div>
 
             <div className="pt-2">
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !pwdRules.valid || !isRutValid}
                 className="w-full bg-[#111111] hover:bg-[#222222] disabled:bg-[#E5E4DF] disabled:text-[#82807A] text-[#FFFFFF] font-semibold py-3.5 px-6 rounded-xl transition duration-200 shadow-sm text-xs uppercase tracking-widest flex items-center justify-center gap-2"
               >
                 {loading ? (

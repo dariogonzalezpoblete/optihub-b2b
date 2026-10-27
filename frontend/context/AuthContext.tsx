@@ -16,6 +16,8 @@ export interface OpticaMetadata {
   nombre_contacto?: string;
   telefono?: string;
   ciudad?: string;
+  region?: string;
+  comuna?: string;
   direccion?: string;
   giro?: string;
 }

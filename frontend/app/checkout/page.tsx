@@ -7,6 +7,7 @@ import { useCartStore, getProductCartKey } from '@/store/useCartStore';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { isValidRUT, formatRUT } from '@/lib/utils/rut';
+import { REGIONES_CHILE, getCommunesForRegion } from '@/lib/data/chileRegions';
 import { ensureCartSynced } from '@/lib/cartService';
 import { getMercadoPagoPublicKey, isMercadoPagoSandboxMode } from '@/lib/mercadopago';
 import {
@@ -29,25 +30,6 @@ import {
   X,
   UserCheck,
 } from 'lucide-react';
-
-const REGIONES_CHILE = [
-  'Región Metropolitana de Santiago',
-  'Región de Arica y Parinacota',
-  'Región de Tarapacá',
-  'Región de Antofagasta',
-  'Región de Atacama',
-  'Región de Coquimbo',
-  'Región de Valparaíso',
-  "Región del Libertador Gral. Bernardo O'Higgins",
-  'Región del Maule',
-  'Región de Ñuble',
-  'Región del Biobío',
-  'Región de La Araucanía',
-  'Región de Los Ríos',
-  'Región de Los Lagos',
-  'Región de Aysén del Gral. Carlos Ibáñez del Campo',
-  'Región de Magallanes y de la Antártica Chilena',
-];
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -213,6 +195,16 @@ export default function CheckoutPage() {
     if (e.target.name === 'rut') {
       value = formatRUT(value);
     }
+    if (e.target.name === 'region') {
+      const newRegion = value;
+      const validCommunes = getCommunesForRegion(newRegion);
+      setFormData((prev) => ({
+        ...prev,
+        region: newRegion,
+        comuna: validCommunes.includes(prev.comuna) ? prev.comuna : '',
+      }));
+      return;
+    }
     setFormData((prev) => ({
       ...prev,
       [e.target.name]: value,
@@ -228,6 +220,11 @@ export default function CheckoutPage() {
 
     if (!isValidRUT(formData.rut)) {
       setErrorMsg('El RUT empresarial ingresado no es válido. Verifique el dígito verificador e intente nuevamente.');
+      return;
+    }
+
+    if (!formData.region || !formData.comuna) {
+      setErrorMsg('Por favor seleccione la región y comuna oficial de despacho.');
       return;
     }
 
@@ -639,17 +636,25 @@ export default function CheckoutPage() {
 
                 <div className="space-y-1.5">
                   <label className="block text-xs font-semibold uppercase tracking-wider text-[#575551]">
-                    Comuna / Ciudad <span className="text-[#9E7D4F]">*</span>
+                    Comuna <span className="text-[#9E7D4F]">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     name="comuna"
                     value={formData.comuna}
                     onChange={handleChange}
                     required
-                    placeholder="Ej: Providencia"
-                    className="w-full bg-[#FAF9F6] border border-[#E5E4DF] focus:bg-[#FFFFFF] focus:border-[#111111] rounded-xl px-4 py-3 text-sm text-[#111111] placeholder:text-[#82807A]/60 outline-none transition"
-                  />
+                    disabled={!formData.region}
+                    className="w-full bg-[#FAF9F6] border border-[#E5E4DF] focus:bg-[#FFFFFF] focus:border-[#111111] disabled:bg-[#F2F1EC] disabled:text-[#A8A6A0] disabled:cursor-not-allowed rounded-xl px-4 py-3 text-sm text-[#111111] outline-none transition"
+                  >
+                    <option value="">
+                      {formData.region ? 'Seleccione una comuna...' : 'Primero seleccione región'}
+                    </option>
+                    {getCommunesForRegion(formData.region).map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="space-y-1.5 md:col-span-2">
