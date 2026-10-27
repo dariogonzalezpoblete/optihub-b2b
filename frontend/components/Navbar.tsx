@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ShoppingBag, LogOut, User } from 'lucide-react';
+import { OptiHubEmblem } from '@/components/ui/OptiHubLogo';
 import { useCartStore } from '@/store/useCartStore';
 import { useAuth } from '@/context/AuthContext';
 
@@ -28,14 +29,19 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 bg-[#FFFFFF]/95 backdrop-blur-md border-b border-[#E5E4DF] transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
         
-        {/* LOGO CORPORATIVO */}
-        <Link href="/" className="flex flex-col group flex-shrink-0">
-          <span className="font-editorial text-2xl sm:text-3xl font-semibold tracking-tight text-[#111111] leading-none">
-            Opti<span className="text-[#B89768]">Hub</span>
-          </span>
-          <span className="font-sans text-[10px] font-medium tracking-wider text-[#82807A] uppercase mt-1">
-            Importación Mayorista Óptica
-          </span>
+        {/* LOGO CORPORATIVO CON EMBLEMA MINIMALISTA */}
+        <Link href="/" className="flex items-center gap-3 sm:gap-3.5 group flex-shrink-0">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#FAF9F6] border border-[#E5E4DF] flex items-center justify-center p-2 shadow-2xs group-hover:border-[#B89768] group-hover:bg-[#FDFBF7] transition-all">
+            <OptiHubEmblem className="w-full h-full" />
+          </div>
+          <div className="flex flex-col">
+            <span className="font-editorial text-2xl sm:text-3xl font-semibold tracking-tight text-[#111111] leading-none">
+              Opti<span className="text-[#B89768]">Hub</span>
+            </span>
+            <span className="font-sans text-[9px] sm:text-[10px] font-semibold tracking-wider text-[#82807A] uppercase mt-1">
+              Importación Mayorista Óptica
+            </span>
+          </div>
         </Link>
 
         {/* NAVEGACIÓN PRINCIPAL */}

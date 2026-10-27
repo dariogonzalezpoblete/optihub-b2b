@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { ShieldCheck, Truck, FileText, MessageCircle } from 'lucide-react';
+import { OptiHubEmblem } from '@/components/ui/OptiHubLogo';
 
 export default function Footer() {
   const { isLoggedIn } = useAuth();
@@ -53,8 +54,11 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-8 text-center md:text-left">
           
           {/* IDENTIDAD */}
-          <div className="space-y-1">
-            <Link href="/" className="inline-block">
+          <div className="space-y-2">
+            <Link href="/" className="inline-flex items-center gap-2.5 group">
+              <div className="w-8 h-8 rounded-xl bg-[#FAF9F6] border border-[#E5E4DF] flex items-center justify-center p-1.5 shadow-2xs group-hover:border-[#B89768] transition-colors">
+                <OptiHubEmblem className="w-full h-full" />
+              </div>
               <span className="font-editorial text-2xl font-semibold tracking-tight text-[#111111]">
                 Opti<span className="text-[#B89768]">Hub</span>
               </span>

@@ -151,7 +151,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 2. LÍNEAS PRINCIPALES (OFTÁLMICOS Y SOLARES) */}
+      {/* 2. LÍNEAS PRINCIPALES (OFTÁLMICOS Y SOLARES CON IMÁGENES NÍTIDAS Y HOVER ELEGANTE) */}
       <section className="py-8 sm:py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 sm:gap-4 mb-6 sm:mb-8 pb-4 border-b border-[#E5E4DF]">
           <div>
@@ -174,10 +174,11 @@ export default function Home() {
           {/* Card Monturas Ópticas */}
           <Link
             href="/catalogo?tipo=optico"
-            className="group relative rounded-3xl overflow-hidden min-h-[340px] sm:min-h-[440px] p-6 sm:p-10 lg:p-12 flex flex-col justify-end border border-[#E5E4DF] shadow-md hover:shadow-2xl hover:border-[#B89768] transition-all duration-300 hover:scale-[1.01] cursor-pointer"
+            className="group relative rounded-3xl overflow-hidden min-h-[360px] sm:min-h-[440px] p-6 sm:p-10 lg:p-12 flex flex-col justify-end border border-[#E5E4DF] shadow-md hover:shadow-2xl hover:border-[#B89768] transition-all duration-300 hover:scale-[1.01] cursor-pointer bg-[#111111]"
           >
-            <div className="absolute inset-0 -z-10 overflow-hidden">
+            <div className="absolute inset-0 z-0 overflow-hidden">
               <Image
+                unoptimized
                 src="https://images.unsplash.com/photo-1591076482161-42ce6da69f67?auto=format&fit=crop&w=1200&q=85"
                 alt="Monturas Ópticas"
                 fill
@@ -185,20 +186,19 @@ export default function Home() {
                 className="object-cover object-center group-hover:scale-108 transition-transform duration-700 ease-out"
                 sizes="(max-width: 768px) 100vw, 50vw"
               />
-              {/* Capa de oscurecimiento dual permanente para nitidez y contraste editorial */}
-              <div className="absolute inset-0 bg-black/45 group-hover:bg-black/55 transition-colors duration-500" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent transition-opacity duration-500" />
+              {/* Overlay equilibrado que permite apreciar el armazón y garantiza legibilidad del texto */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/20 group-hover:from-black/90 group-hover:via-black/35 group-hover:to-transparent transition-all duration-500" />
             </div>
 
             <div className="relative z-10">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/30 text-white text-[11px] font-semibold tracking-widest uppercase mb-2.5 sm:mb-3 shadow-xs">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/45 backdrop-blur-md border border-white/20 text-white text-[11px] font-semibold tracking-widest uppercase mb-3 shadow-xs">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#B89768]" />
                 Línea Oftálmica
               </div>
-              <h3 className="font-editorial text-3xl sm:text-4xl lg:text-5xl font-semibold text-white tracking-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
+              <h3 className="font-editorial text-4xl sm:text-5xl font-semibold text-white tracking-tight drop-shadow-md">
                 Monturas Ópticas
               </h3>
-              <div className="mt-3 sm:mt-4 flex items-center gap-2 text-xs font-bold text-white uppercase tracking-widest group-hover:text-[#B89768] transition-colors drop-shadow-sm">
+              <div className="mt-4 flex items-center gap-2 text-xs font-bold text-white uppercase tracking-widest group-hover:text-[#B89768] transition-colors drop-shadow-xs">
                 <span>Explorar Catálogo</span>
                 <ArrowRight className="w-4 h-4 text-[#B89768] group-hover:translate-x-1.5 transition-transform duration-300" />
               </div>
@@ -208,10 +208,11 @@ export default function Home() {
           {/* Card Gafas de Sol */}
           <Link
             href="/catalogo?tipo=sol"
-            className="group relative rounded-3xl overflow-hidden min-h-[340px] sm:min-h-[440px] p-6 sm:p-10 lg:p-12 flex flex-col justify-end border border-[#E5E4DF] shadow-md hover:shadow-2xl hover:border-[#B89768] transition-all duration-300 hover:scale-[1.01] cursor-pointer"
+            className="group relative rounded-3xl overflow-hidden min-h-[360px] sm:min-h-[440px] p-6 sm:p-10 lg:p-12 flex flex-col justify-end border border-[#E5E4DF] shadow-md hover:shadow-2xl hover:border-[#B89768] transition-all duration-300 hover:scale-[1.01] cursor-pointer bg-[#111111]"
           >
-            <div className="absolute inset-0 -z-10 overflow-hidden">
+            <div className="absolute inset-0 z-0 overflow-hidden">
               <Image
+                unoptimized
                 src="https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=1200&q=85"
                 alt="Gafas de Sol"
                 fill
@@ -219,20 +220,19 @@ export default function Home() {
                 className="object-cover object-center group-hover:scale-108 transition-transform duration-700 ease-out"
                 sizes="(max-width: 768px) 100vw, 50vw"
               />
-              {/* Capa de oscurecimiento dual permanente para nitidez y contraste editorial */}
-              <div className="absolute inset-0 bg-black/45 group-hover:bg-black/55 transition-colors duration-500" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent transition-opacity duration-500" />
+              {/* Overlay equilibrado que permite apreciar las gafas de sol y garantiza legibilidad del texto */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/20 group-hover:from-black/90 group-hover:via-black/35 group-hover:to-transparent transition-all duration-500" />
             </div>
 
             <div className="relative z-10">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/30 text-white text-[11px] font-semibold tracking-widest uppercase mb-2.5 sm:mb-3 shadow-xs">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/45 backdrop-blur-md border border-white/20 text-white text-[11px] font-semibold tracking-widest uppercase mb-3 shadow-xs">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#B89768]" />
                 Línea Solar
               </div>
-              <h3 className="font-editorial text-3xl sm:text-4xl lg:text-5xl font-semibold text-white tracking-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
+              <h3 className="font-editorial text-4xl sm:text-5xl font-semibold text-white tracking-tight drop-shadow-md">
                 Gafas de Sol
               </h3>
-              <div className="mt-3 sm:mt-4 flex items-center gap-2 text-xs font-bold text-white uppercase tracking-widest group-hover:text-[#B89768] transition-colors drop-shadow-sm">
+              <div className="mt-4 flex items-center gap-2 text-xs font-bold text-white uppercase tracking-widest group-hover:text-[#B89768] transition-colors drop-shadow-xs">
                 <span>Explorar Catálogo</span>
                 <ArrowRight className="w-4 h-4 text-[#B89768] group-hover:translate-x-1.5 transition-transform duration-300" />
               </div>
