@@ -1,13 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ArrowRight, Search, X } from 'lucide-react';
 import type { EnrichedMarco } from '@/lib/catalog/types';
-import { searchSuggestions } from '@/lib/catalog/filterEngine';
 
 interface PredictiveSearchProps {
   items: EnrichedMarco[];
-  /** Búsqueda confirmada (la que filtra la grilla, viene de la URL) */
   value: string;
   onCommit: (q: string) => void;
   onSelect: (m: EnrichedMarco) => void;
@@ -23,7 +21,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
     <>
       {parts.map((part, i) =>
         i % 2 === 1 ? (
-          <mark key={i} className="bg-[#F7F3EB] text-[#9E7D4F] font-semibold rounded px-0.5">
+          <mark key={i} className="bg-[#F7F3EB] text-[#846C44] font-semibold px-0.5 rounded-none">
             {part}
           </mark>
         ) : (
@@ -34,7 +32,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
   );
 }
 
-export default function PredictiveSearch({ items, value, onCommit, onSelect }: PredictiveSearchProps) {
+export default function PredictiveSearch({ value, onCommit, onSelect }: PredictiveSearchProps) {
   const [input, setInput] = useState(value);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -42,7 +40,9 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
   const inputRef = useRef<HTMLInputElement>(null);
   const lastCommitted = useRef(value);
 
-  // Sincronizar solo si el cambio vino de afuera (ej: "Limpiar todo"), no del propio debounce
+  const [suggestions, setSuggestions] = useState<EnrichedMarco[]>([]);
+  const [total, setTotal] = useState(0);
+
   useEffect(() => {
     if (value !== lastCommitted.current) {
       lastCommitted.current = value;
@@ -55,19 +55,6 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
     lastCommitted.current = trimmed;
     onCommit(trimmed);
   };
-
-  // Filtrar la grilla 300 ms después de dejar de escribir
-  useEffect(() => {
-    if (input === lastCommitted.current) return;
-    const timer = setTimeout(() => {
-      commit(input);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [input]);
-
-  // Autocompletado rápido
-  const [suggestions, setSuggestions] = useState<EnrichedMarco[]>([]);
-  const [total, setTotal] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -90,7 +77,6 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
     return () => { isMounted = false; clearTimeout(t); };
   }, [input]);
 
-  // Cerrar al hacer click afuera
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
@@ -99,7 +85,6 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
     return () => document.removeEventListener('mousedown', onDown);
   }, []);
 
-  // Atajo "/" para enfocar el buscador
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
@@ -151,7 +136,7 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
   return (
     <div ref={wrapRef} className="relative w-full">
       <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#82807A] pointer-events-none" />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#787670] pointer-events-none" />
         <input
           ref={inputRef}
           type="text"
@@ -161,7 +146,7 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
           aria-autocomplete="list"
           autoComplete="off"
           spellCheck={false}
-          placeholder="Buscar por SKU, modelo o marca…"
+          placeholder="BUSCAR POR SKU, MODELO O MARCA…"
           value={input}
           onChange={(e) => {
             setInput(e.target.value);
@@ -170,20 +155,20 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
-          className="w-full bg-[#FFFFFF] border border-[#E5E4DF] hover:border-[#82807A] rounded-xl pl-11 pr-20 py-3 text-sm text-[#111111] placeholder-[#82807A] focus:outline-none focus:border-[#B89768] focus:ring-3 focus:ring-[#B89768]/15 transition shadow-2xs"
+          className="w-full bg-[#FFFFFF] border border-[#E6E2DD] hover:border-[#0F0F0F] rounded-none pl-11 pr-20 py-3 text-xs tracking-wider uppercase text-[#0F0F0F] placeholder-[#787670] focus:outline-none focus:border-[#0F0F0F] transition"
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
           {input ? (
             <button
               type="button"
               onClick={clear}
-              className="w-6 h-6 rounded-md text-[#82807A] hover:text-[#111111] hover:bg-[#FAF9F6] flex items-center justify-center transition"
+              className="w-6 h-6 text-[#787670] hover:text-[#0F0F0F] flex items-center justify-center transition cursor-pointer"
               aria-label="Limpiar búsqueda"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           ) : (
-            <kbd className="hidden sm:inline-flex items-center justify-center h-6 min-w-6 px-1.5 rounded-md border border-[#E5E4DF] bg-[#FAF9F6] text-[11px] font-tech text-[#82807A]">
+            <kbd className="hidden sm:inline-flex items-center justify-center h-5 px-1.5 border border-[#E6E2DD] bg-[#FAF9F6] text-[10px] font-mono text-[#787670]">
               /
             </kbd>
           )}
@@ -191,43 +176,43 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
       </div>
 
       {showDropdown && (
-        <div className="absolute z-50 mt-2 w-full bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl shadow-xl overflow-hidden animate-slide-down">
+        <div className="absolute z-50 mt-1 w-full bg-[#FFFFFF] border border-[#0F0F0F] rounded-none overflow-hidden animate-slide-down shadow-none">
           {suggestions.length === 0 ? (
-            <div className="px-4 py-6 text-center text-sm text-[#82807A]">
-              Sin coincidencias para <span className="text-[#111111] font-semibold">“{input.trim()}”</span>
+            <div className="px-4 py-6 text-center text-xs uppercase tracking-wider text-[#787670]">
+              Sin coincidencias para <span className="text-[#0F0F0F] font-semibold">“{input.trim()}”</span>
             </div>
           ) : (
             <>
-              <ul id="catalog-search-listbox" role="listbox" className="max-h-[22rem] overflow-y-auto scrollbar-thin py-1.5">
+              <ul id="catalog-search-listbox" role="listbox" className="max-h-[22rem] overflow-y-auto scrollbar-thin divide-y divide-[#E6E2DD]">
                 {suggestions.map((m, i) => (
                   <li key={m.id_ext} role="option" aria-selected={i === active}>
                     <button
                       type="button"
                       onMouseEnter={() => setActive(i)}
                       onClick={() => choose(m)}
-                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition ${
-                        i === active ? 'bg-[#FAF9F6]' : 'hover:bg-[#FAF9F6]'
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition cursor-pointer ${
+                        i === active ? 'bg-[#F4F2ED]' : 'hover:bg-[#F4F2ED]'
                       }`}
                     >
-                      <span className="w-14 h-10 rounded-lg bg-[#FFFFFF] border border-[#E5E4DF] flex items-center justify-center overflow-hidden flex-shrink-0">
+                      <span className="w-14 h-10 bg-[#FFFFFF] border border-[#E6E2DD] flex items-center justify-center overflow-hidden flex-shrink-0">
                         {m.imagen_principal && (
-                          <img src={m.imagen_principal} alt="" className="max-w-full max-h-full object-contain" />
+                          <img src={m.imagen_principal} alt="" className="max-w-full max-h-full object-contain mix-blend-multiply" />
                         )}
                       </span>
                       <span className="flex-1 min-w-0">
-                        <span className="block text-sm font-semibold text-[#111111] truncate">
-                          <span className="text-[#B89768] text-[10px] font-bold uppercase tracking-wider mr-1.5 font-editorial">
+                        <span className="block text-xs font-semibold text-[#0F0F0F] truncate">
+                          <span className="text-[#9E8256] text-[10px] uppercase tracking-wider mr-1.5 font-mono">
                             {m.marca}
                           </span>
                           <Highlight text={m.modelo} query={input} />
                         </span>
-                        <span className="block text-[11px] font-tech text-[#82807A] truncate">
+                        <span className="block text-[10px] font-mono text-[#787670] truncate">
                           SKU <Highlight text={m.id_ext} query={input} />
                           {m.color && <span className="font-sans"> · {m.color}</span>}
                         </span>
                       </span>
                       {typeof m.stock === 'number' && (
-                        <span className="text-[10px] font-tech text-[#575551] flex-shrink-0">{m.stock} un.</span>
+                        <span className="text-[10px] font-mono text-[#5C5A55] flex-shrink-0 tabular-nums">{m.stock} un.</span>
                       )}
                     </button>
                   </li>
@@ -239,12 +224,12 @@ export default function PredictiveSearch({ items, value, onCommit, onSelect }: P
                   commit(input);
                   setOpen(false);
                 }}
-                className="w-full flex items-center justify-between px-4 py-3 border-t border-[#E5E4DF] bg-[#FAF9F6] text-xs font-bold text-[#111111] hover:text-[#B89768] transition"
+                className="w-full flex items-center justify-between px-4 py-3 border-t border-[#E6E2DD] bg-[#FAF9F6] text-[10px] uppercase tracking-[0.18em] font-semibold text-[#0F0F0F] hover:text-[#9E8256] transition cursor-pointer"
               >
                 <span>
                   Ver los {total} {total === 1 ? 'resultado' : 'resultados'} para “{input.trim()}”
                 </span>
-                <ArrowRight className="w-4 h-4 text-[#B89768]" />
+                <ArrowRight className="w-3.5 h-3.5 text-[#9E8256]" />
               </button>
             </>
           )}

@@ -118,7 +118,7 @@ export default function OrderTrackingTimeline({
     const iconClass = isCompleted 
       ? 'text-emerald-700' 
       : isCurrent 
-        ? 'text-[#B89768]' 
+        ? 'text-[#9E8256]' 
         : 'text-[#A8A6A1]';
 
     switch (key) {
@@ -136,22 +136,22 @@ export default function OrderTrackingTimeline({
   };
 
   return (
-    <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl p-6 md:p-8 space-y-8 shadow-sm">
+    <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-3xl p-6 md:p-8 space-y-8 shadow-sm">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E4DF] pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E6E2DD] pb-6">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FAF6EF] border border-[#EADFC9] text-[#9E7D4F] text-[10px] font-semibold uppercase tracking-[0.18em] mb-2">
-            <span className="w-2 h-2 rounded-full bg-[#9E7D4F] animate-pulse" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FAF6EF] border border-[#EADFC9] text-[#846C44] text-[10px] font-semibold uppercase tracking-[0.18em] mb-2">
+            <span className="w-2 h-2 rounded-full bg-[#846C44] animate-pulse" />
             <span>Seguimiento de Importación en Tiempo Real</span>
           </div>
           
-          <h2 className="font-editorial font-serif text-2xl md:text-3xl font-semibold text-[#111111] tracking-tight">
+          <h2 className="font-editorial font-serif text-2xl md:text-3xl font-semibold text-[#0F0F0F] tracking-tight">
             Estado de su Embarque Mayorista
           </h2>
           
           <p className="text-xs sm:text-sm text-[#575551] mt-1">
-            Etapa actual: <strong className="text-[#111111] font-semibold">{tracking.stageInfo.label}</strong> ({tracking.stageInfo.location})
+            Etapa actual: <strong className="text-[#0F0F0F] font-semibold">{tracking.stageInfo.label}</strong> ({tracking.stageInfo.location})
           </p>
         </div>
 
@@ -159,9 +159,9 @@ export default function OrderTrackingTimeline({
         {isAdmin && (
           <button
             onClick={() => setShowAdminPanel(!showAdminPanel)}
-            className="self-start sm:self-center flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider bg-[#FAF9F6] hover:bg-[#F2EFE9] text-[#111111] transition border border-[#E5E4DF] shadow-sm"
+            className="self-start sm:self-center flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider bg-[#FAF9F6] hover:bg-[#F2EFE9] text-[#0F0F0F] transition border border-[#E6E2DD] shadow-sm"
           >
-            <Settings className="w-4 h-4 text-[#9E7D4F]" />
+            <Settings className="w-4 h-4 text-[#846C44]" />
             <span>{showAdminPanel ? 'Ocultar Panel Admin' : 'Gestionar Envío (Admin)'}</span>
             {showAdminPanel ? <ChevronUp className="w-3.5 h-3.5 text-[#575551]" /> : <ChevronDown className="w-3.5 h-3.5 text-[#575551]" />}
           </button>
@@ -170,13 +170,13 @@ export default function OrderTrackingTimeline({
 
       {/* Admin Panel Drawer */}
       {isAdmin && showAdminPanel && (
-        <form onSubmit={handleAdminSave} className="bg-[#FAF9F6] border border-[#E5E4DF] rounded-2xl p-6 space-y-5 animate-in fade-in duration-200 shadow-sm">
-          <div className="flex items-center justify-between border-b border-[#E5E4DF] pb-3">
-            <h3 className="text-xs font-bold text-[#111111] uppercase tracking-wider flex items-center gap-2">
-              <Settings className="w-4 h-4 text-[#9E7D4F]" />
+        <form onSubmit={handleAdminSave} className="bg-[#FAF9F6] border border-[#E6E2DD] rounded-2xl p-6 space-y-5 animate-in fade-in duration-200 shadow-sm">
+          <div className="flex items-center justify-between border-b border-[#E6E2DD] pb-3">
+            <h3 className="text-xs font-bold text-[#0F0F0F] uppercase tracking-wider flex items-center gap-2">
+              <Settings className="w-4 h-4 text-[#846C44]" />
               Panel de Actualización Logística (Exclusivo Administrador)
             </h3>
-            <span className="text-[10px] font-semibold text-[#9E7D4F] bg-[#FAF6EF] px-2.5 py-0.5 rounded-full border border-[#EADFC9]">
+            <span className="text-[10px] font-semibold text-[#846C44] bg-[#FAF6EF] px-2.5 py-0.5 rounded-full border border-[#EADFC9]">
               Conexión Directa Courier
             </span>
           </div>
@@ -196,11 +196,11 @@ export default function OrderTrackingTimeline({
                     onClick={() => setSelectedStage(s.key)}
                     className={`p-3 rounded-xl border text-left transition-all ${
                       isSelected 
-                        ? 'bg-[#111111] text-[#FFFFFF] border-[#111111] font-bold shadow-sm' 
-                        : 'bg-[#FFFFFF] border-[#E5E4DF] text-[#575551] hover:border-[#C8C5BD]'
+                        ? 'bg-[#0F0F0F] text-[#FFFFFF] border-[#0F0F0F] font-bold shadow-sm' 
+                        : 'bg-[#FFFFFF] border-[#E6E2DD] text-[#575551] hover:border-[#C8C5BD]'
                     }`}
                   >
-                    <div className={`text-[9px] uppercase font-semibold tracking-wider ${isSelected ? 'text-[#B89768]' : 'text-[#7A7873]'}`}>
+                    <div className={`text-[9px] uppercase font-semibold tracking-wider ${isSelected ? 'text-[#9E8256]' : 'text-[#7A7873]'}`}>
                       Paso {s.step}
                     </div>
                     <div className="text-xs font-semibold mt-0.5 line-clamp-1">
@@ -221,7 +221,7 @@ export default function OrderTrackingTimeline({
               <select
                 value={selectedCourier}
                 onChange={(e) => setSelectedCourier(e.target.value)}
-                className="w-full bg-[#FFFFFF] border border-[#E5E4DF] rounded-xl px-4 py-2.5 text-xs sm:text-sm text-[#111111] focus:outline-none focus:border-[#9E7D4F] font-medium shadow-sm"
+                className="w-full bg-[#FFFFFF] border border-[#E6E2DD] rounded-xl px-4 py-2.5 text-xs sm:text-sm text-[#0F0F0F] focus:outline-none focus:border-[#846C44] font-medium shadow-sm"
               >
                 {COURIER_OPTIONS.map((c) => (
                   <option key={c.id} value={c.name}>
@@ -241,7 +241,7 @@ export default function OrderTrackingTimeline({
                 placeholder="Ej: DHL-8492019482 o 98273645"
                 value={trackingInput}
                 onChange={(e) => setTrackingInput(e.target.value)}
-                className="w-full bg-[#FFFFFF] border border-[#E5E4DF] rounded-xl px-4 py-2.5 text-xs sm:text-sm text-[#111111] focus:outline-none focus:border-[#9E7D4F] font-mono shadow-sm"
+                className="w-full bg-[#FFFFFF] border border-[#E6E2DD] rounded-xl px-4 py-2.5 text-xs sm:text-sm text-[#0F0F0F] focus:outline-none focus:border-[#846C44] font-mono shadow-sm"
               />
             </div>
           </div>
@@ -256,7 +256,7 @@ export default function OrderTrackingTimeline({
               placeholder="Ej: Embarque arribado al Aeropuerto de Santiago. Iniciando aforo aduanero."
               value={noteInput}
               onChange={(e) => setNoteInput(e.target.value)}
-              className="w-full bg-[#FFFFFF] border border-[#E5E4DF] rounded-xl px-4 py-2.5 text-xs sm:text-sm text-[#111111] focus:outline-none focus:border-[#9E7D4F] shadow-sm"
+              className="w-full bg-[#FFFFFF] border border-[#E6E2DD] rounded-xl px-4 py-2.5 text-xs sm:text-sm text-[#0F0F0F] focus:outline-none focus:border-[#846C44] shadow-sm"
             />
           </div>
 
@@ -278,9 +278,9 @@ export default function OrderTrackingTimeline({
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center gap-2 bg-[#111111] hover:bg-[#222222] disabled:opacity-50 text-[#FFFFFF] font-semibold px-5 py-2.5 rounded-xl transition text-xs uppercase tracking-widest shadow-sm ml-auto"
+              className="flex items-center gap-2 bg-[#0F0F0F] hover:bg-[#222222] disabled:opacity-50 text-[#FFFFFF] font-semibold px-5 py-2.5 rounded-xl transition text-xs uppercase tracking-widest shadow-sm ml-auto"
             >
-              <Save className="w-3.5 h-3.5 text-[#B89768]" />
+              <Save className="w-3.5 h-3.5 text-[#9E8256]" />
               <span>{saving ? 'Guardando...' : 'Guardar y Actualizar Seguimiento'}</span>
             </button>
           </div>
@@ -290,11 +290,11 @@ export default function OrderTrackingTimeline({
       {/* 5-Stage Visual Timeline (Horizontal on desktop, vertical on mobile) */}
       <div className="relative pt-2">
         {/* Horizontal connector line on desktop */}
-        <div className="hidden md:block absolute top-9 left-12 right-12 h-0.5 bg-[#E5E4DF] z-0" />
+        <div className="hidden md:block absolute top-9 left-12 right-12 h-0.5 bg-[#E6E2DD] z-0" />
         
         {/* Dynamic progress highlight line on desktop */}
         <div 
-          className="hidden md:block absolute top-9 left-12 h-0.5 bg-[#9E7D4F] z-0 transition-all duration-500"
+          className="hidden md:block absolute top-9 left-12 h-0.5 bg-[#846C44] z-0 transition-all duration-500"
           style={{ width: `${Math.max(0, ((tracking.currentStep - 1) / (IMPORT_STAGES.length - 1)) * 100)}%` }}
         />
 
@@ -308,7 +308,7 @@ export default function OrderTrackingTimeline({
                 key={s.key} 
                 className={`flex md:flex-col items-start md:items-center text-left md:text-center gap-4 md:gap-2.5 p-3.5 md:p-3 rounded-2xl transition-all ${
                   isCurrent 
-                    ? 'bg-[#FAF9F6] border border-[#E5E4DF] shadow-sm' 
+                    ? 'bg-[#FAF9F6] border border-[#E6E2DD] shadow-sm' 
                     : isCompleted 
                       ? 'bg-[#FFFFFF] opacity-95' 
                       : 'opacity-50'
@@ -320,8 +320,8 @@ export default function OrderTrackingTimeline({
                     isCompleted 
                       ? 'bg-emerald-50 border-2 border-emerald-500 text-emerald-700 shadow-sm' 
                       : isCurrent 
-                        ? 'bg-[#111111] text-[#FFFFFF] border-2 border-[#9E7D4F] ring-4 ring-[#9E7D4F]/20 scale-105 shadow-sm' 
-                        : 'bg-[#FAF9F6] border-2 border-[#E5E4DF] text-[#A8A6A1]'
+                        ? 'bg-[#0F0F0F] text-[#FFFFFF] border-2 border-[#846C44] ring-4 ring-[#846C44]/20 scale-105 shadow-sm' 
+                        : 'bg-[#FAF9F6] border-2 border-[#E6E2DD] text-[#A8A6A1]'
                   }`}
                 >
                   {isCompleted ? (
@@ -338,13 +338,13 @@ export default function OrderTrackingTimeline({
                       Paso {s.step}
                     </span>
                     {isCurrent && (
-                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#FAF6EF] text-[#9E7D4F] border border-[#EADFC9] uppercase tracking-wider">
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#FAF6EF] text-[#846C44] border border-[#EADFC9] uppercase tracking-wider">
                         En Curso
                       </span>
                     )}
                   </div>
                   
-                  <h4 className={`text-xs sm:text-sm font-semibold leading-snug ${isCurrent ? 'text-[#111111]' : isCompleted ? 'text-[#111111]' : 'text-[#7A7873]'}`}>
+                  <h4 className={`text-xs sm:text-sm font-semibold leading-snug ${isCurrent ? 'text-[#0F0F0F]' : isCompleted ? 'text-[#0F0F0F]' : 'text-[#7A7873]'}`}>
                     {s.label}
                   </h4>
                   
@@ -359,13 +359,13 @@ export default function OrderTrackingTimeline({
       </div>
 
       {/* Courier & Tracking Information Box */}
-      <div className="bg-[#FAF9F6] border border-[#E5E4DF] rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm">
+      <div className="bg-[#FAF9F6] border border-[#E6E2DD] rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm">
         <div className="space-y-2.5">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium uppercase tracking-wider text-[#575551]">
               Courier Responsable:
             </span>
-            <span className="px-3 py-1 rounded-lg bg-[#FFFFFF] border border-[#E5E4DF] text-[#111111] text-xs font-semibold">
+            <span className="px-3 py-1 rounded-lg bg-[#FFFFFF] border border-[#E6E2DD] text-[#0F0F0F] text-xs font-semibold">
               {tracking.courier || 'Asignación Internacional'}
             </span>
           </div>
@@ -375,14 +375,14 @@ export default function OrderTrackingTimeline({
               Guía de Seguimiento:
             </span>
             {tracking.trackingNumber ? (
-              <div className="flex items-center gap-2 bg-[#FFFFFF] border border-[#E5E4DF] px-3.5 py-1.5 rounded-xl shadow-sm">
-                <span className="font-mono font-bold text-[#111111] text-sm sm:text-base">
+              <div className="flex items-center gap-2 bg-[#FFFFFF] border border-[#E6E2DD] px-3.5 py-1.5 rounded-xl shadow-sm">
+                <span className="font-mono font-bold text-[#0F0F0F] text-sm sm:text-base">
                   {tracking.trackingNumber}
                 </span>
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="p-1 hover:text-[#9E7D4F] text-[#7A7873] transition"
+                  className="p-1 hover:text-[#846C44] text-[#7A7873] transition"
                   title="Copiar número de guía"
                 >
                   {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
@@ -402,21 +402,21 @@ export default function OrderTrackingTimeline({
             href={tracking.trackingUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-2 bg-[#111111] hover:bg-[#222222] text-[#FFFFFF] font-semibold px-6 py-3.5 rounded-xl transition text-xs uppercase tracking-widest shadow-sm group shrink-0"
+            className="inline-flex items-center justify-center gap-2 bg-[#0F0F0F] hover:bg-[#222222] text-[#FFFFFF] font-semibold px-6 py-3.5 rounded-xl transition text-xs uppercase tracking-widest shadow-sm group shrink-0"
           >
             <span>Rastrear en {tracking.courier || 'Portal de Envíos'}</span>
-            <ExternalLink className="w-4 h-4 text-[#B89768] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+            <ExternalLink className="w-4 h-4 text-[#9E8256] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </a>
         )}
       </div>
 
       {/* Real-time Status Note Box */}
       {(tracking.customNote || tracking.stageInfo.description) && (
-        <div className="bg-[#FAF9F6] border border-[#E5E4DF] rounded-2xl p-5 flex items-start gap-3.5 text-xs text-[#575551]">
-          <Clock className="w-4 h-4 text-[#9E7D4F] shrink-0 mt-0.5" />
+        <div className="bg-[#FAF9F6] border border-[#E6E2DD] rounded-2xl p-5 flex items-start gap-3.5 text-xs text-[#575551]">
+          <Clock className="w-4 h-4 text-[#846C44] shrink-0 mt-0.5" />
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <strong className="text-[#111111] font-semibold">Detalle de Operaciones:</strong>
+              <strong className="text-[#0F0F0F] font-semibold">Detalle de Operaciones:</strong>
               {tracking.updatedAt && (
                 <span className="text-[11px] text-[#7A7873]">
                   Actualizado: {new Date(tracking.updatedAt).toLocaleDateString('es-CL', { hour: '2-digit', minute: '2-digit' })}

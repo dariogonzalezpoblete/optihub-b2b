@@ -27,7 +27,7 @@ export function OptiHubEmblem({ className = 'w-7 h-7', theme = 'gold' }: EmblemP
       <defs>
         <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#E5C78E" />
-          <stop offset="40%" stopColor="#B89768" />
+          <stop offset="40%" stopColor="#9E8256" />
           <stop offset="75%" stopColor="#A58252" />
           <stop offset="100%" stopColor="#846537" />
         </linearGradient>
@@ -59,7 +59,7 @@ export function OptiHubEmblem({ className = 'w-7 h-7', theme = 'gold' }: EmblemP
            C 42.5 42.1 35.6 49 27 49
            C 18.4 49 11.5 42.1 11.5 33.5
            C 11.5 24.9 18.4 18 27 18 Z"
-        fill={theme === 'white' ? '#FFFFFF' : theme === 'dark' ? '#111111' : `url(#${gradientId})`}
+        fill={theme === 'white' ? '#FFFFFF' : theme === 'dark' ? '#0F0F0F' : `url(#${gradientId})`}
       />
     </svg>
   );
@@ -79,15 +79,15 @@ export default function OptiHubLogo({ className = '', emblemSize = 'w-7 h-7', th
       <div className={`flex items-center justify-center rounded-xl p-1.5 border transition-colors ${
         isDark 
           ? 'bg-[#1A1A1A] border-[#333333]' 
-          : 'bg-[#FAF9F6] border-[#E5E4DF]'
+          : 'bg-[#FAF9F6] border-[#E6E2DD]'
       }`}>
         <OptiHubEmblem className={emblemSize} theme={isDark ? 'gold' : 'gold'} />
       </div>
       <div className="flex flex-col">
         <span className={`font-editorial text-2xl sm:text-3xl font-semibold tracking-tight leading-none ${
-          isDark ? 'text-[#FFFFFF]' : 'text-[#111111]'
+          isDark ? 'text-[#FFFFFF]' : 'text-[#0F0F0F]'
         }`}>
-          Opti<span className="text-[#B89768]">Hub</span>
+          Opti<span className="text-[#9E8256]">Hub</span>
         </span>
         <span className={`font-sans text-[9px] sm:text-[10px] font-semibold tracking-wider uppercase mt-1 ${
           isDark ? 'text-[#A09E96]' : 'text-[#82807A]'

@@ -42,10 +42,10 @@ export default function ImportSteps() {
   return (
     <section className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
       <div className="text-center max-w-3xl mx-auto mb-12">
-        <span className="text-xs font-bold text-[#B89768] uppercase tracking-widest block mb-2 font-mono">
+        <span className="text-xs font-bold text-[#9E8256] uppercase tracking-widest block mb-2 font-mono">
           Cadena Logística Internacional
         </span>
-        <h2 className="font-editorial text-3xl sm:text-4xl font-normal text-[#111111] tracking-tight">
+        <h2 className="font-editorial text-3xl sm:text-4xl font-normal text-[#0F0F0F] tracking-tight">
           ¿Cómo Funciona la Importación para tu Óptica?
         </h2>
         <p className="text-[#575551] text-sm mt-3 leading-relaxed">
@@ -59,23 +59,23 @@ export default function ImportSteps() {
           return (
             <div
               key={s.step}
-              className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl p-6 flex flex-col justify-between hover:border-[#B89768] transition-all duration-300 shadow-xs group relative overflow-hidden"
+              className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-3xl p-6 flex flex-col justify-between hover:border-[#9E8256] transition-all duration-300 shadow-xs group relative overflow-hidden"
             >
               {/* Marca de agua de paso */}
-              <span className="absolute top-4 right-4 text-4xl font-black text-[#E5E4DF]/60 group-hover:text-[#B89768]/20 transition-colors font-tech pointer-events-none">
+              <span className="absolute top-4 right-4 text-4xl font-black text-[#E6E2DD]/60 group-hover:text-[#9E8256]/20 transition-colors font-tech pointer-events-none">
                 {s.step}
               </span>
 
               <div>
-                <div className="w-12 h-12 rounded-2xl bg-[#FAF9F6] text-[#B89768] border border-[#E5E4DF] flex items-center justify-center mb-5 group-hover:bg-[#111111] group-hover:text-white transition-colors shadow-2xs">
+                <div className="w-12 h-12 rounded-2xl bg-[#FAF9F6] text-[#9E8256] border border-[#E6E2DD] flex items-center justify-center mb-5 group-hover:bg-[#0F0F0F] group-hover:text-white transition-colors shadow-2xs">
                   <Icon className="w-6 h-6 stroke-[1.8]" />
                 </div>
 
-                <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#F7F3EB] border border-[#B89768]/30 text-[#9E7D4F] text-[10px] font-semibold uppercase tracking-wider mb-2">
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#F7F3EB] border border-[#9E8256]/30 text-[#846C44] text-[10px] font-semibold uppercase tracking-wider mb-2">
                   {s.badge}
                 </span>
 
-                <h3 className="font-editorial text-xl font-semibold text-[#111111] tracking-tight mt-1">
+                <h3 className="font-editorial text-xl font-semibold text-[#0F0F0F] tracking-tight mt-1">
                   {s.title}
                 </h3>
                 <span className="text-xs text-[#82807A] font-semibold block mb-2 font-tech">
@@ -87,8 +87,8 @@ export default function ImportSteps() {
                 </p>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-[#E5E4DF] flex items-center gap-1.5 text-[11px] text-[#82807A] font-medium font-tech">
-                <Clock className="w-3.5 h-3.5 text-[#B89768]" />
+              <div className="mt-6 pt-4 border-t border-[#E6E2DD] flex items-center gap-1.5 text-[11px] text-[#82807A] font-medium font-tech">
+                <Clock className="w-3.5 h-3.5 text-[#9E8256]" />
                 <span>Paso {idx + 1} de 4</span>
               </div>
             </div>

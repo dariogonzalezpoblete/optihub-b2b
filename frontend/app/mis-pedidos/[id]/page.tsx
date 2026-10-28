@@ -77,7 +77,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     return (
       <div className="min-h-screen pt-28 pb-16 flex items-center justify-center bg-[#FAF9F6]">
         <div className="animate-pulse flex items-center gap-3 text-[#7A7873] text-sm">
-          <Clock className="w-4 h-4 text-[#9E7D4F]" />
+          <Clock className="w-4 h-4 text-[#846C44]" />
           <span>Verificando sesión...</span>
         </div>
       </div>
@@ -112,16 +112,16 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     if (['requires_attention'].includes(status)) {
       return 'bg-amber-50 text-amber-800 border-amber-200';
     }
-    return 'bg-[#FAF6EF] text-[#9E7D4F] border-[#EADFC9]';
+    return 'bg-[#FAF6EF] text-[#846C44] border-[#EADFC9]';
   };
 
   if (loading) {
     return (
       <main className="min-h-screen pt-28 pb-20 bg-[#FAF9F6]">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 space-y-6">
-          <div className="h-6 bg-[#FFFFFF] rounded w-48 animate-pulse border border-[#E5E4DF]" />
-          <div className="h-48 bg-[#FFFFFF] rounded-3xl animate-pulse border border-[#E5E4DF]" />
-          <div className="h-72 bg-[#FFFFFF] rounded-3xl animate-pulse border border-[#E5E4DF]" />
+          <div className="h-6 bg-[#FFFFFF] rounded w-48 animate-pulse border border-[#E6E2DD]" />
+          <div className="h-48 bg-[#FFFFFF] rounded-3xl animate-pulse border border-[#E6E2DD]" />
+          <div className="h-72 bg-[#FFFFFF] rounded-3xl animate-pulse border border-[#E6E2DD]" />
         </div>
       </main>
     );
@@ -131,17 +131,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     return (
       <main className="min-h-screen pt-28 pb-20 bg-[#FAF9F6]">
         <div className="max-w-xl mx-auto px-4 text-center">
-          <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl p-12 shadow-sm">
+          <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-3xl p-12 shadow-sm">
             <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
-            <h1 className="font-editorial font-serif text-2xl font-semibold text-[#111111] mb-2">
+            <h1 className="font-editorial font-serif text-2xl font-semibold text-[#0F0F0F] mb-2">
               Pedido no encontrado
             </h1>
             <p className="text-[#575551] text-sm mb-8 leading-relaxed">{error}</p>
             <Link 
               href="/mis-pedidos"
-              className="inline-flex items-center gap-2 bg-[#111111] hover:bg-[#222222] text-[#FFFFFF] px-6 py-3 rounded-xl font-semibold text-xs uppercase tracking-widest transition shadow-sm"
+              className="inline-flex items-center gap-2 bg-[#0F0F0F] hover:bg-[#222222] text-[#FFFFFF] px-6 py-3 rounded-xl font-semibold text-xs uppercase tracking-widest transition shadow-sm"
             >
-              <ChevronLeft className="w-4 h-4 text-[#B89768]" />
+              <ChevronLeft className="w-4 h-4 text-[#9E8256]" />
               <span>Volver a mis pedidos</span>
             </Link>
           </div>
@@ -157,26 +157,26 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         {/* Enlace Volver */}
         <Link 
           href="/mis-pedidos"
-          className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#7A7873] hover:text-[#111111] mb-8 transition"
+          className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#7A7873] hover:text-[#0F0F0F] mb-8 transition"
         >
-          <ChevronLeft className="w-4 h-4 text-[#9E7D4F]" />
+          <ChevronLeft className="w-4 h-4 text-[#846C44]" />
           <span>Volver a Mis Pedidos</span>
         </Link>
 
         {/* Encabezado Principal */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 pb-8 border-b border-[#E5E4DF]">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 pb-8 border-b border-[#E6E2DD]">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FAF6EF] border border-[#EADFC9] text-[#9E7D4F] text-[10px] font-semibold uppercase tracking-[0.18em] mb-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FAF6EF] border border-[#EADFC9] text-[#846C44] text-[10px] font-semibold uppercase tracking-[0.18em] mb-2">
               <Package className="w-3.5 h-3.5" />
               <span>Orden de Compra Mayorista</span>
             </div>
             
-            <h1 className="font-editorial font-serif text-3xl sm:text-4xl font-semibold text-[#111111] tracking-tight">
+            <h1 className="font-editorial font-serif text-3xl sm:text-4xl font-semibold text-[#0F0F0F] tracking-tight">
               Pedido #{order.id.split('-')[0].toUpperCase()}
             </h1>
             
             <p className="text-xs sm:text-sm text-[#575551] mt-2 flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 text-[#9E7D4F]" />
+              <Clock className="w-3.5 h-3.5 text-[#846C44]" />
               <span>
                 Realizado el {new Date(order.created_at).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </span>
@@ -203,7 +203,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           <div className="mb-8 p-5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-3.5 text-xs sm:text-sm shadow-sm">
             <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
             <div className="space-y-1">
-              <strong className="text-[#111111] font-semibold block">
+              <strong className="text-[#0F0F0F] font-semibold block">
                 Pago recibido. Pedido en revisión operativa de inventario.
               </strong>
               <p className="text-[#575551] leading-relaxed">
@@ -225,28 +225,28 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         {/* Ficha de Gestión de Cliente para el Administrador */}
         {isAdmin && (
           <div className="mb-8 p-6 rounded-3xl bg-[#FAF6EF] border border-[#EADFC9] shadow-sm">
-            <div className="flex items-center gap-2 mb-4 text-[#9E7D4F] font-bold text-xs uppercase tracking-wider">
+            <div className="flex items-center gap-2 mb-4 text-[#846C44] font-bold text-xs uppercase tracking-wider">
               <ShieldCheck className="w-4 h-4" />
               <span>Ficha del Cliente Óptico (Para Pedido a USA y Facturación SII)</span>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-              <div className="bg-[#FFFFFF] p-4 rounded-2xl border border-[#E5E4DF] shadow-sm">
+              <div className="bg-[#FFFFFF] p-4 rounded-2xl border border-[#E6E2DD] shadow-sm">
                 <span className="text-[10px] text-[#7A7873] font-semibold uppercase tracking-wider block mb-1">Razón Social / Óptica</span>
-                <span className="font-bold text-[#111111] text-sm block line-clamp-1">{order.business_name || 'No informada'}</span>
+                <span className="font-bold text-[#0F0F0F] text-sm block line-clamp-1">{order.business_name || 'No informada'}</span>
               </div>
-              <div className="bg-[#FFFFFF] p-4 rounded-2xl border border-[#E5E4DF] shadow-sm">
+              <div className="bg-[#FFFFFF] p-4 rounded-2xl border border-[#E6E2DD] shadow-sm">
                 <span className="text-[10px] text-[#7A7873] font-semibold uppercase tracking-wider block mb-1">RUT Empresa</span>
-                <span className="font-mono font-bold text-[#111111] text-sm block">{order.business_rut || 'No informado'}</span>
+                <span className="font-mono font-bold text-[#0F0F0F] text-sm block">{order.business_rut || 'No informado'}</span>
               </div>
-              <div className="bg-[#FFFFFF] p-4 rounded-2xl border border-[#E5E4DF] shadow-sm">
+              <div className="bg-[#FFFFFF] p-4 rounded-2xl border border-[#E6E2DD] shadow-sm">
                 <span className="text-[10px] text-[#7A7873] font-semibold uppercase tracking-wider block mb-1">Contacto Directo</span>
-                <span className="font-bold text-[#111111] text-sm block">{order.customer_name || 'Cliente'}</span>
+                <span className="font-bold text-[#0F0F0F] text-sm block">{order.customer_name || 'Cliente'}</span>
                 <span className="text-[11px] text-[#575551] block mt-0.5">{order.customer_phone || order.customer_email}</span>
               </div>
-              <div className="bg-[#FFFFFF] p-4 rounded-2xl border border-[#E5E4DF] shadow-sm">
+              <div className="bg-[#FFFFFF] p-4 rounded-2xl border border-[#E6E2DD] shadow-sm">
                 <span className="text-[10px] text-[#7A7873] font-semibold uppercase tracking-wider block mb-1">Destino Despacho</span>
-                <span className="font-bold text-[#111111] text-sm block">{order.shipping_commune || 'Comuna'}</span>
+                <span className="font-bold text-[#0F0F0F] text-sm block">{order.shipping_commune || 'Comuna'}</span>
                 <span className="text-[11px] text-[#575551] block mt-0.5 line-clamp-1">{order.shipping_address || 'Dirección no indicada'}</span>
               </div>
             </div>
@@ -257,10 +257,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           
           {/* Detalles de productos (Snapshot histórico) */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl overflow-hidden shadow-sm">
-              <div className="px-6 py-4.5 border-b border-[#E5E4DF] bg-[#FAF9F6] flex items-center justify-between">
-                <h2 className="text-sm font-bold text-[#111111] uppercase tracking-wider flex items-center gap-2">
-                  <ShoppingBag className="w-4 h-4 text-[#9E7D4F]" />
+            <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-3xl overflow-hidden shadow-sm">
+              <div className="px-6 py-4.5 border-b border-[#E6E2DD] bg-[#FAF9F6] flex items-center justify-between">
+                <h2 className="text-sm font-bold text-[#0F0F0F] uppercase tracking-wider flex items-center gap-2">
+                  <ShoppingBag className="w-4 h-4 text-[#846C44]" />
                   <span>Detalle de Armazones Adquiridos</span>
                 </h2>
                 <span className="text-xs font-mono text-[#7A7873]">
@@ -268,7 +268,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 </span>
               </div>
               
-              <div className="divide-y divide-[#E5E4DF]">
+              <div className="divide-y divide-[#E6E2DD]">
                 {items.length === 0 ? (
                   <p className="p-8 text-center text-[#7A7873] text-sm">No hay productos en este pedido.</p>
                 ) : (
@@ -276,12 +276,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                     <div key={item.id} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:bg-[#FAF9F6]/50 transition">
                       <div className="space-y-1.5 flex-1">
                         <div className="flex items-center gap-3">
-                          <h3 className="font-semibold text-[#111111] text-base">{item.product_name}</h3>
-                          <span className="text-xs font-bold text-[#111111] bg-[#FAF9F6] border border-[#E5E4DF] px-2.5 py-0.5 rounded-lg">
+                          <h3 className="font-semibold text-[#0F0F0F] text-base">{item.product_name}</h3>
+                          <span className="text-xs font-bold text-[#0F0F0F] bg-[#FAF9F6] border border-[#E6E2DD] px-2.5 py-0.5 rounded-lg">
                             x{item.quantity}
                           </span>
                         </div>
-                        <p className="text-xs font-bold text-[#9E7D4F] uppercase tracking-widest">{item.brand_name}</p>
+                        <p className="text-xs font-bold text-[#846C44] uppercase tracking-widest">{item.brand_name}</p>
                         <p className="text-xs text-[#7A7873] font-mono">SKU: {item.sku}</p>
                       </div>
                       
@@ -289,7 +289,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                         <span className="text-[10px] text-[#7A7873] font-semibold uppercase tracking-wider block mb-0.5">
                           Subtotal Neto
                         </span>
-                        <p className="font-bold font-mono text-[#111111] text-base">
+                        <p className="font-bold font-mono text-[#0F0F0F] text-base">
                           ${item.subtotal_net.toLocaleString('es-CL')}
                         </p>
                         <p className="text-[11px] text-[#7A7873] mt-0.5">
@@ -307,61 +307,61 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           <div className="space-y-6">
             
             {/* Tarjeta de Resumen Financiero */}
-            <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl p-6 shadow-sm">
-              <h2 className="text-xs font-bold text-[#111111] uppercase tracking-wider mb-5 flex items-center gap-2">
-                <Receipt className="w-4 h-4 text-[#9E7D4F]" />
+            <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-3xl p-6 shadow-sm">
+              <h2 className="text-xs font-bold text-[#0F0F0F] uppercase tracking-wider mb-5 flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-[#846C44]" />
                 <span>Resumen Financiero</span>
               </h2>
               
               <div className="space-y-3.5 text-xs">
                 <div className="flex justify-between items-center text-[#575551]">
                   <span>Subtotal Neto</span>
-                  <span className="font-mono font-medium text-[#111111]">${order.subtotal_net.toLocaleString('es-CL')}</span>
+                  <span className="font-mono font-medium text-[#0F0F0F]">${order.subtotal_net.toLocaleString('es-CL')}</span>
                 </div>
                 
                 <div className="flex justify-between items-center text-[#575551]">
                   <span>IVA (19% Chile)</span>
-                  <span className="font-mono font-medium text-[#9E7D4F]">${order.tax_amount.toLocaleString('es-CL')}</span>
+                  <span className="font-mono font-medium text-[#846C44]">${order.tax_amount.toLocaleString('es-CL')}</span>
                 </div>
                 
                 {order.shipping_amount > 0 && (
                   <div className="flex justify-between items-center text-[#575551]">
                     <span>Flete &amp; Seguro</span>
-                    <span className="font-mono font-medium text-[#111111]">${order.shipping_amount.toLocaleString('es-CL')}</span>
+                    <span className="font-mono font-medium text-[#0F0F0F]">${order.shipping_amount.toLocaleString('es-CL')}</span>
                   </div>
                 )}
                 
-                <div className="pt-4 border-t border-[#E5E4DF] flex justify-between items-baseline">
-                  <span className="text-xs font-semibold text-[#111111] uppercase tracking-wider">Total Facturado</span>
-                  <span className="text-xl sm:text-2xl font-bold font-mono text-[#111111]">${order.total_amount.toLocaleString('es-CL')}</span>
+                <div className="pt-4 border-t border-[#E6E2DD] flex justify-between items-baseline">
+                  <span className="text-xs font-semibold text-[#0F0F0F] uppercase tracking-wider">Total Facturado</span>
+                  <span className="text-xl sm:text-2xl font-bold font-mono text-[#0F0F0F]">${order.total_amount.toLocaleString('es-CL')}</span>
                 </div>
               </div>
             </div>
 
             {/* Datos de Facturación */}
-            <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl p-6 shadow-sm space-y-3">
-              <h2 className="text-xs font-bold text-[#111111] uppercase tracking-wider flex items-center gap-2 pb-3 border-b border-[#E5E4DF]">
-                <FileText className="w-4 h-4 text-[#9E7D4F]" />
+            <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-3xl p-6 shadow-sm space-y-3">
+              <h2 className="text-xs font-bold text-[#0F0F0F] uppercase tracking-wider flex items-center gap-2 pb-3 border-b border-[#E6E2DD]">
+                <FileText className="w-4 h-4 text-[#846C44]" />
                 <span>Datos de Facturación SII</span>
               </h2>
               
               <div className="space-y-2 text-xs text-[#575551]">
-                <p><span className="text-[#7A7873]">RUT:</span> <strong className="text-[#111111] font-mono">{order.business_rut || 'No especificado'}</strong></p>
-                <p><span className="text-[#7A7873]">Razón Social:</span> <strong className="text-[#111111]">{order.business_name || 'No especificada'}</strong></p>
+                <p><span className="text-[#7A7873]">RUT:</span> <strong className="text-[#0F0F0F] font-mono">{order.business_rut || 'No especificado'}</strong></p>
+                <p><span className="text-[#7A7873]">Razón Social:</span> <strong className="text-[#0F0F0F]">{order.business_name || 'No especificada'}</strong></p>
                 <p><span className="text-[#7A7873]">Giro:</span> Venta al por mayor de artículos ópticos</p>
                 <p><span className="text-[#7A7873]">Dirección:</span> {order.billing_address || 'No especificada'}</p>
               </div>
             </div>
             
             {/* Dirección de Envío */}
-            <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl p-6 shadow-sm space-y-3">
-              <h2 className="text-xs font-bold text-[#111111] uppercase tracking-wider flex items-center gap-2 pb-3 border-b border-[#E5E4DF]">
-                <MapPin className="w-4 h-4 text-[#9E7D4F]" />
+            <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-3xl p-6 shadow-sm space-y-3">
+              <h2 className="text-xs font-bold text-[#0F0F0F] uppercase tracking-wider flex items-center gap-2 pb-3 border-b border-[#E6E2DD]">
+                <MapPin className="w-4 h-4 text-[#846C44]" />
                 <span>Dirección de Despacho en Chile</span>
               </h2>
               
               <div className="text-xs text-[#575551] space-y-1">
-                <p className="font-semibold text-[#111111]">{order.shipping_address || 'Dirección de entrega coordinada'}</p>
+                <p className="font-semibold text-[#0F0F0F]">{order.shipping_address || 'Dirección de entrega coordinada'}</p>
                 <p>{order.shipping_commune}{order.shipping_region ? `, ${order.shipping_region}` : ''}</p>
               </div>
             </div>

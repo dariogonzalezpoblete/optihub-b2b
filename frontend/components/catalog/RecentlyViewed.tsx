@@ -17,14 +17,18 @@ export default function RecentlyViewed() {
   if (!mounted || recentItems.length === 0) return null;
 
   return (
-    <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-[#E5E4DF] mt-12">
+    <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-[#E6E2DD] mt-12">
       <div className="flex items-center gap-3 mb-8">
-        <div className="w-10 h-10 rounded-xl bg-[#FAF9F6] border border-[#E5E4DF] flex items-center justify-center text-[#B89768]">
-          <Clock className="w-5 h-5 stroke-[1.8]" />
+        <div className="w-10 h-10 border border-[#E6E2DD] bg-[#FFFFFF] flex items-center justify-center text-[#9E8256]">
+          <Clock className="w-4 h-4 stroke-[1.5]" />
         </div>
         <div>
-          <h2 className="font-editorial text-2xl font-semibold text-[#111111] tracking-tight">Vistos Recientemente</h2>
-          <p className="text-xs text-[#575551]">Retoma tu cotización B2B rápidamente</p>
+          <h2 className="font-serif text-2xl font-normal text-[#0F0F0F] tracking-tight">
+            Vistos Recientemente
+          </h2>
+          <p className="text-xs text-[#5C5A55] uppercase tracking-wider">
+            Retoma tu cotización B2B rápidamente
+          </p>
         </div>
       </div>
 
@@ -33,21 +37,32 @@ export default function RecentlyViewed() {
           <Link
             key={item.id_ext}
             href={`/producto/${encodeURIComponent(item.marca)}/${encodeURIComponent(item.modelo)}`}
-            className="group bg-[#FFFFFF] border border-[#E5E4DF] hover:border-[#B89768] rounded-2xl p-4 transition duration-300 flex flex-col shadow-2xs hover:shadow-xs"
+            className="group bg-[#FFFFFF] border border-[#E6E2DD] hover:border-[#0F0F0F] p-4 transition-all duration-300 flex flex-col justify-between"
           >
-            <div className="aspect-[4/3] bg-[#FAF9F6] rounded-xl mb-4 p-2 flex items-center justify-center group-hover:scale-105 transition-transform overflow-hidden relative border border-[#E5E4DF]">
+            <div className="aspect-[4/3] bg-[#F4F2ED] mb-3 p-2 flex items-center justify-center relative border border-[#E6E2DD] overflow-hidden">
               {item.imagen_principal ? (
-                <Image unoptimized src={item.imagen_principal} alt={item.modelo} fill sizes="(max-width: 768px) 50vw, 20vw" className="object-contain p-2" />
+                <Image
+                  unoptimized
+                  src={item.imagen_principal}
+                  alt={item.modelo}
+                  fill
+                  sizes="(max-width: 768px) 50vw, 20vw"
+                  className="object-contain p-2 mix-blend-multiply group-hover:scale-105 transition-transform duration-500"
+                />
               ) : (
-                <span className="text-[10px] text-[#82807A]">Sin imagen</span>
+                <span className="text-[10px] text-[#787670] uppercase">Sin imagen</span>
               )}
             </div>
             <div className="mt-auto">
-              <span className="text-[10px] font-bold text-[#B89768] uppercase tracking-widest block font-editorial">{item.marca}</span>
-              <span className="font-bold text-[#111111] text-sm block mt-1 truncate">{item.modelo}</span>
-              <div className="flex justify-between items-center mt-3 pt-3 border-t border-[#E5E4DF]">
-                <span className="text-xs text-[#575551]">Ver Ficha</span>
-                <ArrowRight className="w-3.5 h-3.5 text-[#B89768] group-hover:translate-x-1 transition-transform" />
+              <span className="text-[10px] font-semibold text-[#0F0F0F] uppercase tracking-[0.18em] block">
+                {item.marca}
+              </span>
+              <span className="font-serif text-base text-[#0F0F0F] block mt-0.5 truncate font-normal">
+                {item.modelo}
+              </span>
+              <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-[#E6E2DD] text-[10px] uppercase tracking-wider text-[#5C5A55] group-hover:text-[#0F0F0F]">
+                <span>Ver Ficha</span>
+                <ArrowRight className="w-3 h-3 text-[#9E8256] group-hover:translate-x-1 transition-transform" />
               </div>
             </div>
           </Link>

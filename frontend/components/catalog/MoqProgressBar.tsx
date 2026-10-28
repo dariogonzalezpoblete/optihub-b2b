@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ShoppingBag, ArrowRight, Sparkles, CheckCircle2 } from 'lucide-react';
+import { ShoppingBag, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
 
 interface MoqProgressBarProps {
@@ -33,57 +33,55 @@ export default function MoqProgressBar({
     if (current === 0) return null;
 
     return (
-      <div className={`fixed bottom-0 left-0 right-0 z-40 bg-[#111111]/95 backdrop-blur-md border-t border-[#242424] text-white shadow-2xl p-4 transition-all duration-300 ${className}`}>
+      <div className={`fixed bottom-0 left-0 right-0 z-40 bg-[#0F0F0F]/95 backdrop-blur-md border-t border-[#262626] text-white p-4 transition-all duration-300 ${className}`}>
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           
           {/* Info izquierda */}
           <div className="flex items-center gap-4 w-full md:w-auto">
-            <div className="w-12 h-12 rounded-xl bg-[#242424] border border-[#3A3936] text-[#B89768] flex items-center justify-center flex-shrink-0 shadow-inner">
-              <ShoppingBag className="w-6 h-6 stroke-[1.8]" />
+            <div className="w-10 h-10 border border-[#262626] bg-[#1A1A1A] text-[#9E8256] flex items-center justify-center flex-shrink-0">
+              <ShoppingBag className="w-5 h-5 stroke-[1.5]" />
             </div>
 
-            <div className="space-y-1 flex-1">
+            <div className="space-y-0.5 flex-1">
               <div className="flex items-center gap-3">
-                <span className="font-editorial text-xl font-semibold tracking-wide text-white">
+                <span className="font-serif text-lg tracking-wide text-white uppercase font-normal">
                   Orden B2B
                 </span>
-                <span className="font-tech text-xs bg-[#242424] text-[#B89768] border border-[#B89768]/30 px-2.5 py-0.5 rounded">
+                <span className="font-mono text-xs text-[#9E8256] border border-[#9E8256]/30 px-2 py-0.5 tabular-nums">
                   {current} {current === 1 ? 'unidad' : 'unidades'}
                 </span>
                 {isLoggedIn && montoNeto > 0 && (
-                  <span className="font-tech text-xs text-[#E5E4DF]">
+                  <span className="font-mono text-xs text-[#E6E2DD] tabular-nums">
                     • ${montoNeto.toLocaleString('es-CL')} CLP Neto
                   </span>
                 )}
               </div>
 
-              <div className="text-xs text-[#82807A]">
+              <div className="text-xs text-[#787670]">
                 {isReached ? (
-                  <span className="text-[#C9AD82] font-medium flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#B89768]" />
-                    Mínimo de 10 unidades cumplido • Listo para consolidación e importación
+                  <span className="text-[#9E8256] font-medium flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#9E8256]" />
+                    Mínimo de 10 unidades completado · Listo para facturación e importación
                   </span>
                 ) : (
                   <span>
-                    Faltan <strong className="text-white font-tech">{remaining}</strong> {remaining === 1 ? 'armazón' : 'armazones'} para completar el mínimo mayorista (10 un.)
+                    Faltan <strong className="text-white font-mono">{remaining}</strong> {remaining === 1 ? 'armazón' : 'armazones'} para el mínimo mayorista (10 un.)
                   </span>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Barra central de precisión */}
+          {/* Barra central de precisión: 2px a 4px en bronce/negro */}
           <div className="w-full md:w-80 flex flex-col gap-1.5">
-            <div className="flex justify-between items-center text-[11px] font-tech text-[#82807A]">
-              <span>Progreso MOQ</span>
-              <span className="text-[#B89768] font-bold">{progressPercent}% ({current}/10)</span>
+            <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-wider text-[#787670]">
+              <span>PROGRESO MOQ</span>
+              <span className="text-[#9E8256] font-medium tabular-nums">{progressPercent}% ({current}/10)</span>
             </div>
-            <div className="w-full h-2 bg-[#242424] rounded-full overflow-hidden p-0.5 border border-[#3A3936]">
+            <div className="w-full h-[3px] bg-[#262626] overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  isReached
-                    ? 'bg-gradient-to-r from-[#9E7D4F] via-[#B89768] to-[#C9AD82]'
-                    : 'bg-gradient-to-r from-[#9E7D4F] to-[#B89768]'
+                className={`h-full transition-all duration-500 ${
+                  isReached ? 'bg-[#9E8256]' : 'bg-[#9E8256]'
                 }`}
                 style={{ width: `${progressPercent}%` }}
               />
@@ -94,15 +92,15 @@ export default function MoqProgressBar({
           <div className="flex items-center gap-3 w-full md:w-auto justify-end">
             <button
               onClick={() => clearCart()}
-              className="text-xs text-[#82807A] hover:text-[#C0392B] px-3 py-2 transition tracking-wider uppercase font-semibold"
+              className="text-[10px] text-[#787670] hover:text-white px-3 py-2 transition tracking-[0.16em] uppercase font-medium cursor-pointer"
             >
               Vaciar
             </button>
             <Link
               href="/carrito"
-              className="btn-champagne text-xs py-3 px-6 shadow-lg shadow-[#B89768]/15"
+              className="bg-[#9E8256] text-white hover:bg-[#846C44] text-[10px] uppercase tracking-[0.18em] py-3 px-6 transition-colors font-medium flex items-center gap-2 border border-[#9E8256]"
             >
-              <span>Revisar Orden</span>
+              <span>Revisar Pedido</span>
               <ArrowRight className="w-3.5 h-3.5 ml-1" />
             </Link>
           </div>
@@ -112,51 +110,47 @@ export default function MoqProgressBar({
     );
   }
 
-  // Variant 'banner' o 'card':
+  // Variant 'banner' o 'card' (barra ejecutiva de bordes rectos)
   return (
-    <div className={`bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-5 shadow-sm ${className}`}>
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-3">
+    <div className={`bg-[#FFFFFF] border border-[#E6E2DD] p-6 ${className}`}>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#FAF9F6] border border-[#E5E4DF] text-[#111111] flex items-center justify-center flex-shrink-0">
-            <Sparkles className="w-4 h-4 text-[#B89768]" />
+          <div className="w-8 h-8 border border-[#E6E2DD] bg-[#FAF9F6] text-[#0F0F0F] flex items-center justify-center flex-shrink-0">
+            <ShoppingBag className="w-4 h-4 text-[#9E8256]" />
           </div>
           <div>
-            <h4 className="font-editorial text-lg font-semibold text-[#111111] leading-tight">
+            <h4 className="font-serif text-lg font-normal text-[#0F0F0F] leading-tight">
               Control de Compra Mínima Mayorista (MOQ)
             </h4>
-            <p className="text-xs text-[#575551]">
-              10 unidades combinables entre cualquier marca para activar importación directa desde USA.
+            <p className="text-xs text-[#5C5A55] mt-0.5">
+              10 unidades combinables entre cualquier marca oficial para consolidar importación directa desde USA.
             </p>
           </div>
         </div>
 
         <div className="text-right flex items-center gap-2 self-end sm:self-auto">
-          <span className="font-tech text-xs text-[#82807A]">Estado:</span>
-          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+          <span className="font-mono text-[10px] uppercase tracking-wider text-[#787670]">Estado:</span>
+          <span className={`text-[10px] uppercase tracking-[0.14em] font-medium px-2.5 py-1 border ${
             isReached
-              ? 'bg-[#F7F3EB] text-[#9E7D4F] border-[#B89768]/40'
-              : 'bg-[#FAF9F6] text-[#575551] border-[#E5E4DF]'
+              ? 'bg-[#F7F3EB] text-[#846C44] border-[#9E8256]/40'
+              : 'bg-[#FAF9F6] text-[#5C5A55] border-[#E6E2DD]'
           }`}>
             {isReached ? 'Mínimo Cumplido' : `Faltan ${remaining} un.`}
           </span>
         </div>
       </div>
 
-      {/* Barra de progreso */}
+      {/* Barra de progreso fina de 3px */}
       <div className="space-y-1.5">
-        <div className="flex justify-between items-center text-xs font-tech">
-          <span className="text-[#575551]">
-            <strong className="text-[#111111]">{current}</strong> de <strong className="text-[#111111]">10</strong> armazones
+        <div className="flex justify-between items-center text-xs font-mono">
+          <span className="text-[#5C5A55]">
+            <strong className="text-[#0F0F0F] font-bold">{current}</strong> de <strong className="text-[#0F0F0F] font-bold">10</strong> armazones seleccionados
           </span>
-          <span className="text-[#B89768] font-bold">{progressPercent}%</span>
+          <span className="text-[#9E8256] font-medium tabular-nums">{progressPercent}%</span>
         </div>
-        <div className="w-full h-2.5 bg-[#FAF9F6] rounded-full overflow-hidden border border-[#E5E4DF] p-0.5">
+        <div className="w-full h-[3px] bg-[#F4F2ED] overflow-hidden border border-[#E6E2DD]/60">
           <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              isReached
-                ? 'bg-gradient-to-r from-[#9E7D4F] to-[#B89768]'
-                : 'bg-[#B89768]'
-            }`}
+            className="h-full bg-[#0F0F0F] transition-all duration-500"
             style={{ width: `${progressPercent}%` }}
           />
         </div>

@@ -141,24 +141,24 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       <div 
-        className="absolute inset-0 bg-[#111111]/70 backdrop-blur-xs"
+        className="absolute inset-0 bg-[#0F0F0F]/70 backdrop-blur-xs"
         onClick={onClose}
       />
       
-      <div className="relative bg-[#FFFFFF] border border-[#E5E4DF] shadow-2xl rounded-3xl w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col md:flex-row animate-slide-up text-[#111111]">
+      <div className="relative bg-[#FFFFFF] border border-[#E6E2DD] shadow-2xl rounded-3xl w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col md:flex-row animate-slide-up text-[#0F0F0F]">
         <button 
           onClick={onClose}
           aria-label="Cerrar modal"
-          className="absolute top-4 right-4 z-20 w-9 h-9 bg-[#FAF9F6] hover:bg-[#FFFFFF] border border-[#E5E4DF] rounded-full flex items-center justify-center text-[#575551] transition shadow-xs"
+          className="absolute top-4 right-4 z-20 w-9 h-9 bg-[#FAF9F6] hover:bg-[#FFFFFF] border border-[#E6E2DD] rounded-full flex items-center justify-center text-[#575551] transition shadow-xs"
         >
           <X className="w-4 h-4" />
         </button>
 
         {/* Galería Rápida (Columna Izquierda) */}
-        <div className="w-full md:w-5/12 bg-[#FAF9F6] p-6 flex flex-col justify-between border-b md:border-b-0 md:border-r border-[#E5E4DF] overflow-y-auto">
+        <div className="w-full md:w-5/12 bg-[#FAF9F6] p-6 flex flex-col justify-between border-b md:border-b-0 md:border-r border-[#E6E2DD] overflow-y-auto">
           <div className="flex flex-col items-center w-full">
             {/* Imagen Principal con Transición Suave */}
-            <div className="aspect-[4/3] w-full flex items-center justify-center mb-4 relative group bg-[#FFFFFF] rounded-2xl border border-[#E5E4DF] p-4 overflow-hidden shadow-2xs">
+            <div className="aspect-[4/3] w-full flex items-center justify-center mb-4 relative group bg-[#FFFFFF] rounded-2xl border border-[#E6E2DD] p-4 overflow-hidden shadow-2xs">
               <Image 
                 unoptimized 
                 key={`${activeVariant.id_ext}-${activeImageIndex}-${currentImageUrl}`}
@@ -172,7 +172,7 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
               />
 
               {/* Badge flotante de Color en la foto */}
-              <div className="absolute top-3 left-3 z-10 bg-[#FAF9F6]/95 backdrop-blur-xs border border-[#E5E4DF] px-3 py-1 rounded-full text-[11px] font-medium text-[#111111] shadow-2xs">
+              <div className="absolute top-3 left-3 z-10 bg-[#FAF9F6]/95 backdrop-blur-xs border border-[#E6E2DD] px-3 py-1 rounded-full text-[11px] font-medium text-[#0F0F0F] shadow-2xs">
                 {activeVariant.color || activeVariant.codigo_color || 'Color Único'}
               </div>
             </div>
@@ -187,8 +187,8 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                     onClick={() => setActiveImageIndex(idx)}
                     className={`relative w-14 h-14 rounded-xl border overflow-hidden flex-shrink-0 transition-all bg-[#FFFFFF] flex items-center justify-center ${
                       idx === activeImageIndex 
-                        ? 'border-[#B89768] ring-2 ring-[#B89768]/30 shadow-xs scale-102' 
-                        : 'border-[#E5E4DF] opacity-70 hover:opacity-100 hover:border-[#82807A]'
+                        ? 'border-[#9E8256] ring-2 ring-[#9E8256]/30 shadow-xs scale-102' 
+                        : 'border-[#E6E2DD] opacity-70 hover:opacity-100 hover:border-[#82807A]'
                     }`}
                     title={`Vista ${idx + 1}`}
                   >
@@ -208,16 +208,16 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
             )}
           </div>
 
-          <div className="mt-4 pt-4 border-t border-[#E5E4DF] space-y-2.5">
-            <div className="flex items-center gap-2 text-[11px] text-[#9E7D4F] font-medium bg-[#F7F3EB] border border-[#B89768]/30 p-2.5 rounded-xl">
-              <ShieldCheck className="w-4 h-4 shrink-0 text-[#B89768]" />
+          <div className="mt-4 pt-4 border-t border-[#E6E2DD] space-y-2.5">
+            <div className="flex items-center gap-2 text-[11px] text-[#846C44] font-medium bg-[#F7F3EB] border border-[#9E8256]/30 p-2.5 rounded-xl">
+              <ShieldCheck className="w-4 h-4 shrink-0 text-[#9E8256]" />
               <span>100% Original: Con estuche de marca, paño y Factura SII</span>
             </div>
             <div className="flex items-center justify-between text-xs text-[#575551]">
               <span className="flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-[#82807A]" /> Entrega: 10 a 15 días hábiles</span>
               <Link 
                 href={`/producto/${encodeURIComponent(baseProduct.marca || '')}/${encodeURIComponent(baseProduct.modelo || '')}`} 
-                className="text-[#111111] hover:text-[#B89768] hover:underline font-bold"
+                className="text-[#0F0F0F] hover:text-[#9E8256] hover:underline font-bold"
               >
                 Ficha completa →
               </Link>
@@ -227,39 +227,39 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
 
         {/* Información y Matriz de Variantes (Columna Derecha) */}
         <div className="w-full md:w-7/12 flex flex-col max-h-[92vh] overflow-y-auto bg-[#FFFFFF]">
-          <div className="p-6 md:p-8 border-b border-[#E5E4DF]">
+          <div className="p-6 md:p-8 border-b border-[#E6E2DD]">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className="badge-brand">
                 {baseProduct.marca}
               </span>
               {rotationBadge && (
-                <span className="inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full border border-[#E5E4DF] bg-[#FAF9F6] text-[#575551]">
+                <span className="inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full border border-[#E6E2DD] bg-[#FAF9F6] text-[#575551]">
                   <span>{rotationBadge.icon}</span>
                   <span>{rotationBadge.label}</span>
                 </span>
               )}
             </div>
 
-            <h2 className="font-editorial text-3xl font-semibold text-[#111111] mt-2">{baseProduct.modelo}</h2>
+            <h2 className="font-editorial text-3xl font-semibold text-[#0F0F0F] mt-2">{baseProduct.modelo}</h2>
             <p className="text-[#575551] text-xs mt-1">Material: {baseProduct.material || 'Estándar'} • Género: {baseProduct.genero || 'Unisex'}</p>
 
             {/* Calculadora de Margen Retail en Modal para la variante activa */}
             {isLoggedIn && retail && activeVariant.precio_neto_clp && (
-              <div className="mt-4 bg-[#FAF9F6] rounded-2xl p-3.5 border border-[#E5E4DF] flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="mt-4 bg-[#FAF9F6] rounded-2xl p-3.5 border border-[#E6E2DD] flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div>
                   <span className="text-[#82807A] block text-[10px] uppercase font-bold tracking-wider">Costo Mayorista</span>
-                  <span className="text-[#111111] font-bold text-base font-tech">
+                  <span className="text-[#0F0F0F] font-bold text-base font-tech">
                     ${activeVariant.precio_neto_clp.toLocaleString('es-CL')} CLP Neto
                   </span>
                 </div>
                 <div>
                   <span className="text-[#82807A] block text-[10px] uppercase font-bold tracking-wider">PVP Sugerido Óptica</span>
-                  <span className="text-[#111111] font-bold font-tech">
+                  <span className="text-[#0F0F0F] font-bold font-tech">
                     ${retail.pvpSugerido.toLocaleString('es-CL')} CLP
                   </span>
                 </div>
-                <div className="bg-[#F7F3EB] border border-[#B89768]/30 px-3 py-1.5 rounded-xl text-[#9E7D4F] font-bold text-[11px] flex items-center gap-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-[#B89768]" />
+                <div className="bg-[#F7F3EB] border border-[#9E8256]/30 px-3 py-1.5 rounded-xl text-[#846C44] font-bold text-[11px] flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-[#9E8256]" />
                   <span>Margen ~{retail.margenPorcentaje}% (+${retail.gananciaPorUnidad.toLocaleString('es-CL')}/un)</span>
                 </div>
               </div>
@@ -267,11 +267,11 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
 
             {/* Dimensiones */}
             {dims && (
-              <div className="flex items-center gap-4 mt-3 bg-[#FAF9F6] p-2.5 rounded-xl border border-[#E5E4DF] text-xs">
+              <div className="flex items-center gap-4 mt-3 bg-[#FAF9F6] p-2.5 rounded-xl border border-[#E6E2DD] text-xs">
                 <Ruler className="w-4 h-4 text-[#82807A]" />
-                <span className="text-[#575551]">Calibre: <strong className="text-[#111111] font-tech">{dims.calibre} mm</strong></span>
-                <span className="text-[#575551]">Puente: <strong className="text-[#111111] font-tech">{dims.puente} mm</strong></span>
-                <span className="text-[#575551]">Varilla: <strong className="text-[#111111] font-tech">{dims.varilla} mm</strong></span>
+                <span className="text-[#575551]">Calibre: <strong className="text-[#0F0F0F] font-tech">{dims.calibre} mm</strong></span>
+                <span className="text-[#575551]">Puente: <strong className="text-[#0F0F0F] font-tech">{dims.puente} mm</strong></span>
+                <span className="text-[#575551]">Varilla: <strong className="text-[#0F0F0F] font-tech">{dims.varilla} mm</strong></span>
               </div>
             )}
           </div>
@@ -279,11 +279,11 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
           <div className="p-6 md:p-8 flex-1 bg-[#FFFFFF] flex flex-col">
             {/* SELECTOR RÁPIDO DE COLORES (SWATCHES ESTILO E-COMMERCE GRANDE) */}
             {variants && variants.length > 1 && (
-              <div className="mb-6 pb-5 border-b border-[#E5E4DF]">
+              <div className="mb-6 pb-5 border-b border-[#E6E2DD]">
                 <div className="flex items-center justify-between mb-2.5">
-                  <span className="text-xs font-semibold text-[#111111] uppercase tracking-wider">
+                  <span className="text-xs font-semibold text-[#0F0F0F] uppercase tracking-wider">
                     Color seleccionado:{' '}
-                    <span className="font-bold text-[#B89768] normal-case">
+                    <span className="font-bold text-[#9E8256] normal-case">
                       {activeVariant.color || activeVariant.codigo_color || 'Estándar'}
                     </span>
                   </span>
@@ -303,14 +303,14 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                         onClick={() => handleSelectVariant(v.id_ext)}
                         className={`group relative flex items-center gap-2 px-2.5 py-1.5 rounded-xl border transition-all text-left ${
                           isSelected
-                            ? 'border-[#B89768] bg-[#FDFBF7] ring-1 ring-[#B89768]/50 shadow-xs scale-[1.02]'
-                            : 'border-[#E5E4DF] bg-[#FAF9F6] hover:border-[#B89768]/50 hover:bg-[#FFFFFF]'
+                            ? 'border-[#9E8256] bg-[#FDFBF7] ring-1 ring-[#9E8256]/50 shadow-xs scale-[1.02]'
+                            : 'border-[#E6E2DD] bg-[#FAF9F6] hover:border-[#9E8256]/50 hover:bg-[#FFFFFF]'
                         }`}
                         title={`${v.color || v.codigo_color || 'Variante'} (SKU: ${v.id_ext})`}
                       >
                         {/* Miniatura del color con carga prioritaria */}
                         <div className={`relative w-8 h-8 rounded-lg overflow-hidden bg-[#FFFFFF] border flex-shrink-0 flex items-center justify-center ${
-                          isSelected ? 'border-[#B89768]' : 'border-[#E5E4DF]'
+                          isSelected ? 'border-[#9E8256]' : 'border-[#E6E2DD]'
                         }`}>
                           <img 
                             src={swatchSrc} 
@@ -325,7 +325,7 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                         </div>
 
                         <div className="pr-1">
-                          <span className={`block text-xs font-bold leading-tight ${isSelected ? 'text-[#111111]' : 'text-[#575551]'}`}>
+                          <span className={`block text-xs font-bold leading-tight ${isSelected ? 'text-[#0F0F0F]' : 'text-[#575551]'}`}>
                             {v.color || v.codigo_color || 'Variante'}
                           </span>
                           <span className="block text-[10px] text-[#82807A] font-tech leading-none mt-0.5">
@@ -334,7 +334,7 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                         </div>
 
                         {isSelected && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#B89768] ml-0.5" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#9E8256] ml-0.5" />
                         )}
                       </button>
                     );
@@ -343,14 +343,14 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
               </div>
             )}
 
-            <h3 className="font-editorial text-lg font-semibold text-[#111111] mb-4 flex items-center gap-2">
-              <ShoppingBag className="w-4 h-4 text-[#B89768]" />
+            <h3 className="font-editorial text-lg font-semibold text-[#0F0F0F] mb-4 flex items-center gap-2">
+              <ShoppingBag className="w-4 h-4 text-[#9E8256]" />
               Pedido Mayorista B2B (Stock en Origen)
             </h3>
 
             {!isLoggedIn ? (
-               <div className="bg-[#FAF9F6] p-6 rounded-2xl border border-[#E5E4DF] text-center">
-                 <Lock className="w-8 h-8 text-[#B89768] mx-auto mb-3" />
+               <div className="bg-[#FAF9F6] p-6 rounded-2xl border border-[#E6E2DD] text-center">
+                 <Lock className="w-8 h-8 text-[#9E8256] mx-auto mb-3" />
                  <p className="text-sm text-[#575551] mb-4">Inicia sesión para ver precios netos y disponibilidad en origen en tiempo real.</p>
                  <Link href="/login" className="btn-primary text-xs">Iniciar Sesión</Link>
                </div>
@@ -372,18 +372,18 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                         onClick={() => handleSelectVariant(v.id_ext)}
                         className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
                           isSelected 
-                            ? 'border-[#B89768] bg-[#FDFBF7] ring-1 ring-[#B89768]/40 shadow-xs' 
+                            ? 'border-[#9E8256] bg-[#FDFBF7] ring-1 ring-[#9E8256]/40 shadow-xs' 
                             : isOut 
-                            ? 'border-[#E5E4DF] bg-[#FAF9F6] opacity-50' 
+                            ? 'border-[#E6E2DD] bg-[#FAF9F6] opacity-50' 
                             : isMaxInCart 
-                            ? 'border-[#B89768]/30 bg-[#FAF9F6]' 
-                            : 'border-[#E5E4DF] bg-[#FAF9F6] hover:border-[#B89768]/50 hover:bg-[#FFFFFF]'
+                            ? 'border-[#9E8256]/30 bg-[#FAF9F6]' 
+                            : 'border-[#E6E2DD] bg-[#FAF9F6] hover:border-[#9E8256]/50 hover:bg-[#FFFFFF]'
                         }`}
                       >
                         {/* Miniatura de la variante y textos */}
                         <div className="flex items-center gap-3 flex-1 min-w-0 pr-2">
                           <div className={`relative w-10 h-10 rounded-lg overflow-hidden bg-[#FFFFFF] border flex-shrink-0 flex items-center justify-center ${
-                            isSelected ? 'border-[#B89768]' : 'border-[#E5E4DF]'
+                            isSelected ? 'border-[#9E8256]' : 'border-[#E6E2DD]'
                           }`}>
                             <img 
                               src={rowImgSrc} 
@@ -399,9 +399,9 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
 
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="font-bold text-[#111111] text-sm truncate">{v.color || v.codigo_color}</p>
+                              <p className="font-bold text-[#0F0F0F] text-sm truncate">{v.color || v.codigo_color}</p>
                               {isSelected && (
-                                <span className="inline-flex items-center gap-1 text-[9px] bg-[#B89768] text-white px-1.5 py-0.2 rounded-full font-semibold uppercase tracking-wider shrink-0">
+                                <span className="inline-flex items-center gap-1 text-[9px] bg-[#9E8256] text-white px-1.5 py-0.2 rounded-full font-semibold uppercase tracking-wider shrink-0">
                                   <Check className="w-2.5 h-2.5" /> Viendo
                                 </span>
                               )}
@@ -412,11 +412,11 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
 
                         {/* Precio y Disponibilidad */}
                         <div className="text-right mr-3 shrink-0 w-28">
-                          <p className="font-bold text-[#111111] font-tech">${v.precio_neto_clp?.toLocaleString('es-CL')}</p>
+                          <p className="font-bold text-[#0F0F0F] font-tech">${v.precio_neto_clp?.toLocaleString('es-CL')}</p>
                           {isOut ? (
                             <p className="text-[10px] text-[#A83232] font-semibold">Agotado en origen</p>
                           ) : isMaxInCart ? (
-                            <p className="text-[10px] text-[#9E7D4F] font-semibold">Máx. en carrito ({maxStock})</p>
+                            <p className="text-[10px] text-[#846C44] font-semibold">Máx. en carrito ({maxStock})</p>
                           ) : inCart > 0 ? (
                             <p className="text-[10px] text-[#575551] font-tech">Disp: {remainingStock} ({inCart} en carrito)</p>
                           ) : (
@@ -434,7 +434,7 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                             value={quantities[v.id_ext] || ''} 
                             placeholder="0"
                             onChange={(e) => handleQuantityChange(v.id_ext, e.target.value, maxStock, remainingStock)}
-                            className="w-16 bg-[#FFFFFF] border border-[#E5E4DF] rounded-lg py-1.5 text-center text-[#111111] font-bold text-sm focus:border-[#B89768] outline-none disabled:opacity-50 shadow-2xs"
+                            className="w-16 bg-[#FFFFFF] border border-[#E6E2DD] rounded-lg py-1.5 text-center text-[#0F0F0F] font-bold text-sm focus:border-[#9E8256] outline-none disabled:opacity-50 shadow-2xs"
                           />
                         </div>
                       </div>
@@ -444,15 +444,15 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
 
                 {stockWarning && (
                   <div className="mb-4 p-3 bg-[#FBF8F1] border border-[#EADBBE] rounded-xl text-[#8C6A2E] text-xs font-semibold flex items-center gap-2 animate-fade-in">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-[#B89768]" />
+                    <AlertCircle className="w-4 h-4 shrink-0 text-[#9E8256]" />
                     <span>{stockWarning}</span>
                   </div>
                 )}
 
-                <div className="mt-auto flex items-center justify-between border-t border-[#E5E4DF] pt-4">
+                <div className="mt-auto flex items-center justify-between border-t border-[#E6E2DD] pt-4">
                   <div>
                     <span className="text-[10px] text-[#82807A] uppercase tracking-wider block font-bold">Total Unidades</span>
-                    <span className="text-xl font-bold text-[#111111] font-tech">{getTotalSelected()}</span>
+                    <span className="text-xl font-bold text-[#0F0F0F] font-tech">{getTotalSelected()}</span>
                   </div>
                   <button 
                     onClick={handleAddAllToCart}

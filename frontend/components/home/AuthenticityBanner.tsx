@@ -43,26 +43,26 @@ export default function AuthenticityBanner() {
 
   return (
     <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-      <div className="relative rounded-3xl bg-[#FFFFFF] border border-[#E5E4DF] p-8 sm:p-12 lg:p-14 shadow-xs overflow-hidden">
+      <div className="relative rounded-3xl bg-[#FFFFFF] border border-[#E6E2DD] p-8 sm:p-12 lg:p-14 shadow-xs overflow-hidden">
         
         {/* Glow sutil champagne */}
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-[#B89768]/5 blur-[130px] rounded-full pointer-events-none" />
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-[#9E8256]/5 blur-[130px] rounded-full pointer-events-none" />
 
         <div className="relative z-10 space-y-10">
           
           {/* Cabecera del Banner */}
           <div className="max-w-3xl space-y-4">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F7F3EB] border border-[#B89768]/30 text-[#9E7D4F] text-xs font-semibold uppercase tracking-wider">
-              <ShieldCheck className="w-4 h-4 text-[#B89768]" />
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F7F3EB] border border-[#9E8256]/30 text-[#846C44] text-xs font-semibold uppercase tracking-wider">
+              <ShieldCheck className="w-4 h-4 text-[#9E8256]" />
               <span>Garantía de Autenticidad B2B & Origen Oficial</span>
             </div>
 
-            <h2 className="font-editorial text-3xl sm:text-4xl lg:text-5xl font-normal text-[#111111] tracking-tight leading-tight">
+            <h2 className="font-editorial text-3xl sm:text-4xl lg:text-5xl font-normal text-[#0F0F0F] tracking-tight leading-tight">
               100% Originales con Empaque y Certificaciones de Fábrica
             </h2>
 
             <p className="text-[#575551] text-base sm:text-lg leading-relaxed">
-              En <strong className="text-[#111111] font-semibold">OptiHub B2B</strong> eliminamos intermediarios sin comprometer la legitimidad. Todos nuestros armazones proceden de distribuidores certificados internacionales y se despachan en su presentación de vitrina original para que tu óptica entregue la máxima confianza al paciente final.
+              En <strong className="text-[#0F0F0F] font-semibold">OptiHub B2B</strong> eliminamos intermediarios sin comprometer la legitimidad. Todos nuestros armazones proceden de distribuidores certificados internacionales y se despachan en su presentación de vitrina original para que tu óptica entregue la máxima confianza al paciente final.
             </p>
           </div>
 
@@ -73,20 +73,20 @@ export default function AuthenticityBanner() {
               return (
                 <div 
                   key={idx}
-                  className="bg-[#FAF9F6] border border-[#E5E4DF] hover:border-[#B89768] rounded-2xl p-6 flex flex-col justify-between transition-all duration-300 hover:shadow-sm group"
+                  className="bg-[#FAF9F6] border border-[#E6E2DD] hover:border-[#9E8256] rounded-2xl p-6 flex flex-col justify-between transition-all duration-300 hover:shadow-sm group"
                 >
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <div className="w-12 h-12 rounded-xl bg-[#FFFFFF] border border-[#E5E4DF] flex items-center justify-center text-[#B89768] group-hover:bg-[#111111] group-hover:text-white transition-colors shadow-2xs">
+                      <div className="w-12 h-12 rounded-xl bg-[#FFFFFF] border border-[#E6E2DD] flex items-center justify-center text-[#9E8256] group-hover:bg-[#0F0F0F] group-hover:text-white transition-colors shadow-2xs">
                         <Icon className="w-6 h-6 stroke-[1.8]" />
                       </div>
-                      <span className="text-[10px] font-semibold text-[#9E7D4F] bg-[#F7F3EB] border border-[#B89768]/30 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                      <span className="text-[10px] font-semibold text-[#846C44] bg-[#F7F3EB] border border-[#9E8256]/30 px-2.5 py-1 rounded-full uppercase tracking-wider">
                         {item.tag}
                       </span>
                     </div>
 
                     <div>
-                      <h3 className="text-[#111111] font-editorial text-lg font-semibold group-hover:text-[#B89768] transition-colors">
+                      <h3 className="text-[#0F0F0F] font-editorial text-lg font-semibold group-hover:text-[#9E8256] transition-colors">
                         {item.title}
                       </h3>
                       <p className="text-[#575551] text-xs sm:text-sm mt-2 leading-relaxed">
@@ -95,8 +95,8 @@ export default function AuthenticityBanner() {
                     </div>
                   </div>
 
-                  <div className="pt-4 mt-4 border-t border-[#E5E4DF] flex items-center gap-1.5 text-xs text-[#82807A] font-medium font-tech">
-                    <Sparkles className="w-3.5 h-3.5 text-[#B89768]" />
+                  <div className="pt-4 mt-4 border-t border-[#E6E2DD] flex items-center gap-1.5 text-xs text-[#82807A] font-medium font-tech">
+                    <Sparkles className="w-3.5 h-3.5 text-[#9E8256]" />
                     <span>Estándar Óptico Certificado</span>
                   </div>
                 </div>
@@ -105,17 +105,17 @@ export default function AuthenticityBanner() {
           </div>
 
           {/* Barra inferior de sellos y CTA */}
-          <div className="pt-6 border-t border-[#E5E4DF] flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="pt-6 border-t border-[#E6E2DD] flex flex-col sm:flex-row items-center justify-between gap-6">
             <div className="flex flex-wrap items-center gap-4 text-xs text-[#575551]">
               <span className="flex items-center gap-1.5">
-                <Truck className="w-4 h-4 text-[#B89768]" /> Despacho consolidado Miami - Chile
+                <Truck className="w-4 h-4 text-[#9E8256]" /> Despacho consolidado Miami - Chile
               </span>
-              <span className="hidden sm:inline text-[#E5E4DF]">•</span>
+              <span className="hidden sm:inline text-[#E6E2DD]">•</span>
               <span className="flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-[#B89768]" /> Trámite aduanero y aranceles resueltos
+                <FileText className="w-4 h-4 text-[#9E8256]" /> Trámite aduanero y aranceles resueltos
               </span>
-              <span className="hidden sm:inline text-[#E5E4DF]">•</span>
-              <span className="text-[#111111] font-bold font-tech">
+              <span className="hidden sm:inline text-[#E6E2DD]">•</span>
+              <span className="text-[#0F0F0F] font-bold font-tech">
                 Pedido mínimo: 10 unidades combinables
               </span>
             </div>

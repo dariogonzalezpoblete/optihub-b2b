@@ -41,16 +41,16 @@ export default function ActiveFilterChips({
 
   return (
     <div className="flex flex-wrap items-center gap-2 animate-fade-in">
-      {/* Chip de Tipo / Línea (Monturas Ópticas vs Gafas de Sol) */}
+      {/* Chip de Tipo / Línea */}
       {state.tipo && (
         <button
           type="button"
           onClick={() => (onRemoveTipo ? onRemoveTipo() : onClearAll())}
-          className="group inline-flex items-center gap-1.5 bg-[#F7F3EB] border border-[#B89768]/50 text-[#9E7D4F] text-xs font-semibold pl-3 pr-2 py-1.5 rounded-full hover:border-[#B89768] transition shadow-2xs"
+          className="group inline-flex items-center gap-1.5 bg-[#FFFFFF] border border-[#0F0F0F] text-[#0F0F0F] text-[11px] font-medium pl-3 pr-2 py-1 transition rounded-none cursor-pointer"
           title="Quitar filtro de línea"
         >
-          <span className="text-[#B89768]">Línea:</span> {state.tipo === 'optico' ? 'Monturas Ópticas' : 'Gafas de Sol'}
-          <X className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+          <span className="text-[#9E8256] uppercase tracking-wider text-[10px]">Línea:</span> {state.tipo === 'optico' ? 'Monturas Ópticas' : 'Gafas de Sol'}
+          <X className="w-3 h-3 text-[#5C5A55] group-hover:text-[#0F0F0F]" />
         </button>
       )}
 
@@ -58,10 +58,10 @@ export default function ActiveFilterChips({
         <button
           type="button"
           onClick={onClearQuery}
-          className="group inline-flex items-center gap-1.5 bg-[#F7F3EB] border border-[#B89768]/50 text-[#9E7D4F] text-xs font-semibold pl-3 pr-2 py-1.5 rounded-full hover:border-[#B89768] transition"
+          className="group inline-flex items-center gap-1.5 bg-[#FFFFFF] border border-[#0F0F0F] text-[#0F0F0F] text-[11px] font-medium pl-3 pr-2 py-1 transition rounded-none cursor-pointer"
         >
-          <span className="text-[#B89768]">Búsqueda:</span> “{state.q.trim()}”
-          <X className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+          <span className="text-[#9E8256] uppercase tracking-wider text-[10px]">Búsqueda:</span> “{state.q.trim()}”
+          <X className="w-3 h-3 text-[#5C5A55] group-hover:text-[#0F0F0F]" />
         </button>
       )}
 
@@ -70,17 +70,17 @@ export default function ActiveFilterChips({
           key={`${c.facet}-${c.key}`}
           type="button"
           onClick={() => onRemove(c.facet, c.key)}
-          className="group inline-flex items-center gap-1.5 bg-[#FFFFFF] border border-[#E5E4DF] text-[#111111] text-xs font-medium pl-3 pr-2 py-1.5 rounded-full hover:border-[#B89768] hover:bg-[#FAF9F6] transition shadow-2xs"
+          className="group inline-flex items-center gap-1.5 bg-[#FFFFFF] border border-[#E6E2DD] hover:border-[#0F0F0F] text-[#0F0F0F] text-[11px] font-medium pl-3 pr-2 py-1 transition rounded-none cursor-pointer"
         >
-          <span className="text-[#82807A] text-[11px] uppercase tracking-wider">{FACET_TITLES[c.facet]}:</span> {c.label}
-          <X className="w-3.5 h-3.5 text-[#82807A] group-hover:text-[#111111]" />
+          <span className="text-[#787670] text-[10px] uppercase tracking-wider">{FACET_TITLES[c.facet]}:</span> {c.label}
+          <X className="w-3 h-3 text-[#787670] group-hover:text-[#0F0F0F]" />
         </button>
       ))}
 
       <button
         type="button"
         onClick={onClearAll}
-        className="text-xs font-bold text-[#82807A] hover:text-[#C0392B] px-2 py-1.5 transition tracking-wider uppercase"
+        className="text-[10px] font-semibold text-[#787670] hover:text-[#0F0F0F] px-2 py-1 transition tracking-[0.16em] uppercase cursor-pointer"
       >
         Limpiar todo
       </button>

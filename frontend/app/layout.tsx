@@ -90,7 +90,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" className={`${inter.variable} ${cormorant.variable} ${jetbrainsMono.variable}`}>
-      <body className="bg-[#F7F6F2] text-[#111111] font-sans antialiased selection:bg-[#B89768]/20 selection:text-[#111111]">
+      <body className="bg-[#FAF9F6] text-[#0F0F0F] font-sans antialiased selection:bg-[#9E8256]/20 selection:text-[#0F0F0F]">
         <AuthProvider>
           {/* Barra de navegación principal limpia */}
           <Navbar />

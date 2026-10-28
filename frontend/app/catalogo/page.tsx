@@ -30,12 +30,12 @@ export const metadata: Metadata = {
 
 function CatalogSkeleton() {
   return (
-    <div className="min-h-screen bg-[#F7F6F2] py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#FAF9F6] py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-8 animate-pulse">
-        <div className="h-28 bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-6" />
+        <div className="h-28 bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-6" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3, 4, 5, 6].map((n) => (
-            <div key={n} className="h-80 bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl" />
+            <div key={n} className="h-80 bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl" />
           ))}
         </div>
       </div>

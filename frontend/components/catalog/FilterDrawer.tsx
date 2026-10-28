@@ -21,7 +21,6 @@ export default function FilterDrawer({
   onClearAll,
   ...panel
 }: FilterDrawerProps) {
-  // Bloquear scroll del body y cerrar con Esc
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -42,7 +41,7 @@ export default function FilterDrawer({
       {/* Fondo */}
       <div
         onClick={onClose}
-        className={`absolute inset-0 bg-[#111111]/60 backdrop-blur-xs transition-opacity duration-300 ${
+        className={`absolute inset-0 bg-[#0F0F0F]/60 backdrop-blur-xs transition-opacity duration-300 ${
           open ? 'opacity-100' : 'opacity-0'
         }`}
       />
@@ -52,16 +51,16 @@ export default function FilterDrawer({
         role="dialog"
         aria-modal="true"
         aria-label="Filtros del catálogo"
-        className={`absolute inset-y-0 left-0 w-[88%] max-w-sm bg-[#FFFFFF] border-r border-[#E5E4DF] shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
+        className={`absolute inset-y-0 left-0 w-[88%] max-w-sm bg-[#FFFFFF] border-r border-[#E6E2DD] flex flex-col transition-transform duration-300 ease-out rounded-none ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E4DF]">
-          <h2 className="flex items-center gap-2 text-sm font-bold text-[#111111] uppercase tracking-wider">
-            <SlidersHorizontal className="w-4 h-4 text-[#B89768]" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E6E2DD]">
+          <h2 className="flex items-center gap-2 text-[11px] font-semibold text-[#0F0F0F] uppercase tracking-[0.18em]">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-[#9E8256]" />
             Filtros
             {activeCount > 0 && (
-              <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#111111] text-white text-[10px] font-tech font-bold flex items-center justify-center">
+              <span className="min-w-4 h-4 px-1 bg-[#0F0F0F] text-white text-[9px] font-mono font-bold flex items-center justify-center">
                 {activeCount}
               </span>
             )}
@@ -69,7 +68,7 @@ export default function FilterDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-[#FAF9F6] border border-[#E5E4DF] hover:bg-[#FFFFFF] text-[#575551] flex items-center justify-center transition"
+            className="w-8 h-8 border border-[#E6E2DD] text-[#5C5A55] hover:text-[#0F0F0F] flex items-center justify-center transition cursor-pointer"
             aria-label="Cerrar filtros"
           >
             <X className="w-4 h-4" />
@@ -80,16 +79,16 @@ export default function FilterDrawer({
           <FilterPanel {...panel} />
         </div>
 
-        <div className="p-4 border-t border-[#E5E4DF] flex gap-3 bg-[#FFFFFF]">
+        <div className="p-4 border-t border-[#E6E2DD] flex gap-3 bg-[#FFFFFF]">
           <button
             type="button"
             onClick={onClearAll}
             disabled={activeCount === 0}
-            className="btn-secondary flex-1 !py-3 !text-xs"
+            className="btn-secondary flex-1 !py-3 !text-[10px]"
           >
             Limpiar
           </button>
-          <button type="button" onClick={onClose} className="btn-primary flex-[2] !py-3 !text-xs">
+          <button type="button" onClick={onClose} className="btn-primary flex-[2] !py-3 !text-[10px]">
             Ver {resultCount} {resultCount === 1 ? 'resultado' : 'resultados'}
           </button>
         </div>

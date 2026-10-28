@@ -212,7 +212,7 @@ export default async function ProductPage({ params }: Props) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
-      <div className="min-h-screen bg-[#F7F6F2] text-[#111111] pt-6 pb-20">
+      <div className="min-h-screen bg-[#FAF9F6] text-[#0F0F0F] pt-6 pb-20">
         <Suspense fallback={<div className="min-h-[400px]" />}><ProductClientView variants={variants} baseProduct={baseProduct} /></Suspense>
 
         {/* Interlinking interno para escalabilidad de Googlebot */}

@@ -209,11 +209,11 @@ function ResultadoContent() {
   }, [isApproved, verifiedOrderId, clearCart, setCartId]);
 
   return (
-    <div className="min-h-[85vh] bg-[#F7F6F2] text-[#111111] flex items-center justify-center px-4 py-14 sm:py-20">
-      <div className="max-w-xl w-full bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-6 sm:p-10 text-center shadow-sm">
+    <div className="min-h-[85vh] bg-[#FAF9F6] text-[#0F0F0F] flex items-center justify-center px-4 py-14 sm:py-20">
+      <div className="max-w-xl w-full bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-6 sm:p-10 text-center shadow-sm">
         {/* Banner de Modo Simulación (si aplica) */}
         {isMock && (
-          <div className="mb-6 p-3.5 rounded-xl bg-[#F7F3EB] border border-[#B89768]/40 text-[#9E7D4F] text-xs font-medium leading-relaxed">
+          <div className="mb-6 p-3.5 rounded-xl bg-[#F7F3EB] border border-[#9E8256]/40 text-[#846C44] text-xs font-medium leading-relaxed">
             ℹ Simulación de desarrollo: El flujo de pago funcionó correctamente en modo prueba.
           </div>
         )}
@@ -221,15 +221,15 @@ function ResultadoContent() {
         {/* ESTADO: VERIFICANDO EN SERVIDOR */}
         {isVerifying && (
           <div className="py-4">
-            <div className="w-16 h-16 bg-[#F7F3EB] text-[#9E7D4F] rounded-2xl flex items-center justify-center mx-auto mb-6 border border-[#B89768]/30">
+            <div className="w-16 h-16 bg-[#F7F3EB] text-[#846C44] rounded-2xl flex items-center justify-center mx-auto mb-6 border border-[#9E8256]/30">
               <Loader2 className="w-8 h-8 animate-spin" />
             </div>
 
-            <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9E7D4F] mb-2">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#846C44] mb-2">
               Conciliación Bancaria B2B
             </span>
 
-            <h1 className="font-editorial font-serif text-2xl sm:text-3xl font-semibold text-[#111111] tracking-tight">
+            <h1 className="font-editorial font-serif text-2xl sm:text-3xl font-semibold text-[#0F0F0F] tracking-tight">
               Verificando estado del pago...
             </h1>
 
@@ -251,7 +251,7 @@ function ResultadoContent() {
               Pago Mayorista Confirmado
             </span>
 
-            <h1 className="font-editorial font-serif text-3xl sm:text-4xl font-semibold text-[#111111] tracking-tight mt-4">
+            <h1 className="font-editorial font-serif text-3xl sm:text-4xl font-semibold text-[#0F0F0F] tracking-tight mt-4">
               ¡Su Pedido B2B está en marcha!
             </h1>
 
@@ -260,58 +260,58 @@ function ResultadoContent() {
             </p>
 
             {/* Tarjeta de Comprobante y Resumen de Pedido */}
-            <div className="bg-[#FAF9F6] border border-[#E5E4DF] rounded-2xl p-5 my-6 text-left space-y-3 text-xs">
-              <div className="flex items-center gap-2 pb-2.5 border-b border-[#E5E4DF] text-[#9E7D4F] font-semibold uppercase tracking-wider text-[11px]">
+            <div className="bg-[#FAF9F6] border border-[#E6E2DD] rounded-2xl p-5 my-6 text-left space-y-3 text-xs">
+              <div className="flex items-center gap-2 pb-2.5 border-b border-[#E6E2DD] text-[#846C44] font-semibold uppercase tracking-wider text-[11px]">
                 <Receipt className="w-4 h-4" />
                 Comprobante de Orden Mayorista
               </div>
 
-              <div className="flex justify-between items-center pb-2.5 border-b border-[#E5E4DF]">
+              <div className="flex justify-between items-center pb-2.5 border-b border-[#E6E2DD]">
                 <span className="text-[#575551] font-medium">N° de Orden OptiHub:</span>
-                <span className="font-mono font-bold text-[#111111] text-xs sm:text-sm">
+                <span className="font-mono font-bold text-[#0F0F0F] text-xs sm:text-sm">
                   {displayRef}
                 </span>
               </div>
 
               {(verifiedPaymentId || urlPaymentId) && (
-                <div className="flex justify-between items-center pb-2.5 border-b border-[#E5E4DF]">
+                <div className="flex justify-between items-center pb-2.5 border-b border-[#E6E2DD]">
                   <span className="text-[#575551] font-medium">ID Operación Mercado Pago:</span>
-                  <span className="font-mono font-semibold text-[#111111]">
+                  <span className="font-mono font-semibold text-[#0F0F0F]">
                     #{verifiedPaymentId || urlPaymentId}
                   </span>
                 </div>
               )}
 
               {formattedTotal && (
-                <div className="flex justify-between items-center pb-2.5 border-b border-[#E5E4DF]">
+                <div className="flex justify-between items-center pb-2.5 border-b border-[#E6E2DD]">
                   <span className="text-[#575551] font-medium">Total Facturado (IVA incl.):</span>
-                  <span className="font-mono font-bold text-[#111111]">{formattedTotal}</span>
+                  <span className="font-mono font-bold text-[#0F0F0F]">{formattedTotal}</span>
                 </div>
               )}
 
-              <div className="flex justify-between items-center pb-2.5 border-b border-[#E5E4DF]">
+              <div className="flex justify-between items-center pb-2.5 border-b border-[#E6E2DD]">
                 <span className="text-[#575551] font-medium">Plazo Estimado de Entrega:</span>
-                <span className="font-semibold text-[#9E7D4F]">10 a 15 días hábiles</span>
+                <span className="font-semibold text-[#846C44]">10 a 15 días hábiles</span>
               </div>
 
               <div className="flex justify-between items-center pt-0.5">
                 <span className="text-[#575551] font-medium">Documento Tributario:</span>
-                <span className="text-[#111111] font-medium">Factura Electrónica SII</span>
+                <span className="text-[#0F0F0F] font-medium">Factura Electrónica SII</span>
               </div>
             </div>
 
             {/* Próximos Pasos */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left text-xs mb-8">
-              <div className="bg-[#FAF9F6] border border-[#E5E4DF] p-4 rounded-xl">
-                <Truck className="w-4 h-4 text-[#9E7D4F] mb-1.5" />
-                <span className="font-semibold text-[#111111] block">Consolidación &amp; Aduana</span>
+              <div className="bg-[#FAF9F6] border border-[#E6E2DD] p-4 rounded-xl">
+                <Truck className="w-4 h-4 text-[#846C44] mb-1.5" />
+                <span className="font-semibold text-[#0F0F0F] block">Consolidación &amp; Aduana</span>
                 <span className="text-[#575551] text-[11px] leading-relaxed">
                   Preparación desde centro de distribución en origen con seguro internacional.
                 </span>
               </div>
-              <div className="bg-[#FAF9F6] border border-[#E5E4DF] p-4 rounded-xl">
-                <FileText className="w-4 h-4 text-[#9E7D4F] mb-1.5" />
-                <span className="font-semibold text-[#111111] block">Emisión de DTE</span>
+              <div className="bg-[#FAF9F6] border border-[#E6E2DD] p-4 rounded-xl">
+                <FileText className="w-4 h-4 text-[#846C44] mb-1.5" />
+                <span className="font-semibold text-[#0F0F0F] block">Emisión de DTE</span>
                 <span className="text-[#575551] text-[11px] leading-relaxed">
                   Envío automático de la Factura Electrónica a su casilla tributaria.
                 </span>
@@ -322,17 +322,17 @@ function ResultadoContent() {
               {verifiedOrderId && (
                 <Link
                   href={`/mis-pedidos/${verifiedOrderId}`}
-                  className="flex-1 bg-[#FAF9F6] hover:bg-[#F7F3EB] text-[#111111] font-semibold py-3.5 px-6 rounded-xl transition text-xs uppercase tracking-widest flex items-center justify-center border border-[#E5E4DF]"
+                  className="flex-1 bg-[#FAF9F6] hover:bg-[#F7F3EB] text-[#0F0F0F] font-semibold py-3.5 px-6 rounded-xl transition text-xs uppercase tracking-widest flex items-center justify-center border border-[#E6E2DD]"
                 >
                   Ver Detalle del Pedido
                 </Link>
               )}
               <Link
                 href="/catalogo"
-                className="flex-1 bg-[#111111] hover:bg-[#222222] text-[#FFFFFF] font-semibold py-3.5 px-6 rounded-xl transition text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm"
+                className="flex-1 bg-[#0F0F0F] hover:bg-[#222222] text-[#FFFFFF] font-semibold py-3.5 px-6 rounded-xl transition text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm"
               >
                 <span>Volver al Catálogo</span>
-                <ArrowRight className="w-4 h-4 text-[#B89768]" />
+                <ArrowRight className="w-4 h-4 text-[#9E8256]" />
               </Link>
             </div>
           </div>
@@ -349,7 +349,7 @@ function ResultadoContent() {
               {requiresAttention ? 'Conciliación Prioritaria' : 'En Proceso de Confirmación'}
             </span>
 
-            <h1 className="font-editorial font-serif text-2xl sm:text-3xl font-semibold text-[#111111] tracking-tight">
+            <h1 className="font-editorial font-serif text-2xl sm:text-3xl font-semibold text-[#0F0F0F] tracking-tight">
               {requiresAttention
                 ? 'Pedido en Revisión y Conciliación'
                 : 'Pago Pendiente de Acreditación'}
@@ -365,15 +365,15 @@ function ResultadoContent() {
               {verifiedOrderId && (
                 <Link
                   href={`/mis-pedidos/${verifiedOrderId}`}
-                  className="flex-1 inline-flex items-center justify-center gap-2 bg-[#111111] hover:bg-[#222222] text-[#FFFFFF] font-semibold py-3.5 px-6 rounded-xl transition text-xs uppercase tracking-widest"
+                  className="flex-1 inline-flex items-center justify-center gap-2 bg-[#0F0F0F] hover:bg-[#222222] text-[#FFFFFF] font-semibold py-3.5 px-6 rounded-xl transition text-xs uppercase tracking-widest"
                 >
                   <span>Revisar Estado del Pedido</span>
-                  <ArrowRight className="w-4 h-4 text-[#B89768]" />
+                  <ArrowRight className="w-4 h-4 text-[#9E8256]" />
                 </Link>
               )}
               <Link
                 href="/catalogo"
-                className="flex-1 inline-flex items-center justify-center gap-2 bg-[#FAF9F6] hover:bg-[#F7F3EB] text-[#111111] font-semibold py-3.5 px-6 rounded-xl transition text-xs uppercase tracking-widest border border-[#E5E4DF]"
+                className="flex-1 inline-flex items-center justify-center gap-2 bg-[#FAF9F6] hover:bg-[#F7F3EB] text-[#0F0F0F] font-semibold py-3.5 px-6 rounded-xl transition text-xs uppercase tracking-widest border border-[#E6E2DD]"
               >
                 Volver al Catálogo
               </Link>
@@ -392,7 +392,7 @@ function ResultadoContent() {
               Operación No Completada
             </span>
 
-            <h1 className="font-editorial font-serif text-2xl sm:text-3xl font-semibold text-[#111111] tracking-tight">
+            <h1 className="font-editorial font-serif text-2xl sm:text-3xl font-semibold text-[#0F0F0F] tracking-tight">
               El pago no pudo procesarse
             </h1>
 
@@ -403,14 +403,14 @@ function ResultadoContent() {
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
               <Link
                 href="/checkout"
-                className="flex-1 bg-[#111111] hover:bg-[#222222] text-[#FFFFFF] font-semibold py-3.5 px-6 rounded-xl transition text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+                className="flex-1 bg-[#0F0F0F] hover:bg-[#222222] text-[#FFFFFF] font-semibold py-3.5 px-6 rounded-xl transition text-xs uppercase tracking-widest flex items-center justify-center gap-2"
               >
                 <span>Reintentar el Pago</span>
-                <ArrowRight className="w-4 h-4 text-[#B89768]" />
+                <ArrowRight className="w-4 h-4 text-[#9E8256]" />
               </Link>
               <Link
                 href="/carrito"
-                className="flex-1 bg-[#FAF9F6] hover:bg-[#F7F3EB] text-[#111111] font-semibold py-3.5 px-6 rounded-xl transition text-xs uppercase tracking-widest flex items-center justify-center gap-2 border border-[#E5E4DF]"
+                className="flex-1 bg-[#FAF9F6] hover:bg-[#F7F3EB] text-[#0F0F0F] font-semibold py-3.5 px-6 rounded-xl transition text-xs uppercase tracking-widest flex items-center justify-center gap-2 border border-[#E6E2DD]"
               >
                 <ArrowLeft className="w-4 h-4 text-[#82807A]" />
                 <span>Revisar Carro B2B</span>
@@ -427,9 +427,9 @@ export default function ResultadoPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#F7F6F2] text-[#111111] flex items-center justify-center">
+        <div className="min-h-screen bg-[#FAF9F6] text-[#0F0F0F] flex items-center justify-center">
           <div className="flex items-center gap-3 text-xs font-mono uppercase tracking-widest text-[#575551]">
-            <Loader2 className="w-5 h-5 text-[#B89768] animate-spin" />
+            <Loader2 className="w-5 h-5 text-[#9E8256] animate-spin" />
             Verificando estado del pago...
           </div>
         </div>
