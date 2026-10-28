@@ -11,6 +11,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import RecentlyViewed from '@/components/catalog/RecentlyViewed';
+import HeroSpotlight from '@/components/home/HeroSpotlight';
 
 interface MarcoDestacado {
   id_ext: string;
@@ -101,8 +102,6 @@ export default function Home() {
     return destacados.slice(0, 8);
   }, [destacados, activeFilter]);
 
-  const heroArmazonImg = destacados[0]?.imagen_principal || 'https://images.unsplash.com/photo-1591076482161-42ce6da69f67?auto=format&fit=crop&w=1200&q=85';
-
   return (
     <div className="bg-[#FAF9F6] text-[#0F0F0F] overflow-x-hidden min-h-screen">
       
@@ -156,46 +155,8 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Columna Derecha: Panel Visual Editorial Galería (Superficie #F4F2ED) */}
-          <div className="lg:col-span-5 xl:col-span-4 bg-[#F4F2ED] p-8 sm:p-12 flex flex-col justify-between relative overflow-hidden min-h-[380px] lg:min-h-auto">
-            {/* Etiqueta Técnica Flotante */}
-            <div className="flex justify-between items-start z-10">
-              <span className="text-[9px] uppercase tracking-[0.25em] text-[#5C5A55] border border-[#E6E2DD] bg-[#FFFFFF]/90 px-3 py-1 font-mono">
-                CURADURÍA OFICIAL · ORIGEN EE.UU.
-              </span>
-              <span className="text-[10px] font-mono text-[#9E8256] uppercase tracking-wider">
-                LOTE 2026/04
-              </span>
-            </div>
-
-            {/* Fotografía de Armazón con mix-blend-multiply */}
-            <div className="relative my-auto py-8 flex items-center justify-center">
-              <div className="relative w-full aspect-[4/3] max-w-sm">
-                <Image
-                  unoptimized
-                  src={heroArmazonImg}
-                  alt="Armazón de alta gama"
-                  fill
-                  priority
-                  className="object-contain mix-blend-multiply filter contrast-[1.05]"
-                  sizes="(max-width: 1024px) 100vw, 35vw"
-                />
-              </div>
-            </div>
-
-            {/* Metadato inferior del marco */}
-            <div className="z-10 pt-4 border-t border-[#E6E2DD]/70 flex justify-between items-end">
-              <div>
-                <p className="text-[9px] uppercase tracking-[0.2em] text-[#5C5A55]">Muestra Destacada</p>
-                <p className="font-serif text-lg text-[#0F0F0F] font-normal leading-tight">
-                  {destacados[0]?.marca || 'Luxury Eyewear'} · {destacados[0]?.modelo || 'Iconic Model'}
-                </p>
-              </div>
-              <span className="text-[10px] uppercase font-mono tracking-wider text-[#9E8256]">
-                DISPONIBLE
-              </span>
-            </div>
-          </div>
+          {/* Columna Derecha: Vitrina Dinámica Editorial con Rotación por Categorías (Alta Gama, Sport, Best Seller) */}
+          <HeroSpotlight className="lg:col-span-5 xl:col-span-4 min-h-[420px] lg:min-h-auto" />
 
         </div>
 
