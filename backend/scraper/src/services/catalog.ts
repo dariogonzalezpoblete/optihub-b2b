@@ -795,32 +795,33 @@ export class CatalogRunner {
 
     Logger.info(`Buscando marca '${resolvedBrand}' en catálogo de NYWD...`);
 
+    // Ensure we are on a page that contains the full brand index (new-home contains all 232 brands)
     const currentUrl = page.url().toLowerCase();
-    if (currentUrl.includes('/404') || currentUrl.includes('/login') || !currentUrl.includes('nywd.com')) {
-      await page.goto(`${CONFIG.PROVIDER.BASE_URL}/index`, {
+    if (!currentUrl.includes('new-home') && !currentUrl.includes('listing-brand')) {
+      await page.goto(`${CONFIG.PROVIDER.BASE_URL}/new-home`, {
         waitUntil: 'domcontentloaded',
         timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
       }).catch(() => {});
       await page.waitForTimeout(1000);
     }
 
-    // 2. Open BRANDS mega-menu
+    // 2. Open BRANDS mega-menu if present
     try {
       const brandsMenuActivator = page
         .locator('a[data-target="#shop-brands"], a:has-text("Brands"), a:text-matches("^BRANDS$", "i")')
         .first();
 
-      if (await brandsMenuActivator.isVisible({ timeout: 3000 }).catch(() => false)) {
+      if (await brandsMenuActivator.isVisible({ timeout: 2000 }).catch(() => false)) {
         await brandsMenuActivator.hover().catch(() => {});
         await brandsMenuActivator.click().catch(() => {});
-        await page.waitForTimeout(800);
+        await page.waitForTimeout(600);
       }
     } catch {}
 
     // Extract all candidate brand links from the entire DOM
-    const candidateLinks = await page.evaluate(() => {
+    let candidateLinks = await page.evaluate(() => {
       const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a'));
-      const list: Array<{ text: string; href: string }> = [];
+      const list: Array<{ text: string; cleanText: string; href: string }> = [];
       const seen = new Set<string>();
 
       for (const a of links) {
@@ -833,19 +834,49 @@ export class CatalogRunner {
         const key = `${cleanText.toLowerCase()}|${href}`;
         if (!seen.has(key)) {
           seen.add(key);
-          list.push({ text: cleanText, href });
+          list.push({ text, cleanText, href });
         }
       }
       return list;
     });
 
+    // If brand links are not loaded, navigate to new-home explicitly to retrieve all 232 brands
+    if (candidateLinks.filter((l) => l.href.includes('listing-brand')).length === 0) {
+      await page.goto(`${CONFIG.PROVIDER.BASE_URL}/new-home`, {
+        waitUntil: 'domcontentloaded',
+        timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
+      }).catch(() => {});
+      await page.waitForTimeout(1200);
+
+      candidateLinks = await page.evaluate(() => {
+        const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a'));
+        const list: Array<{ text: string; cleanText: string; href: string }> = [];
+        const seen = new Set<string>();
+
+        for (const a of links) {
+          const href = a.href || '';
+          if (!href || href.endsWith('#') || href.includes('javascript:')) continue;
+          const text = (a.innerText || a.textContent || '').trim();
+          if (!text || text.length < 2) continue;
+
+          const cleanText = text.replace(/\s*\(\d+\)$/, '').trim();
+          const key = `${cleanText.toLowerCase()}|${href}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            list.push({ text, cleanText, href });
+          }
+        }
+        return list;
+      });
+    }
+
     Logger.info(`Enlaces de marcas detectados en menú: ${candidateLinks.length}`);
 
     // Match candidate link using multi-tiered fuzzy matching
-    let bestLink: { text: string; href: string; score: number } | null = null;
+    let bestLink: { text: string; cleanText: string; href: string; score: number } | null = null;
 
     for (const item of candidateLinks) {
-      const itemLower = item.text.toLowerCase().trim();
+      const itemLower = item.cleanText.toLowerCase().trim();
       const itemNorm = normalizeForFuzzy(itemLower);
 
       // Exact match
@@ -876,7 +907,7 @@ export class CatalogRunner {
     }
 
     if (bestLink && bestLink.score >= 0.80) {
-      Logger.success(`Marca '${resolvedBrand}' encontrada en NYWD: '${bestLink.text}' (confianza ${(bestLink.score * 100).toFixed(0)}%). Navegando...`);
+      Logger.success(`Marca '${resolvedBrand}' encontrada en NYWD: '${bestLink.cleanText}' (confianza ${(bestLink.score * 100).toFixed(0)}%). Navegando...`);
       await page.goto(bestLink.href, {
         waitUntil: 'domcontentloaded',
         timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
@@ -950,14 +981,15 @@ export class CatalogRunner {
     console.log(`   (El bot detectará automáticamente cuando abras '${resolvedBrand}').`);
     console.log('═'.repeat(65) + '\n');
 
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 30; i++) {
       await page.waitForTimeout(1000);
       const currUrl = page.url();
-      if (currUrl !== startUrl) {
+      if (currUrl !== startUrl || currUrl.includes('listing-brand')) {
         const matchesTarget = await page.evaluate((target) => {
           const bodyText = (document.body ? document.body.innerText : '').toLowerCase();
           const t = target.toLowerCase();
-          return (bodyText.includes(t) || window.location.href.toLowerCase().includes(t.replace(/\s+/g, '-'))) &&
+          const cards = document.querySelectorAll('.product-item, div[data-product-id]');
+          return (bodyText.includes(t) || window.location.href.toLowerCase().includes(t.replace(/\s+/g, '-')) || cards.length > 0) &&
             (window.location.href.includes('listing-brand') || window.location.href.includes('search') || window.location.href.includes('product'));
         }, resolvedBrand);
 
@@ -984,6 +1016,15 @@ export class CatalogRunner {
         resolve();
       });
     });
+
+    const hasCards = await page.evaluate(() => {
+      return document.querySelectorAll('.product-item, div[data-product-id]').length > 0;
+    });
+
+    if (!hasCards && !page.url().includes('listing-brand')) {
+      Logger.warn(`Aviso: La página actual (${page.url()}) no es un catálogo de productos con armazones.`);
+      return false;
+    }
 
     Logger.success(`Continuando con la extracción de '${resolvedBrand}' en: ${page.url()}`);
     return true;

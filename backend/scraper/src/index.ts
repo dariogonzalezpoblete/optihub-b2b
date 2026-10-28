@@ -246,9 +246,38 @@ async function main() {
     console.log(`• Base de Datos Supabase:         ${options.dryRun ? 'DRY-RUN' : 'SINCRONIZADO'}`);
     console.log('════════════════════════════════════════════════════════════════\n');
 
+    if (allExtractedProducts.length === 0 && !options.headless) {
+      Logger.warn('\n⚠️ No se estructuró ningún producto nuevo en esta corrida.');
+      Logger.info('💡 Para evitar cierres inesperados, la ventana de Chrome permanecerá abierta.');
+      Logger.info('   Puedes revisar la página de Chrome o verificar la marca seleccionada.');
+      try {
+        if (process.stdin.isPaused()) process.stdin.resume();
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+        await new Promise<void>((resolve) => {
+          rl.question('\n>>> Presiona [ENTER] en esta terminal cuando desees cerrar el navegador: ', () => {
+            rl.close();
+            resolve();
+          });
+        });
+      } catch {}
+    }
+
     await context.close().catch(() => {});
   } catch (fatalError) {
     Logger.error('Error fatal durante la ejecución del scraper:', fatalError);
+    if (!options.headless) {
+      Logger.info('💡 Ventana de Chrome preservada para que puedas revisar lo que ocurrió.');
+      try {
+        if (process.stdin.isPaused()) process.stdin.resume();
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+        await new Promise<void>((resolve) => {
+          rl.question('\n>>> Presiona [ENTER] en esta terminal para finalizar y cerrar: ', () => {
+            rl.close();
+            resolve();
+          });
+        });
+      } catch {}
+    }
     process.exitCode = 1;
   } finally {
     if (session && session.browser) {

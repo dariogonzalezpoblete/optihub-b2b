@@ -101,60 +101,43 @@ export class SessionManager {
     try {
       Logger.info('Verificando si la sesión en NYWD ya está activa...');
 
-      // First check cookies in context
-      const cookies = await page.context().cookies();
-      const hasAuthCookie = cookies.some(
-        (c) => c.name === '.ASPXAUTH' || c.name === 'authdata' || c.name === 'UserID' || c.name === 'Username'
-      );
-
-      const currentUrl = page.url().toLowerCase();
-
-      // Only navigate if not already on an active NYWD page
-      if (!currentUrl.includes('nywd.com') || currentUrl.includes('/login') || currentUrl.includes('/404')) {
-        await page.goto(CONFIG.PROVIDER.CATALOG_URL, {
-          waitUntil: 'domcontentloaded',
-          timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
-        }).catch(() => {});
-        await page.waitForTimeout(1500);
-      } else {
-        await page.waitForTimeout(600);
-      }
+      // Navigate to new-home (the authenticated wholesale portal)
+      await page.goto(`${CONFIG.PROVIDER.BASE_URL}/new-home`, {
+        waitUntil: 'domcontentloaded',
+        timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
+      }).catch(() => {});
+      await page.waitForTimeout(1500);
 
       const activeUrl = page.url().toLowerCase();
 
       // If redirected to login, session has expired
-      if (activeUrl.includes('/login') || activeUrl.includes('signin')) {
-        Logger.warn('NYWD redirigió a la página de login. Es necesario iniciar sesión.');
+      if (activeUrl.includes('/login') || activeUrl.includes('signin') || activeUrl.includes('/404')) {
+        Logger.warn('NYWD redirigió a login. La sesión anterior ha expirado.');
         return false;
       }
 
-      // Check for password inputs indicating login view
+      // Check if password input is present
       const hasLoginForm = await page.$('input[type="password"]');
-      if (hasLoginForm && !activeUrl.includes('listing-brand')) {
+      if (hasLoginForm) {
         Logger.warn('Formulario de login detectado en la página. Sesión no activa.');
         return false;
       }
 
-      // Check for authenticated elements in DOM using valid CSS selectors
+      // Check for genuine authenticated indicators in DOM
       const isAuthenticated = await page.evaluate(() => {
         const text = document.body ? document.body.innerText.toLowerCase() : '';
         const hasLogout = !!document.querySelector('a[href*="logout" i], a[href*="signout" i], .logout, #btnlogout');
-        const hasAccount = !!document.querySelector('a[href*="my-account" i], a[href*="profile" i], .user-name, #account-dropdown') ||
-          text.includes('multifocus') ||
-          text.includes('my account') ||
-          text.includes('sign out');
-        const hasBrands = Array.from(document.querySelectorAll('a')).some(
-          (a) => (a.innerText || a.textContent || '').trim().toUpperCase() === 'BRANDS'
-        );
-        return hasLogout || hasAccount || hasBrands;
+        const hasAccount = !!document.querySelector('a[href*="my-account" i], a[href*="profile" i], .user-name, #account-dropdown');
+        const hasMultifocus = text.includes('multifocus') || text.includes('my account') || text.includes('sign out');
+        return hasLogout || hasAccount || hasMultifocus;
       }).catch(() => false);
 
-      if (hasAuthCookie || isAuthenticated) {
+      if (isAuthenticated) {
         Logger.success('✅ Sesión activa verificada: Acceso a NYWD confirmado sin pedir clave.');
         return true;
       }
 
-      Logger.warn('No se detectaron credenciales autenticadas en la página.');
+      Logger.warn('No se detectó sesión autenticada en NYWD. Abriendo ventana de login...');
       return false;
     } catch (err) {
       Logger.warn('Error al verificar el estado de la sesión:', err);
@@ -198,6 +181,8 @@ export class SessionManager {
     }
   }
 
+  private activeRl: readline.Interface | null = null;
+
   /**
    * Prompts the user in console to press Enter after completing captcha
    */
@@ -208,17 +193,35 @@ export class SessionManager {
       }
     } catch {}
 
+    if (this.activeRl) {
+      try {
+        this.activeRl.close();
+      } catch {}
+      this.activeRl = null;
+    }
+
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
     });
+    this.activeRl = rl;
 
     return new Promise((resolve) => {
       rl.question(`\n${message}\n>>> Presiona [ENTER] en esta terminal una vez que hayas iniciado sesión: `, () => {
         rl.close();
+        this.activeRl = null;
         resolve();
       });
     });
+  }
+
+  private closeActivePrompt(): void {
+    if (this.activeRl) {
+      try {
+        this.activeRl.close();
+      } catch {}
+      this.activeRl = null;
+    }
   }
 
   /**
@@ -370,23 +373,25 @@ export class SessionManager {
     }).catch(() => {});
 
     // Attempt auto-filling credentials if available
-    const user = CONFIG.PROVIDER.USERNAME;
+    const user = CONFIG.PROVIDER.USERNAME || 'multifocuslimitada@gmail.com';
     const pass = CONFIG.PROVIDER.PASSWORD;
-    if (user && pass) {
+    if (user) {
       try {
         const uInput = await page.$(
           '#txtusername, input[name="input-username"], input[name*="user" i], input[type="email"]'
         );
         if (uInput) await uInput.fill(user);
 
-        const pInput = await page.$(
-          '#txtpassword, input[name="input-password"], input[type="password"]'
-        );
-        if (pInput) await pInput.fill(pass);
+        if (pass) {
+          const pInput = await page.$(
+            '#txtpassword, input[name="input-password"], input[type="password"]'
+          );
+          if (pInput) await pInput.fill(pass);
+        }
 
         const rem = await page.$('#chkremember, input[type="checkbox"][name*="remember" i]');
         if (rem) await rem.check().catch(() => {});
-        Logger.info('Usuario y contraseña auto-completados exitosamente.');
+        Logger.info(`Usuario (${user}) preparado para auto-inicio de sesión.`);
       } catch (err) {
         Logger.debug('Nota de auto-rellenado:', err);
       }
@@ -399,9 +404,19 @@ export class SessionManager {
       await new Promise((r) => setTimeout(r, 2000));
 
       while (!isDone) {
-        await new Promise((r) => setTimeout(r, 1200));
+        await new Promise((r) => setTimeout(r, 1000));
         try {
           const url = page.url().toLowerCase();
+
+          // While on login, actively capture credentials as user types them
+          if (url.includes('/login') || url.includes('signin')) {
+            const uVal = await page.inputValue('#txtusername, input[name="input-username"]').catch(() => '');
+            const pVal = await page.inputValue('#txtpassword, input[name="input-password"]').catch(() => '');
+            if (uVal && pVal) {
+              this.saveCredentialsToEnv(uVal, pVal);
+            }
+          }
+
           const isNotOnLogin = url.startsWith('http') && !url.includes('/login') && !url.includes('signin') && !url.includes('/404');
 
           if (isNotOnLogin) {
@@ -428,6 +443,7 @@ export class SessionManager {
               if (hasAuthCookie || hasAuthElement) {
                 Logger.success(`¡Ingreso a NYWD detectado exitosamente en: ${page.url()}!`);
                 isDone = true;
+                this.closeActivePrompt();
                 break;
               }
             }
@@ -443,6 +459,7 @@ export class SessionManager {
 
     await Promise.race([autoDetector, userPrompt]);
     isDone = true;
+    this.closeActivePrompt();
 
     // Small delay to allow session cookies to settle
     await page.waitForTimeout(2000);
