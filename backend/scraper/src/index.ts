@@ -22,9 +22,16 @@ export function formatBrandName(b: string): string {
   if (lower === 'ic berlin' || lower === 'ic! berlin') return 'IC! Berlin';
   if (lower === 'bmw') return 'BMW';
   if (lower === 'dkny') return 'DKNY';
+  if (lower === 'ck') return 'Calvin Klein';
+  if (lower === 'ray ban' || lower === 'ray-ban') return 'Ray-Ban';
   return trimmed
     .split(/\s+/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .map((w) => {
+      return w
+        .split('-')
+        .map((sub) => sub.charAt(0).toUpperCase() + sub.slice(1).toLowerCase())
+        .join('-');
+    })
     .join(' ');
 }
 
