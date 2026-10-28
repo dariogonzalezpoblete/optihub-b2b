@@ -16,7 +16,33 @@ export class SessionManager {
   private authStatePath: string;
 
   constructor(customPath?: string) {
-    this.authStatePath = customPath || CONFIG.STORAGE.AUTH_STATE_PATH;
+    if (customPath && fs.existsSync(customPath)) {
+      this.authStatePath = customPath;
+    } else {
+      this.authStatePath = this.resolveBestAuthStatePath();
+    }
+  }
+
+  private resolveBestAuthStatePath(): string {
+    const candidatePaths = [
+      CONFIG.STORAGE.AUTH_STATE_PATH,
+      path.resolve(__dirname, '../../auth_state.json'),
+      path.resolve(process.cwd(), 'auth_state.json'),
+      path.resolve(process.cwd(), 'backend/scraper/auth_state.json'),
+    ];
+
+    for (const p of candidatePaths) {
+      if (p && fs.existsSync(p)) {
+        try {
+          const stats = fs.statSync(p);
+          if (stats.size > 20) {
+            return p;
+          }
+        } catch {}
+      }
+    }
+
+    return path.resolve(__dirname, '../../auth_state.json');
   }
 
   public getAuthStatePath(): string {
@@ -43,11 +69,17 @@ export class SessionManager {
    */
   public hasSavedState(): boolean {
     if (!fs.existsSync(this.authStatePath)) {
-      return false;
+      const alt = this.resolveBestAuthStatePath();
+      if (fs.existsSync(alt)) {
+        this.authStatePath = alt;
+      } else {
+        return false;
+      }
     }
+
     try {
       const stats = fs.statSync(this.authStatePath);
-      if (stats.size < 10) return false;
+      if (stats.size < 20) return false;
       const content = fs.readFileSync(this.authStatePath, 'utf-8');
       const parsed = JSON.parse(content);
       return Array.isArray(parsed.cookies) && parsed.cookies.length > 0;
@@ -61,37 +93,52 @@ export class SessionManager {
    */
   public async isSessionValid(page: Page): Promise<boolean> {
     try {
-      Logger.info('Verifying provider session state against catalog portal...');
+      Logger.info('Verificando validez de la sesión con NYWD...');
       await page.goto(CONFIG.PROVIDER.CATALOG_URL, {
         waitUntil: 'domcontentloaded',
         timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
       });
 
+      await page.waitForTimeout(1500);
       const currentUrl = page.url().toLowerCase();
 
       // If redirected to login, session has expired
       if (currentUrl.includes('/login') || currentUrl.includes('signin')) {
-        Logger.warn('Provider redirected to login. Session has expired or is invalid.');
+        Logger.warn('NYWD redirigió a la página de login. La sesión anterior ha expirado.');
         return false;
       }
 
       // Check for password inputs indicating login view
       const hasLoginForm = await page.$('input[type="password"]');
-      if (hasLoginForm && !currentUrl.includes('wholesale')) {
-        Logger.warn('Login form detected on portal page. Session is expired.');
+      if (hasLoginForm && !currentUrl.includes('wholesale') && !currentUrl.includes('listing-brand')) {
+        Logger.warn('Formulario de login detectado en la página. Sesión expirada.');
         return false;
       }
 
-      Logger.success('Session verified: Authenticated access to wholesale catalog confirmed.');
-      return true;
+      // Check for authenticated elements (e.g. brand navigation, account menu, prices)
+      const isAuthenticated = await page.evaluate(() => {
+        const url = window.location.href.toLowerCase();
+        const hasBrands = !!document.querySelector('#shop-brands, a[data-target="#shop-brands"], a[href*="listing-brand"]');
+        const hasAccount = !!document.querySelector('a[href*="logout"], a[href*="signout"], #account-dropdown, .user-name');
+        const hasPrices = document.body.innerText.includes('$');
+        return hasBrands || hasAccount || (url.includes('wholesale') && hasPrices);
+      });
+
+      if (isAuthenticated) {
+        Logger.success('Sesión activa verificada: Acceso al catálogo mayorista confirmado.');
+        return true;
+      }
+
+      Logger.warn('No se detectaron marcas de usuario autenticado en la página.');
+      return false;
     } catch (err) {
-      Logger.warn('Error while validating session state:', err);
+      Logger.warn('Error al verificar el estado de la sesión:', err);
       return false;
     }
   }
 
   /**
-   * Saves cookies and storage state to auth_state.json
+   * Saves cookies and storage state to auth_state.json in both scraper and root directories
    */
   public async persistState(context: BrowserContext): Promise<void> {
     try {
@@ -101,11 +148,29 @@ export class SessionManager {
       }
 
       await context.storageState({ path: this.authStatePath });
+
+      // Always sync to root optihub and backend/scraper so both always have identical credentials
+      const targets = [
+        path.resolve(__dirname, '../../auth_state.json'),
+        path.resolve(process.cwd(), 'auth_state.json'),
+        path.resolve(process.cwd(), 'backend/scraper/auth_state.json'),
+      ];
+
+      for (const target of targets) {
+        if (target !== this.authStatePath) {
+          try {
+            const tDir = path.dirname(target);
+            if (!fs.existsSync(tDir)) fs.mkdirSync(tDir, { recursive: true });
+            fs.copyFileSync(this.authStatePath, target);
+          } catch {}
+        }
+      }
+
       const stats = fs.statSync(this.authStatePath);
-      Logger.success(`Session state successfully saved to: ${this.authStatePath} (${stats.size} bytes).`);
-      Logger.info('Subsequent executions will be 100% automated reusing this session state.');
+      Logger.success(`Credenciales y cookies guardadas exitosamente en: ${this.authStatePath} (${stats.size} bytes).`);
+      Logger.info('Las siguientes ejecuciones reutilizarán automáticamente esta sesión.');
     } catch (err) {
-      Logger.error(`Failed to write session storage state: ${err}`);
+      Logger.error(`Error al guardar la sesión: ${err}`);
       throw err;
     }
   }
@@ -120,7 +185,7 @@ export class SessionManager {
     });
 
     return new Promise((resolve) => {
-      rl.question(`\n${message}\n>>> Presiona [ENTER] para continuar: `, () => {
+      rl.question(`\n${message}\n>>> Presiona [ENTER] en esta terminal una vez que hayas iniciado sesión: `, () => {
         rl.close();
         resolve();
       });
@@ -131,16 +196,22 @@ export class SessionManager {
    * Launches or re-launches browser engine
    */
   private async launchBrowser(headless: boolean): Promise<Browser> {
+    const launchArgs = [
+      '--start-maximized',
+      '--disable-blink-features=AutomationControlled',
+      '--no-sandbox',
+    ];
+
     try {
       return await chromium.launch({
         channel: 'chrome',
         headless,
-        args: ['--start-maximized', '--disable-blink-features=AutomationControlled'],
+        args: launchArgs,
       });
     } catch {
       return await chromium.launch({
         headless,
-        args: ['--start-maximized', '--disable-blink-features=AutomationControlled'],
+        args: launchArgs,
       });
     }
   }
@@ -172,20 +243,20 @@ export class SessionManager {
    * Ensures an active, verified session.
    * If session state exists and is valid -> runs 100% automated (respecting requested headless mode).
    * If state does not exist or expired -> switches to visible (headless: false), displays captcha instructions,
-   * pauses execution until user completes reCAPTCHA, and saves state to auth_state.json.
+   * waits until user actually completes login, and saves state to auth_state.json.
    */
   public async ensureAuthenticated(requestedHeadless: boolean = false): Promise<AuthContextSession> {
     const hasState = this.hasSavedState();
 
     if (hasState) {
-      Logger.info(`Found existing session file: ${this.authStatePath}. Testing session validity...`);
+      Logger.info(`Sesión previa encontrada en: ${this.authStatePath}. Verificando validez...`);
       const testBrowser = await this.launchBrowser(requestedHeadless);
       const testContext = await this.createContext(testBrowser, true);
       const testPage = await testContext.newPage();
 
       const isValid = await this.isSessionValid(testPage);
       if (isValid) {
-        Logger.success('Reusing existing valid session state without login.');
+        Logger.success('Reutilizando sesión guardada. No es necesario volver a ingresar contraseña.');
         return {
           context: testContext,
           page: testPage,
@@ -194,31 +265,30 @@ export class SessionManager {
         };
       }
 
-      Logger.warn('Saved session has expired. Closing test instance and switching to interactive visible mode...');
+      Logger.warn('La sesión guardada ha expirado en el servidor de NYWD. Se abrirá Chrome visible para reautenticar.');
       await testPage.close().catch(() => {});
       await testContext.close().catch(() => {});
       await testBrowser.close().catch(() => {});
     } else {
-      Logger.info('No auth_state.json found. An initial visible authentication session is required.');
+      Logger.info('No se encontró archivo de sesión activo. Es necesario autenticarse una vez en Chrome.');
     }
 
     // ─────────────────────────────────────────────────────────────
-    // INTERACTIVE LOGIN FLOW (FORCED HEADLESS: FALSE FOR RECAPTCHA)
+    // INTERACTIVE LOGIN FLOW (ALWAYS HEADLESS: FALSE FOR RECAPTCHA)
     // ─────────────────────────────────────────────────────────────
-    Logger.info('Launching visible Google Chrome window (headless: false) for manual reCAPTCHA authentication...');
-    const authBrowser = await this.launchBrowser(false); // ALWAYS visible for captcha
-    const authContext = await this.createContext(authBrowser, false);
+    Logger.info('Iniciando Google Chrome en modo visible para resolver Captcha e iniciar sesión...');
+    const authBrowser = await this.launchBrowser(false);
+    const authContext = await this.createContext(authBrowser, this.hasSavedState());
     const authPage = await authContext.newPage();
 
     console.log('\n╔════════════════════════════════════════════════════════════════════╗');
-    console.log('║        🔐 AUTENTICACIÓN ASISTIDA REQUERIDA (nywd.com)              ║');
+    console.log('║        🔐 INICIO DE SESIÓN EN NYWD (nywd.com)                       ║');
     console.log('╠════════════════════════════════════════════════════════════════════╣');
-    console.log('║ 1. Se ha abierto Google Chrome en modo visible.                   ║');
-    console.log('║ 2. Ingresa tu correo y contraseña si no están precargados.         ║');
-    console.log('║ 3. Marca la casilla "Remember me / Recordar sesión".               ║');
-    console.log('║ 4. RESUELVE el reCAPTCHA y haz clic en "SIGN IN".                  ║');
-    console.log('║ 5. El bot detectará tu ingreso al catálogo o puedes presionar      ║');
-    console.log('║    [ENTER] en esta terminal tras estar autenticado.                ║');
+    console.log('║ 1. Se ha abierto Google Chrome en tu pantalla.                    ║');
+    console.log('║ 2. Ingresa tu usuario y clave (o confírmalos si ya cargaron).     ║');
+    console.log('║ 3. Marca la casilla "Remember username / Recordar sesión".        ║');
+    console.log('║ 4. RESUELVE el reCAPTCHA y presiona el botón "SIGN IN".           ║');
+    console.log('║ 5. El bot recordará tu sesión para las próximas veces.             ║');
     console.log('╚════════════════════════════════════════════════════════════════════╝\n');
 
     await authPage.goto(CONFIG.PROVIDER.LOGIN_URL, {
@@ -226,48 +296,76 @@ export class SessionManager {
       timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
     });
 
+    // Wait until login form is genuinely rendered in DOM (prevent premature auto-detection)
+    await authPage.waitForSelector('#txtpassword, input[type="password"], #txtusername', {
+      timeout: 15000,
+    }).catch(() => {});
+
     // Attempt auto-filling credentials if provided in env
     const user = CONFIG.PROVIDER.USERNAME;
     const pass = CONFIG.PROVIDER.PASSWORD;
     if (user && pass) {
       try {
         const uInput = await authPage.$(
-          'input[name*="user" i], input[id*="user" i], input[name*="email" i], input[type="email"], #txtUsername'
+          '#txtusername, input[name="input-username"], input[name*="user" i], input[type="email"]'
         );
         if (uInput) await uInput.fill(user);
 
         const pInput = await authPage.$(
-          'input[name*="pass" i], input[id*="pass" i], input[type="password"], #txtPassword'
+          '#txtpassword, input[name="input-password"], input[type="password"]'
         );
         if (pInput) await pInput.fill(pass);
 
-        const rem = await authPage.$('input[type="checkbox"][name*="remember" i], #chkRemember');
+        const rem = await authPage.$('#chkremember, input[type="checkbox"][name*="remember" i]');
         if (rem) await rem.check().catch(() => {});
       } catch (err) {
-        Logger.debug('Auto-fill note:', err);
+        Logger.debug('Nota de auto-rellenado:', err);
       }
     }
 
-    // Wait for user confirmation OR automatic navigation detection
+    // Wait for user confirmation OR robust automatic navigation detection
     let isDone = false;
 
     const autoDetector = (async () => {
+      // Small initial wait to allow page load
+      await new Promise((r) => setTimeout(r, 2000));
+
       while (!isDone) {
-        await new Promise((r) => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 1200));
         try {
           const url = authPage.url().toLowerCase();
-          const hasPwd = await authPage.$('input[type="password"]');
-          if ((url.includes('wholesale') || url.includes('listing-brand') || !url.includes('login')) && !hasPwd) {
-            Logger.success(`¡Ingreso detectado automáticamente en la URL!: ${authPage.url()}`);
-            isDone = true;
-            break;
+
+          // Must NOT be about:blank and must NOT be on login page
+          const isNotOnLogin = url.startsWith('http') && !url.includes('/login') && !url.includes('signin');
+
+          if (isNotOnLogin) {
+            // Confirm password input is absent
+            const hasPwd = await authPage.$('input[type="password"]');
+            if (!hasPwd) {
+              const cookies = await authContext.cookies();
+              const hasAuthCookie = cookies.some(
+                (c) => c.name === '.ASPXAUTH' || c.name === 'authdata' || c.name === 'ASP.NET_SessionId'
+              );
+
+              if (
+                hasAuthCookie ||
+                url.includes('wholesale') ||
+                url.includes('new-home') ||
+                url.includes('listing-brand') ||
+                url.includes('account')
+              ) {
+                Logger.success(`¡Ingreso a NYWD detectado exitosamente en: ${authPage.url()}!`);
+                isDone = true;
+                break;
+              }
+            }
           }
         } catch {}
       }
     })();
 
     const userPrompt = (async () => {
-      await this.promptUserKey('👉 Por favor, resuelve el reCAPTCHA en Chrome y haz clic en "SIGN IN".');
+      await this.promptUserKey('👉 Por favor resuelve el reCAPTCHA en Chrome y presiona "SIGN IN".');
       isDone = true;
     })();
 
@@ -277,15 +375,16 @@ export class SessionManager {
     // Small delay to allow session cookies to settle
     await authPage.waitForTimeout(2000);
 
-    // Navigate to catalog to guarantee full wholesale cookies
+    // If still on login page, navigate to wholesale catalog to confirm
     if (authPage.url().toLowerCase().includes('login')) {
       await authPage.goto(CONFIG.PROVIDER.CATALOG_URL, {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       }).catch(() => {});
+      await authPage.waitForTimeout(1500);
     }
 
-    // Persist session to auth_state.json
+    // Persist session to auth_state.json across both directories
     await this.persistState(authContext);
 
     return {

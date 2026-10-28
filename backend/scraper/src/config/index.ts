@@ -1,9 +1,28 @@
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 
 // Load .env from backend/scraper or root
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config();
+
+function resolveAuthStatePath(): string {
+  if (process.env.AUTH_STATE_FILE) {
+    return path.resolve(process.cwd(), process.env.AUTH_STATE_FILE);
+  }
+  const scraperPath = path.resolve(__dirname, '../../auth_state.json');
+  if (fs.existsSync(scraperPath)) return scraperPath;
+  const rootPath = path.resolve(process.cwd(), 'auth_state.json');
+  if (fs.existsSync(rootPath)) return rootPath;
+  return scraperPath;
+}
+
+function resolveSessionDir(): string {
+  if (process.env.SESSION_DIR) {
+    return path.resolve(process.cwd(), process.env.SESSION_DIR);
+  }
+  return path.resolve(__dirname, '../../sesion_navegador');
+}
 
 export const CONFIG = {
   // Provider URLs
@@ -17,8 +36,8 @@ export const CONFIG = {
 
   // Session & Storage
   STORAGE: {
-    AUTH_STATE_PATH: path.resolve(process.cwd(), process.env.AUTH_STATE_FILE || 'auth_state.json'),
-    SESSION_DIR: path.resolve(process.cwd(), 'sesion_navegador'),
+    AUTH_STATE_PATH: resolveAuthStatePath(),
+    SESSION_DIR: resolveSessionDir(),
   },
 
   // Supabase
