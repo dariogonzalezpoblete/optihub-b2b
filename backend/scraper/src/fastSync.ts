@@ -71,11 +71,16 @@ export async function runFastSync(customOptions?: FastSyncOptions): Promise<Fast
     for (let i = 0; i < options.brands.length; i++) {
       const brand = options.brands[i];
       Logger.info(`\n[${i + 1}/${options.brands.length}] 🔄 Sincronizando stock y precios para '${brand}'...`);
-      await catalogRunner.scrapeBrand(page, context, brand, options);
+      try {
+        await catalogRunner.scrapeBrand(page, context, brand, options);
 
-      const rep = catalogRunner.getLastReportForBrand(brand);
-      if (rep) {
-        brandReports.push(rep);
+        const rep = catalogRunner.getLastReportForBrand(brand);
+        if (rep) {
+          brandReports.push(rep);
+        }
+      } catch (brandErr) {
+        Logger.error(`Error sincronizando '${brand}':`, brandErr);
+        Logger.info(`Omitiendo '${brand}' y continuando de forma segura...`);
       }
     }
 

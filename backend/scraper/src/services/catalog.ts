@@ -15,6 +15,74 @@ import {
 import { CONFIG } from '../config';
 import { Logger } from '../utils/logger';
 
+export function levenshteinDistance(s1: string, s2: string): number {
+  const m = s1.length;
+  const n = s2.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+export function stringSimilarity(s1: string, s2: string): number {
+  const str1 = s1.toLowerCase().trim();
+  const str2 = s2.toLowerCase().trim();
+  if (str1 === str2) return 1.0;
+  const maxLen = Math.max(str1.length, str2.length);
+  if (maxLen === 0) return 1.0;
+  return 1 - levenshteinDistance(str1, str2) / maxLen;
+}
+
+export function normalizeForFuzzy(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .replace(/([a-z])\1+/g, '$1');
+}
+
+export const BRAND_ALIASES: Record<string, string> = {
+  'phillipp plein': 'Philipp Plein',
+  'philip plein': 'Philipp Plein',
+  'philipp plein': 'Philipp Plein',
+  'plein': 'Philipp Plein',
+  'ck': 'Calvin Klein',
+  'calvin klein': 'Calvin Klein',
+  'ic berlin': 'IC! Berlin',
+  'ic! berlin': 'IC! Berlin',
+  'ray ban': 'Ray-Ban',
+  'ray-ban': 'Ray-Ban',
+  'rayban': 'Ray-Ban',
+  'tom ford': 'Tom Ford',
+  'hugo boss': 'Hugo',
+  'boss': 'Boss',
+  'armani exchange': 'Armani Exchange',
+  'emporio armani': 'Emporio Armani',
+  'giorgio armani': 'Giorgio Armani',
+  'dolce gabbana': 'Dolce & Gabbana',
+  'dolce & gabbana': 'Dolce & Gabbana',
+  'd&g': 'Dolce & Gabbana',
+  'kate spade': 'Kate Spade',
+  'marc jacobs': 'Marc Jacobs',
+  'tiffany': 'Tiffany & Co.',
+  'tiffany & co': 'Tiffany & Co.',
+  'oakly': 'Oakley',
+  'oakley': 'Oakley',
+};
+
 export class CatalogRunner {
   private interceptor: NetworkInterceptor;
   private imageOptimizer: ImageOptimizer;
@@ -69,7 +137,7 @@ export class CatalogRunner {
     // 2. Navigate to brand catalog in nywd.com
     const opened = await this.navigateToBrandCatalog(page, brand);
     if (!opened) {
-      Logger.warn(`No se pudo acceder automáticamente al catálogo de '${brand}'.`);
+      Logger.warn(`No se pudo acceder automáticamente al catálogo de '${brand}'. Se omitirá de forma segura.`);
       return [];
     }
 
@@ -125,6 +193,11 @@ export class CatalogRunner {
       pageNum++;
     }
 
+    if (scannedProducts.size === 0) {
+      Logger.warn(`No se encontraron productos para '${brand}'. Protegiendo catálogo: se mantiene intacto.`);
+      return [];
+    }
+
     const allValid = Array.from(scannedProducts.values()).filter(
       (p) => p.stock > options.minStock
     );
@@ -144,7 +217,6 @@ export class CatalogRunner {
       for (const prod of scannedProducts.values()) {
         const existing = existingCache.get(prod.id_ext);
         if (!existing) {
-          // En modo rápido solo actualizamos productos existentes para proteger galería y descripciones
           continue;
         }
 
@@ -212,7 +284,7 @@ export class CatalogRunner {
         Logger.info(`[DRY-RUN] Simulación: Se actualizaría stock y precios de ${itemsToUpdate.length} productos.`);
       }
 
-      // 2. Conciliación controlada: productos en DB que ya no aparecen en el proveedor quedan con stock 0 (sin borrar)
+      // 2. Conciliación controlada: productos en DB que ya no aparecen en el proveedor quedan con stock 0
       let outOfStockCount = 0;
       if (!options.dryRun && this.supabaseService?.isConfigured()) {
         const outRes = await this.supabaseService.markOutOfStockBatch(brand, scannedIds, existingCache);
@@ -382,7 +454,7 @@ export class CatalogRunner {
     // ─────────────────────────────────────────────────────────────
     // 8. CONCILIACIÓN CONTROLADA DE DISCONTINUADOS (STOCK = 0)
     // ─────────────────────────────────────────────────────────────
-    if (!options.dryRun && this.supabaseService?.isConfigured()) {
+    if (!options.dryRun && this.supabaseService?.isConfigured() && scannedIds.size > 0) {
       await this.supabaseService.markOutOfStockBatch(brand, scannedIds, existingCache);
     }
 
@@ -404,7 +476,7 @@ export class CatalogRunner {
    */
   private async fetchProductDetailsHttp(
     urlOrId: string,
-    cookieHeader: string
+    cookieHeader?: string
   ): Promise<{
     mainImage: string;
     secImage: string;
@@ -613,7 +685,6 @@ export class CatalogRunner {
             const stockMatch = text.match(/(?:Qty|Stock|Quantity)\s*:?\s*(\d+)/i);
             if (stockMatch) stock = parseInt(stockMatch[1], 10);
           }
-          // El proveedor en origen tiene tope máximo de 50+
           stock = Math.min(50, Math.max(0, stock || 1));
 
           const imgEl = card.querySelector<HTMLImageElement>('img[src*="pictures/"], img');
@@ -648,22 +719,16 @@ export class CatalogRunner {
       const products: OptiHubProduct[] = [];
       for (const raw of rawCards) {
         let productBrand = brandName;
-        const mUpper = (raw.model || '').toUpperCase();
-        if (mUpper.startsWith('NIKE')) productBrand = 'Nike';
-        else if (mUpper.startsWith('ADIDAS')) productBrand = 'Adidas';
-        else if (mUpper.startsWith('GUESS')) productBrand = 'Guess';
-        else if (mUpper.startsWith('TOM FORD')) productBrand = 'Tom Ford';
-        else if (mUpper.startsWith('LACOSTE')) productBrand = 'Lacoste';
-        else if (mUpper.startsWith('CALVIN KLEIN')) productBrand = 'Calvin Klein';
-        else if (mUpper.startsWith('BOLLE')) productBrand = 'Bolle';
-        else if (mUpper.startsWith('HARLEY')) productBrand = 'Harley Davidson';
-        else if (mUpper.startsWith('HUGO')) productBrand = 'Hugo';
-        else if (mUpper.startsWith('ZEISS')) productBrand = 'Zeiss';
-        else if (mUpper.startsWith('IC BERLIN') || mUpper.startsWith('IC! BERLIN') || (brandName || '').toLowerCase().includes('berlin')) productBrand = 'IC! Berlin';
-        else if ((brandName || '').toLowerCase() === 'bmw') productBrand = 'BMW';
-        else if ((brandName || '').toLowerCase() === 'dkny') productBrand = 'DKNY';
-        else {
-          productBrand = (brandName || '').trim().split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        const bLower = (brandName || '').toLowerCase();
+        if (bLower.includes('plein')) productBrand = 'Philipp Plein';
+        else if (bLower.includes('berlin')) productBrand = 'IC! Berlin';
+        else if (bLower === 'bmw') productBrand = 'BMW';
+        else if (bLower === 'dkny') productBrand = 'DKNY';
+        else if (bLower === 'ck' || bLower.includes('calvin')) productBrand = 'Calvin Klein';
+        else if (brandName) {
+          productBrand = brandName.trim();
+        } else {
+          productBrand = 'Desconocida';
         }
 
         const cleanSku = (raw.model || 'OPT').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
@@ -705,29 +770,32 @@ export class CatalogRunner {
   }
 
   /**
-   * Navigates to the brand catalog by hovering/clicking BRANDS mega-menu or searching
+   * Navigates to the brand catalog with intelligent fuzzy matching and validation
    */
   private async navigateToBrandCatalog(page: Page, brand: string): Promise<boolean> {
-    const brandClean = brand.toLowerCase().trim();
-    const currentUrl = page.url().toLowerCase();
+    const brandLower = brand.toLowerCase().trim();
+    const resolvedBrand = BRAND_ALIASES[brandLower] || brand;
+    const resolvedLower = resolvedBrand.toLowerCase().trim();
+    const normTarget = normalizeForFuzzy(resolvedLower);
 
     // 1. Check if current page is explicitly the requested brand's listing
-    const isAlreadyOnBrand = await page.evaluate((targetBrand) => {
+    const isAlreadyOnBrand = await page.evaluate((target) => {
       const pageTitle = (document.title || '').toLowerCase();
       const h1Text = (document.querySelector('h1, .page-title, .brand-title')?.textContent || '').toLowerCase();
       const activeBrand = (document.querySelector('#shop-brands a.active, .breadcrumb')?.textContent || '').toLowerCase();
-      const tb = targetBrand.toLowerCase().trim();
-      return (pageTitle.includes(tb) || h1Text.includes(tb) || activeBrand.includes(tb)) && window.location.href.includes('listing-brand');
-    }, brand);
+      const t = target.toLowerCase().trim();
+      return (pageTitle.includes(t) || h1Text.includes(t) || activeBrand.includes(t)) && window.location.href.includes('listing-brand');
+    }, resolvedBrand);
 
     if (isAlreadyOnBrand) {
-      Logger.info(`Ya estás en la página de '${brand}': ${page.url()}`);
+      Logger.info(`Ya estás en la página de '${resolvedBrand}': ${page.url()}`);
       return true;
     }
 
-    Logger.info(`Buscando marca '${brand}' en menú BRANDS y barra de búsqueda...`);
+    Logger.info(`Buscando marca '${resolvedBrand}' en catálogo de NYWD...`);
 
-    if (!currentUrl.includes('new-home') && !currentUrl.includes('wholesale')) {
+    const currentUrl = page.url().toLowerCase();
+    if (!currentUrl.includes('new-home') && !currentUrl.includes('wholesale') && !currentUrl.includes('listing-brand')) {
       await page.goto(`${CONFIG.PROVIDER.BASE_URL}/new-home`, {
         waitUntil: 'domcontentloaded',
         timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
@@ -735,7 +803,7 @@ export class CatalogRunner {
       await page.waitForTimeout(1000);
     }
 
-    // 2. Hover over BRANDS to open the mega-menu
+    // 2. Open BRANDS mega-menu
     try {
       const brandsMenuActivator = page
         .locator('a[data-target="#shop-brands"], a:has-text("Brands"), a:text-matches("^BRANDS$", "i")')
@@ -743,56 +811,87 @@ export class CatalogRunner {
 
       if (await brandsMenuActivator.isVisible({ timeout: 3000 }).catch(() => false)) {
         await brandsMenuActivator.hover().catch(() => {});
+        await brandsMenuActivator.click().catch(() => {});
         await page.waitForTimeout(600);
       }
+    } catch {}
 
-      // Check #shop-brands container links
-      const foundHref = await page.evaluate((targetBrand) => {
-        const brandBox = document.querySelector('#shop-brands') || document.querySelector('#ctl00_ctl03_BrandList') || document;
-        const links = Array.from(brandBox.querySelectorAll<HTMLAnchorElement>('a'));
-        const tb = targetBrand.toLowerCase().trim();
+    // Extract all candidate brand links from the entire DOM
+    const candidateLinks = await page.evaluate(() => {
+      const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a'));
+      const list: Array<{ text: string; href: string }> = [];
+      const seen = new Set<string>();
 
-        for (const a of links) {
-          const text = (a.innerText || a.textContent || '').trim().replace(/\s*\(\d+\)$/, '').toLowerCase();
-          if (text === tb && a.href && !a.href.endsWith('#')) {
-            return a.href;
+      for (const a of links) {
+        const href = a.href || '';
+        if (!href || href.endsWith('#') || href.includes('javascript:')) continue;
+        const text = (a.innerText || a.textContent || '').trim();
+        if (!text || text.length < 2) continue;
+
+        const isBrandContainer = a.closest('#shop-brands, [id*="BrandList"], .dropdown-menu, .mega-menu') !== null;
+        const isBrandHref = href.includes('listing-brand') || href.includes('brand=') || href.includes('/brand');
+
+        if (isBrandContainer || isBrandHref) {
+          const cleanText = text.replace(/\s*\(\d+\)$/, '').trim();
+          const key = `${cleanText.toLowerCase()}|${href}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            list.push({ text: cleanText, href });
           }
         }
-
-        for (const a of links) {
-          const text = (a.innerText || a.textContent || '').trim().toLowerCase();
-          if (text.startsWith(tb) && a.href && a.href.includes('listing-brand')) {
-            return a.href;
-          }
-        }
-
-        for (const a of links) {
-          const text = (a.innerText || a.textContent || '').trim().toLowerCase();
-          if (text.includes(tb) && a.href && a.href.includes('listing-brand')) {
-            return a.href;
-          }
-        }
-
-        return null;
-      }, brand);
-
-      if (foundHref) {
-        Logger.success(`Enlace de marca encontrado en menú BRANDS: ${foundHref}`);
-        await page.goto(foundHref, {
-          waitUntil: 'domcontentloaded',
-          timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
-        });
-        await page.waitForTimeout(2000);
-        return true;
       }
-    } catch (e) {
-      Logger.debug('Menu hover attempt note:', e);
+      return list;
+    });
+
+    Logger.info(`Enlaces de marcas detectados en menú: ${candidateLinks.length}`);
+
+    // Match candidate link using multi-tiered fuzzy matching
+    let bestLink: { text: string; href: string; score: number } | null = null;
+
+    for (const item of candidateLinks) {
+      const itemLower = item.text.toLowerCase().trim();
+      const itemNorm = normalizeForFuzzy(itemLower);
+
+      // Exact match
+      if (itemLower === resolvedLower || itemLower === brandLower) {
+        bestLink = { ...item, score: 1.0 };
+        break;
+      }
+
+      // Normalized match (handles duplicate letters, hyphens, accents)
+      if (itemNorm === normTarget) {
+        bestLink = { ...item, score: 0.98 };
+        break;
+      }
+
+      // Word-containment match (e.g. "Plein" in "Philipp Plein")
+      if (itemLower.includes(resolvedLower) || resolvedLower.includes(itemLower)) {
+        const score = 0.90;
+        if (!bestLink || score > bestLink.score) {
+          bestLink = { ...item, score };
+        }
+      }
+
+      // String similarity score (Levenshtein distance)
+      const sim = stringSimilarity(itemNorm, normTarget);
+      if (sim >= 0.80 && (!bestLink || sim > bestLink.score)) {
+        bestLink = { ...item, score: sim };
+      }
     }
 
-    // 3. Fallback: Search bar
-    try {
-      Logger.info(`Buscando '${brand}' usando la barra de búsqueda superior...`);
+    if (bestLink && bestLink.score >= 0.80) {
+      Logger.success(`Marca '${resolvedBrand}' encontrada en NYWD: '${bestLink.text}' (confianza ${(bestLink.score * 100).toFixed(0)}%). Navegando...`);
+      await page.goto(bestLink.href, {
+        waitUntil: 'domcontentloaded',
+        timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
+      });
+      await page.waitForTimeout(2000);
+      return true;
+    }
 
+    // 3. Fallback: Search bar with strict brand verification
+    try {
+      Logger.info(`Buscando '${resolvedBrand}' mediante la barra de búsqueda de NYWD...`);
       const searchToggle = page.locator('#searchToggle, img[alt*="search" i], .search-icon').first();
       if (await searchToggle.isVisible({ timeout: 2000 }).catch(() => false)) {
         await searchToggle.click().catch(() => {});
@@ -809,7 +908,7 @@ export class CatalogRunner {
           }
         });
 
-        await searchInput.fill(brand);
+        await searchInput.fill(resolvedBrand);
         await searchInput.press('Enter');
 
         const searchHeaderBtn = page.locator('#ctl00_ctl03_SearchHeader').first();
@@ -820,32 +919,60 @@ export class CatalogRunner {
         await page.waitForLoadState('domcontentloaded', { timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS }).catch(() => {});
         await page.waitForTimeout(2000);
 
-        if (page.url().toLowerCase().includes('search') || page.url().toLowerCase().includes('listing')) {
-          Logger.success(`Búsqueda de '${brand}' aplicada: ${page.url()}`);
+        // Verify search result genuinely belongs to the target brand (not Calvin Klein or empty)
+        const searchValid = await page.evaluate((target) => {
+          const t = target.toLowerCase();
+          const pageTitle = (document.title || '').toLowerCase();
+          const h1Text = (document.querySelector('h1, .page-title, .brand-title')?.textContent || '').toLowerCase();
+          if (pageTitle.includes(t) || h1Text.includes(t)) return true;
+
+          const cards = Array.from(document.querySelectorAll('.product-item, div[data-product-id]'));
+          if (cards.length === 0) return false;
+          let matches = 0;
+          for (const c of cards.slice(0, 10)) {
+            if ((c.textContent || '').toLowerCase().includes(t)) matches++;
+          }
+          return matches >= 1;
+        }, resolvedBrand);
+
+        if (searchValid) {
+          Logger.success(`Búsqueda verificada: '${resolvedBrand}' confirmada en: ${page.url()}`);
           return true;
+        } else {
+          Logger.warn(`La búsqueda de '${resolvedBrand}' no arrojó productos de esa marca.`);
         }
       }
     } catch (e) {
-      Logger.warn(`Error en búsqueda por barra de texto:`, e);
+      Logger.debug(`Nota en búsqueda por texto:`, e);
     }
 
-    // 4. Interactive fallback
-    Logger.info('Esperando selección manual de la marca en Chrome...');
+    // 4. Interactive fallback with strict validation
+    const startUrl = page.url();
+    Logger.info(`Esperando selección manual de '${resolvedBrand}' en Chrome...`);
     console.log('\n' + '═'.repeat(65));
-    console.log(`👉 Por favor, ve a Chrome y haz clic en '${brand}' dentro de BRANDS.`);
-    console.log('   (El bot detectará automáticamente cuando ingreses al catálogo).');
+    console.log(`👉 Por favor, ve a Chrome y haz clic en '${resolvedBrand}' en el menú BRANDS.`);
+    console.log(`   (El bot detectará automáticamente cuando abras '${resolvedBrand}').`);
     console.log('═'.repeat(65) + '\n');
 
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 30; i++) {
       await page.waitForTimeout(1000);
-      const curr = page.url().toLowerCase();
-      if (curr.includes('listing-brand') || curr.includes('search') || curr.includes('product')) {
-        Logger.success(`¡Navegación al catálogo detectada en Chrome!: ${page.url()}`);
-        await page.waitForTimeout(1500);
-        return true;
+      const currUrl = page.url();
+      if (currUrl !== startUrl) {
+        const matchesTarget = await page.evaluate((target) => {
+          const bodyText = (document.body ? document.body.innerText : '').toLowerCase();
+          const t = target.toLowerCase();
+          return bodyText.includes(t) && (window.location.href.includes('listing-brand') || window.location.href.includes('search'));
+        }, resolvedBrand);
+
+        if (matchesTarget) {
+          Logger.success(`¡Navegación al catálogo de '${resolvedBrand}' detectada en Chrome!: ${page.url()}`);
+          await page.waitForTimeout(1500);
+          return true;
+        }
       }
     }
 
+    Logger.warn(`No se logró ingresar al catálogo de '${resolvedBrand}'. Se omitirá de forma segura.`);
     return false;
   }
 
@@ -865,14 +992,27 @@ export class CatalogRunner {
   }
 
   /**
-   * Advances pagination robustly using direct button click or Next arrow,
-   * verifying DOM state change so all catalog pages are traversed until the end.
+   * Advances pagination robustly using direct button click or Next arrow.
+   * If brand has only 1 page, exits immediately without hanging.
    */
   private async advancePage(page: Page, currentPageNum: number): Promise<boolean> {
     const nextPageNum = currentPageNum + 1;
     const targetNum = String(nextPageNum);
 
     try {
+      // 0. Check if pagination exists at all on this page
+      const hasPagination = await page.evaluate(() => {
+        const pagers = document.querySelectorAll(
+          '.pagination, .pager, #ctl00_ctl03_Pager, a[onclick*="goToPage"], a[href*="Page$"]'
+        );
+        return pagers.length > 0;
+      });
+
+      if (!hasPagination) {
+        Logger.info(`La marca tiene una sola página (sin controles de paginación adicionales).`);
+        return false;
+      }
+
       // 1. Snapshot first few product IDs before navigating
       const currentIds = await page.evaluate(() =>
         Array.from(document.querySelectorAll('.product-item'))
@@ -881,11 +1021,11 @@ export class CatalogRunner {
           .slice(0, 5)
       );
 
-      // 2. Scroll to bottom of catalog to ensure pagination controls are rendered
+      // 2. Scroll to bottom of catalog
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       await page.waitForTimeout(400);
 
-      // 3. Locate direct numeric page link (e.g. goToPage(2), '2', Page$2)
+      // 3. Locate direct numeric page link
       const directBtn = page.locator(
         `a[onclick*="goToPage(${targetNum})"], a:text-matches('^${targetNum}$'), a[href*="Page$${targetNum}"]`
       ).first();
@@ -913,19 +1053,6 @@ export class CatalogRunner {
             nextArrow.click().catch(() => nextArrow.dispatchEvent('click')),
           ]);
           clicked = true;
-        } else {
-          // 5. Fallback: execute goToPage asynchronously via detached setTimeout so context destruction doesn't throw
-          const hasGoToPage = await page.evaluate(() => typeof (window as any).goToPage === 'function');
-          if (hasGoToPage) {
-            Logger.info(`Ejecutando goToPage(${targetNum}) desacoplado...`);
-            await Promise.all([
-              page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {}),
-              page.evaluate((target) => {
-                setTimeout(() => (window as any).goToPage(target), 50);
-              }, nextPageNum),
-            ]);
-            clicked = true;
-          }
         }
       }
 
@@ -937,7 +1064,7 @@ export class CatalogRunner {
       // Allow DOM to settle
       await page.waitForTimeout(1500);
 
-      // 6. Verify page transition by inspecting newly loaded product IDs
+      // 5. Verify page transition
       const newIds = await page.evaluate(() =>
         Array.from(document.querySelectorAll('.product-item'))
           .map((c) => c.getAttribute('data-product-id'))

@@ -19,11 +19,38 @@ export function formatBrandName(b: string): string {
   const trimmed = b.trim();
   if (!trimmed) return '';
   const lower = trimmed.toLowerCase();
-  if (lower === 'ic berlin' || lower === 'ic! berlin') return 'IC! Berlin';
-  if (lower === 'bmw') return 'BMW';
-  if (lower === 'dkny') return 'DKNY';
-  if (lower === 'ck') return 'Calvin Klein';
-  if (lower === 'ray ban' || lower === 'ray-ban') return 'Ray-Ban';
+
+  const BRAND_MAP: Record<string, string> = {
+    'phillipp plein': 'Philipp Plein',
+    'philip plein': 'Philipp Plein',
+    'philipp plein': 'Philipp Plein',
+    'plein': 'Philipp Plein',
+    'ic berlin': 'IC! Berlin',
+    'ic! berlin': 'IC! Berlin',
+    'bmw': 'BMW',
+    'dkny': 'DKNY',
+    'ck': 'Calvin Klein',
+    'calvin klein': 'Calvin Klein',
+    'ray ban': 'Ray-Ban',
+    'ray-ban': 'Ray-Ban',
+    'rayban': 'Ray-Ban',
+    'tom ford': 'Tom Ford',
+    'hugo boss': 'Hugo',
+    'boss': 'Boss',
+    'armani exchange': 'Armani Exchange',
+    'emporio armani': 'Emporio Armani',
+    'giorgio armani': 'Giorgio Armani',
+    'dolce gabbana': 'Dolce & Gabbana',
+    'dolce & gabbana': 'Dolce & Gabbana',
+    'd&g': 'Dolce & Gabbana',
+    'kate spade': 'Kate Spade',
+    'marc jacobs': 'Marc Jacobs',
+  };
+
+  if (BRAND_MAP[lower]) {
+    return BRAND_MAP[lower];
+  }
+
   return trimmed
     .split(/\s+/)
     .map((w) => {
@@ -188,14 +215,19 @@ async function main() {
       const brand = options.brands[bIndex];
       Logger.info(`\n[${bIndex + 1}/${options.brands.length}] 🔄 Iniciando procesamiento de marca: '${brand}'...`);
 
-      const brandProducts = await catalogRunner.scrapeBrand(page, context, brand, options);
-      allExtractedProducts.push(...brandProducts);
+      try {
+        const brandProducts = await catalogRunner.scrapeBrand(page, context, brand, options);
+        allExtractedProducts.push(...brandProducts);
 
-      if (brandProducts.length > 0) {
-        // Save local backup JSON
-        const exportFile = `catalog_${brand.toLowerCase().replace(/[^a-z0-9]/g, '_')}.json`;
-        fs.writeFileSync(exportFile, JSON.stringify(brandProducts, null, 2), 'utf-8');
-        Logger.info(`Saved local JSON backup of ${brandProducts.length} items to ${exportFile}`);
+        if (brandProducts.length > 0) {
+          // Save local backup JSON
+          const exportFile = `catalog_${brand.toLowerCase().replace(/[^a-z0-9]/g, '_')}.json`;
+          fs.writeFileSync(exportFile, JSON.stringify(brandProducts, null, 2), 'utf-8');
+          Logger.info(`Saved local JSON backup of ${brandProducts.length} items to ${exportFile}`);
+        }
+      } catch (brandErr) {
+        Logger.error(`Error al procesar la marca '${brand}':`, brandErr);
+        Logger.info(`Omitiendo '${brand}' y continuando de forma segura con la siguiente marca...`);
       }
     }
 

@@ -18,6 +18,10 @@ async function main() {
   }
 
   const supabase = supabaseService.getClient();
+  if (!supabase) {
+    Logger.error('Supabase client no configurado');
+    process.exit(1);
+  }
 
   Logger.info('Cargando catálogo completo desde Supabase...');
   const allProducts: any[] = [];
