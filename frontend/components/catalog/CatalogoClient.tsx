@@ -157,7 +157,7 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
             <div className="flex items-center gap-2 mb-3">
               <span className="w-4 h-[1px] bg-[#9E8256]" />
               <span className="text-[10px] uppercase tracking-[0.22em] text-[#9E8256] font-medium">
-                MAISON B2B · DISTRIBUCIÓN MAYORISTA OFICIAL
+                DISTRIBUCIÓN MAYORISTA OFICIAL · USA
               </span>
             </div>
             <h1 className="font-serif text-3xl sm:text-5xl font-normal text-[#0F0F0F] tracking-tight">

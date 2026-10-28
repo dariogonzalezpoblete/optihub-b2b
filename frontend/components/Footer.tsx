@@ -73,7 +73,7 @@ export default function Footer() {
                 OPTIHUB
               </span>
               <span className="text-[9px] tracking-[0.25em] text-[#5C5A55] uppercase font-sans mt-0.5">
-                MAISON MAYORISTA ÓPTICA · USA
+                MAYORISTA ÓPTICO · USA
               </span>
             </Link>
             <p className="text-xs text-[#5C5A55] max-w-sm">

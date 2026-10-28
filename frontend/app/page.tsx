@@ -234,7 +234,7 @@ export default function Home() {
       <section className="mt-14 border-y border-[#E6E2DD] bg-[#FFFFFF] py-6 overflow-x-auto no-scrollbar">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-8 min-w-max">
           <span className="text-[10px] uppercase tracking-[0.25em] text-[#9E8256] font-medium pr-6 border-r border-[#E6E2DD]">
-            MAISONS OFICIALES
+            MARCAS OFICIALES
           </span>
           <div className="flex items-center gap-10 lg:gap-14">
             {BRAND_MAISONS.map((brand) => (

@@ -56,7 +56,7 @@ function LoginForm() {
           <div className="flex items-center justify-center gap-2 mb-3">
             <span className="w-6 h-[1px] bg-[#9E8256]" />
             <span className="text-[10px] uppercase tracking-[0.25em] text-[#9E8256] font-medium">
-              MAISON B2B · ACCESO MAYORISTA
+              ACCESO MAYORISTA B2B · USA
             </span>
             <span className="w-6 h-[1px] bg-[#9E8256]" />
           </div>
