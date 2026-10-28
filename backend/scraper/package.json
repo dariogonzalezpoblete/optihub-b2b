@@ -12,6 +12,7 @@
     "sync:stock": "tsx src/fastSync.ts",
     "sync:stock:headless": "tsx src/fastSync.ts --headless",
     "sync:stock-prices": "tsx src/fastSync.ts --all-brands --headless",
+    "pricing:recalculate": "tsx src/recalculatePricing.ts",
     "test": "tsx test/pricing.test.ts && tsx test/interceptor.test.ts && tsx test/imageOptimizer.test.ts && tsx test/fastSync.test.ts"
   },
   "keywords": [

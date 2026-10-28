@@ -8,6 +8,7 @@
     "sync:fast:headless": "npm --prefix backend/scraper run sync:fast:headless --",
     "sync:stock-prices": "npm --prefix backend/scraper run sync:stock-prices --",
     "sync:stock": "npm --prefix backend/scraper run sync:stock --",
+    "pricing:recalculate": "npm --prefix backend/scraper run pricing:recalculate",
     "scraper": "npm --prefix backend/scraper run scrape --",
     "scraper:all": "npm --prefix backend/scraper run scrape -- --all-brands",
     "dev": "npm --prefix frontend run dev",

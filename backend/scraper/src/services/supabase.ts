@@ -21,6 +21,10 @@ export class SupabaseService {
     return this.client !== null;
   }
 
+  public getClient(): SupabaseClient | null {
+    return this.client;
+  }
+
   /**
    * Uploads an optimized image buffer to Supabase Storage and returns its public URL
    */

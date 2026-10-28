@@ -148,7 +148,7 @@ export class CatalogRunner {
           continue;
         }
 
-        const pricing = calculateB2BPricing(prod.precio_usd, options.pricingOverrides);
+        const pricing = calculateB2BPricing(prod.precio_usd, brand, options.pricingOverrides);
         const newStock = Math.min(50, Math.max(0, prod.stock));
         const prevStock = existing.stock ?? 0;
         const prevPriceNeto = existing.precio_neto_clp ?? 0;
@@ -670,7 +670,7 @@ export class CatalogRunner {
         const cleanColor = (raw.colorCode || '001').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
         const idExt = `${cleanSku}-${cleanColor}`.toUpperCase();
 
-        const pricing = calculateB2BPricing(raw.priceUsd);
+        const pricing = calculateB2BPricing(raw.priceUsd, productBrand);
 
         products.push({
           id_ext: idExt,

@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const calculated = calculateB2BPricing(priceUsd, {
+      const calculated = calculateB2BPricing(priceUsd, prod.marca, {
         dolar: dolarRate,
         marginPercentage: marginExtra,
       });
