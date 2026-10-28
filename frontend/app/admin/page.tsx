@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import {
   Package,
@@ -12,74 +13,34 @@ import {
   CheckCircle2,
   AlertCircle,
   Search,
-  Filter,
   RefreshCw,
-  Play,
   Save,
-  ChevronDown,
-  ChevronUp,
   CreditCard,
-  DollarSign,
-  Layers,
-  Settings,
   ExternalLink,
-  Check,
   Plane,
-  X
+  X,
+  MapPin,
+  Mail,
+  Receipt,
+  Eye,
+  Check,
+  Copy,
+  ChevronRight,
+  ArrowLeft
 } from 'lucide-react';
 import type { Order, OrderItem } from '@/lib/catalog/types';
-import { IMPORT_STAGES, COURIER_OPTIONS, parseOrderTracking, ImportStageKey } from '@/lib/trackingUtils';
-
-interface SyncItem {
-  id_ext: string;
-  status: 'updated' | 'unchanged' | 'out_of_stock';
-  oldStock?: number;
-  newStock?: number;
-  oldPriceNeto?: number;
-  newPriceNeto?: number;
-  oldPriceUsd?: number;
-  newPriceUsd?: number;
-  changeReason?: string;
-}
-
-interface BrandReport {
-  brand: string;
-  totalScanned: number;
-  updated: number;
-  outOfStock: number;
-  unchanged: number;
-  items: SyncItem[];
-}
-
-interface SyncSummary {
-  timestamp: string;
-  durationSeconds: number;
-  brandsProcessed: string[];
-  totalScanned: number;
-  totalUpdated: number;
-  totalOutOfStock: number;
-  totalUnchanged: number;
-  brandReports: BrandReport[];
-}
-
-const POPULAR_BRANDS = [
-  'TODAS',
-  'Guess',
-  'Nike',
-  'Adidas',
-  'Tom Ford',
-  'Calvin Klein',
-  'Lacoste',
-  'Bolle',
-  'BMW',
-  'DKNY',
-  'IC! Berlin',
-];
+import {
+  IMPORT_STAGES,
+  COURIER_OPTIONS,
+  parseOrderTracking,
+  getCourierTrackingUrl,
+  ImportStageKey,
+} from '@/lib/trackingUtils';
 
 const ORDER_STATUS_OPTIONS = [
   { value: 'pending', label: 'Pendiente' },
   { value: 'payment_pending', label: 'Pago Pendiente' },
-  { value: 'paid', label: 'Pagado' },
+  { value: 'paid', label: 'Pagado / Confirmado' },
   { value: 'preparing', label: 'En Preparación' },
   { value: 'shipped', label: 'Enviado' },
   { value: 'delivered', label: 'Entregado' },
@@ -95,9 +56,9 @@ const PAYMENT_STATUS_OPTIONS = [
   { value: 'refunded', label: 'Reembolsado' },
 ];
 
-export default function AdminMasterPage() {
+export default function AdminOrdersPage() {
   const { user, session, isLoggedIn } = useAuth();
-  const [activeTab, setActiveTab] = useState<'orders' | 'sync' | 'scraper'>('orders');
+  const router = useRouter();
 
   // Orders State
   const [orders, setOrders] = useState<Order[]>([]);
@@ -108,36 +69,17 @@ export default function AdminMasterPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [loadingOrderItems, setLoadingOrderItems] = useState(false);
-  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
-  // Edit Order Form State
+  // Edit Order / Customer Tracking State
   const [editStatus, setEditStatus] = useState('');
   const [editPaymentStatus, setEditPaymentStatus] = useState('');
   const [editStage, setEditStage] = useState<ImportStageKey>('logistica_usa');
-  const [editCourier, setEditCourier] = useState('DHL Express');
+  const [editCourier, setEditCourier] = useState('Starken');
   const [editTrackingNumber, setEditTrackingNumber] = useState('');
   const [editCustomNote, setEditCustomNote] = useState('');
   const [savingOrder, setSavingOrder] = useState(false);
   const [orderToast, setOrderToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-  // Sync / Scraper State
-  const [syncBrand, setSyncBrand] = useState('TODAS');
-  const [syncHeadless, setSyncHeadless] = useState(true);
-  const [syncDryRun, setSyncDryRun] = useState(false);
-  const [syncDolar, setSyncDolar] = useState('950');
-  const [syncMargin, setSyncMargin] = useState('');
-  const [syncLoading, setSyncLoading] = useState(false);
-  const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null);
-  const [syncToast, setSyncToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [catalogTotal, setCatalogTotal] = useState<number>(1097);
-  const [availableBrands, setAvailableBrands] = useState<{ name: string; count: number }[]>([]);
-
-  // Scraper Core Full State
-  const [scraperBrand, setScraperBrand] = useState('TODAS');
-  const [scraperPages, setScraperPages] = useState('5');
-  const [scraperHeadless, setScraperHeadless] = useState(true);
-  const [scraperLoading, setScraperLoading] = useState(false);
-  const [scraperMessage, setScraperMessage] = useState<string | null>(null);
+  const [copiedTracking, setCopiedTracking] = useState(false);
 
   // 1. Fetch Orders from API
   const fetchOrders = useCallback(async () => {
@@ -168,41 +110,20 @@ export default function AdminMasterPage() {
     }
   }, [session?.access_token, fetchOrders]);
 
-  // Load latest sync report and catalog stats on mount
-  useEffect(() => {
-    async function loadLatestSync() {
-      try {
-        const res = await fetch('/api/admin/sync');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.latest_summary) {
-            setSyncSummary(data.latest_summary);
-          }
-          if (typeof data.total_catalog_products === 'number') {
-            setCatalogTotal(data.total_catalog_products);
-          }
-          if (Array.isArray(data.brands) && data.brands.length > 0) {
-            setAvailableBrands(data.brands);
-          }
-        }
-      } catch {}
-    }
-    loadLatestSync();
-  }, []);
-
-  // Open order editor modal or panel
+  // Open order editor modal
   const handleSelectOrderForEdit = async (ord: Order) => {
     setSelectedOrder(ord);
     setEditStatus(ord.status);
     setEditPaymentStatus(ord.payment_status);
-    
+
     const parsed = parseOrderTracking(ord);
     setEditStage(parsed.currentStageKey);
-    setEditCourier(parsed.courier || ord.shipping_provider || 'DHL Express');
+    setEditCourier(parsed.courier || ord.shipping_provider || 'Starken');
     setEditTrackingNumber(parsed.trackingNumber || ord.tracking_number || '');
     setEditCustomNote(parsed.customNote || '');
+    setOrderToast(null);
 
-    // Fetch items
+    // Fetch order items (SKUs)
     if (session?.access_token) {
       setLoadingOrderItems(true);
       try {
@@ -214,14 +135,14 @@ export default function AdminMasterPage() {
           setOrderItems(d.items);
         }
       } catch (e) {
-        console.error(e);
+        console.error('Error fetching order items:', e);
       } finally {
         setLoadingOrderItems(false);
       }
     }
   };
 
-  // Save Order Changes
+  // Save Order & Customer Tracking Changes
   const handleSaveOrderChanges = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOrder || !session?.access_token) return;
@@ -248,20 +169,23 @@ export default function AdminMasterPage() {
 
       const data = await res.json();
       if (!res.ok || data.error) {
-        throw new Error(data.error || 'Error al guardar los cambios del pedido');
+        throw new Error(data.error || 'Error al actualizar el seguimiento del pedido');
       }
 
       setOrderToast({
         type: 'success',
-        message: `Pedido #${selectedOrder.id.split('-')[0].toUpperCase()} actualizado correctamente.`,
+        message: `Seguimiento del Pedido #${selectedOrder.id.split('-')[0].toUpperCase()} actualizado correctamente. El cliente ya puede ver el nuevo estado.`,
       });
 
-      // Update orders in local list
+      // Update in local state
       setOrders((prev) =>
         prev.map((o) => (o.id === selectedOrder.id ? { ...o, ...data.order } : o))
       );
       setSelectedOrder(data.order);
-      setTimeout(() => setOrderToast(null), 4000);
+
+      setTimeout(() => {
+        setOrderToast(null);
+      }, 4000);
     } catch (err) {
       setOrderToast({ type: 'error', message: (err as Error).message });
     } finally {
@@ -269,86 +193,14 @@ export default function AdminMasterPage() {
     }
   };
 
-  // Run Fast Sync
-  const handleRunFastSync = async () => {
-    setSyncLoading(true);
-    setSyncToast(null);
-
-    const isAll = syncBrand === 'TODAS';
-    const payload = {
-      brand: isAll ? undefined : syncBrand,
-      all_brands: isAll,
-      headless: syncHeadless,
-      dry_run: syncDryRun,
-      dolar: syncDolar ? parseFloat(syncDolar) : 950,
-      margin_percentage: syncMargin ? parseFloat(syncMargin) : undefined,
-      background: false,
-    };
-
-    try {
-      const res = await fetch('/api/admin/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || data.detail || 'Error en sincronización');
-      }
-
-      if (data.summary) {
-        setSyncSummary(data.summary);
-        setSyncToast({
-          type: 'success',
-          message: `Sincronización finalizada: ${data.summary.totalUpdated} actualizados, ${data.summary.totalOutOfStock} sin stock (0), ${data.summary.totalUnchanged} sin cambios.`,
-        });
-      } else {
-        setSyncToast({ type: 'success', message: data.message || 'Sincronización procesada.' });
-      }
-    } catch (err) {
-      setSyncToast({ type: 'error', message: (err as Error).message });
-    } finally {
-      setSyncLoading(false);
-    }
+  // Copy tracking number to clipboard
+  const handleCopyTracking = (num: string) => {
+    navigator.clipboard.writeText(num);
+    setCopiedTracking(true);
+    setTimeout(() => setCopiedTracking(false), 2000);
   };
 
-  // Run Full Scraper Core
-  const handleRunFullScraper = async () => {
-    setScraperLoading(true);
-    setScraperMessage('Iniciando extracción completa de catálogo...');
-
-    const isAll = scraperBrand === 'TODAS';
-    try {
-      const res = await fetch('/api/admin/scraper', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode: 'full-catalog',
-          brand: isAll ? undefined : scraperBrand,
-          all_brands: isAll,
-          max_pages: scraperPages ? parseInt(scraperPages, 10) : 5,
-          headless: scraperHeadless,
-          dry_run: false,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || data.detail || 'Error al iniciar el scraper');
-      }
-
-      setScraperMessage(
-        data.message || 'Extracción completa iniciada en segundo plano con éxito.'
-      );
-    } catch (e) {
-      setScraperMessage(`Error: ${(e as Error).message}`);
-    } finally {
-      setScraperLoading(false);
-    }
-  };
-
-  // Filtered orders
+  // Filtered orders list
   const filteredOrders = orders.filter((o) => {
     if (statusFilter !== 'all' && o.status !== statusFilter) return false;
     if (!searchQuery.trim()) return true;
@@ -364,427 +216,531 @@ export default function AdminMasterPage() {
     );
   });
 
-  // Calculate order stats
-  const totalOrdersCount = orders.length;
-  const paidOrdersCount = orders.filter((o) => o.status === 'paid' || o.payment_status === 'approved').length;
-  const preparingOrdersCount = orders.filter((o) => o.status === 'preparing').length;
-  const shippedOrdersCount = orders.filter((o) => o.status === 'shipped').length;
-  const attentionOrdersCount = orders.filter((o) => o.status === 'requires_attention').length;
+  // Calculate stats
+  const totalCount = orders.length;
+  const paidCount = orders.filter((o) => o.status === 'paid' || o.payment_status === 'approved').length;
+  const preparingCount = orders.filter((o) => o.status === 'preparing').length;
+  const shippedCount = orders.filter((o) => o.status === 'shipped').length;
+  const deliveredCount = orders.filter((o) => o.status === 'delivered').length;
+
+  // Status badge styling helper
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'delivered':
+        return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+      case 'paid':
+        return 'bg-blue-50 text-blue-800 border-blue-200';
+      case 'preparing':
+        return 'bg-indigo-50 text-indigo-800 border-indigo-200';
+      case 'shipped':
+        return 'bg-purple-50 text-purple-800 border-purple-200';
+      case 'cancelled':
+      case 'refunded':
+        return 'bg-rose-50 text-rose-800 border-rose-200';
+      case 'requires_attention':
+        return 'bg-amber-50 text-amber-800 border-amber-200';
+      default:
+        return 'bg-[#FAF6EF] text-[#9E7D4F] border-[#EADFC9]';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    const map: Record<string, string> = {
+      pending: 'Pendiente',
+      payment_pending: 'Pago Pendiente',
+      paid: 'Pagado',
+      preparing: 'En Preparación',
+      shipped: 'Enviado',
+      delivered: 'Entregado',
+      cancelled: 'Cancelado',
+      refunded: 'Reembolsado',
+      requires_attention: 'En Revisión',
+    };
+    return map[status] || status;
+  };
+
+  // If user is not logged in or not admin
+  if (!isLoggedIn && !loadingOrders) {
+    return (
+      <main className="min-h-screen pt-28 pb-20 bg-[#FAF9F6]">
+        <div className="max-w-md mx-auto px-4 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-[#FFFFFF] border border-[#E5E4DF] flex items-center justify-center mx-auto mb-4 text-[#9E7D4F] shadow-sm">
+            <ShieldCheck className="w-8 h-8" />
+          </div>
+          <h1 className="font-editorial font-serif text-2xl font-bold text-[#111111] mb-2">
+            Acceso de Administración
+          </h1>
+          <p className="text-sm text-[#575551] mb-6">
+            Inicia sesión con tu cuenta de administrador autorizada para gestionar los pedidos y despachos a ópticas.
+          </p>
+          <Link
+            href="/login?redirect=/admin"
+            className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-[#111111] text-white text-xs font-semibold tracking-wide hover:bg-[#333333] transition"
+          >
+            Iniciar Sesión
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pt-24 pb-16 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <main className="min-h-screen pt-28 pb-24 bg-[#FAF9F6]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         
-        {/* Header Superior */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between pb-6 border-b border-slate-800 gap-4">
+        {/* ENCABEZADO EDITORIAL */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-8 border-b border-[#E5E4DF]">
           <div>
-            <div className="flex items-center gap-2 text-xs font-mono text-amber-400 uppercase tracking-widest mb-1">
-              <Link href="/" className="hover:underline">Inicio</Link>
-              <span>/</span>
-              <span>Panel Maestro</span>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FAF6EF] border border-[#EADFC9] text-[#9E7D4F] text-[11px] font-semibold uppercase tracking-[0.18em] mb-3">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Panel de Control Logístico</span>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-serif font-bold text-white tracking-tight">
-              Panel de Administración OptiHub
+
+            <h1 className="font-editorial font-serif text-3xl sm:text-4xl lg:text-5xl font-semibold text-[#111111] tracking-tight">
+              Gestión y Seguimiento de Pedidos
             </h1>
-            <p className="text-sm text-slate-400 mt-1 max-w-2xl">
-              Gestión centralizada de pedidos B2B, cambio de estados, seguimiento logístico y sincronización automática de catálogos y stock con proveedores.
+
+            <p className="text-[#575551] text-sm sm:text-base mt-2 max-w-2xl leading-relaxed">
+              Informa a cada óptica y clínica el estado exacto de su importación: avance en Miami, aduana en Santiago, asignación de courier local y entrega final.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/30">
-              <ShieldCheck className="w-4 h-4 text-amber-400" />
-              <span>Rol Administrador Autorizado</span>
+            <button
+              onClick={fetchOrders}
+              disabled={loadingOrders}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#FFFFFF] border border-[#E5E4DF] text-[#111111] text-xs font-medium hover:border-[#82807A] transition shadow-xs disabled:opacity-60"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#9E7D4F] ${loadingOrders ? 'animate-spin' : ''}`} />
+              <span>Actualizar Lista</span>
+            </button>
+            <Link
+              href="/mis-pedidos"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#111111] text-white text-xs font-medium hover:bg-[#333333] transition"
+            >
+              <span>Vista Cliente</span>
+              <ExternalLink className="w-3 h-3 text-[#B89768]" />
+            </Link>
+          </div>
+        </div>
+
+        {/* MÉTRICAS RESUMEN */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
+          <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-4 text-center shadow-xs">
+            <span className="text-[11px] font-mono text-[#82807A] uppercase tracking-wider block">Total Pedidos</span>
+            <span className="text-2xl font-bold text-[#111111] mt-1 block">{totalCount}</span>
+          </div>
+
+          <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-4 text-center shadow-xs">
+            <span className="text-[11px] font-mono text-emerald-700 uppercase tracking-wider block">Pagados / Aprobados</span>
+            <span className="text-2xl font-bold text-emerald-700 mt-1 block">{paidCount}</span>
+          </div>
+
+          <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-4 text-center shadow-xs">
+            <span className="text-[11px] font-mono text-indigo-700 uppercase tracking-wider block">En Preparación</span>
+            <span className="text-2xl font-bold text-indigo-700 mt-1 block">{preparingCount}</span>
+          </div>
+
+          <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-4 text-center shadow-xs">
+            <span className="text-[11px] font-mono text-purple-700 uppercase tracking-wider block">En Reparto Courier</span>
+            <span className="text-2xl font-bold text-purple-700 mt-1 block">{shippedCount}</span>
+          </div>
+
+          <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-4 text-center shadow-xs col-span-2 sm:col-span-1">
+            <span className="text-[11px] font-mono text-[#9E7D4F] uppercase tracking-wider block">Entregados con Éxito</span>
+            <span className="text-2xl font-bold text-[#111111] mt-1 block">{deliveredCount}</span>
+          </div>
+        </div>
+
+        {/* BARRA DE FILTRO Y BÚSQUEDA */}
+        <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl p-4 shadow-xs flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="relative w-full md:w-96">
+            <Search className="w-4 h-4 text-[#82807A] absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Buscar por N° Pedido, Razón Social, RUT, Correo o Courier..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 text-xs bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl text-[#111111] placeholder-[#82807A] focus:outline-none focus:border-[#B89768]"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+            <span className="text-xs font-semibold text-[#82807A] whitespace-nowrap hidden sm:inline">
+              Filtrar por:
+            </span>
+            {[
+              { id: 'all', label: 'Todos' },
+              { id: 'paid', label: 'Pagados' },
+              { id: 'preparing', label: 'En Preparación' },
+              { id: 'shipped', label: 'Enviados' },
+              { id: 'delivered', label: 'Entregados' },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setStatusFilter(f.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition ${
+                  statusFilter === f.id
+                    ? 'bg-[#111111] text-white shadow-xs'
+                    : 'bg-[#FAF9F6] text-[#575551] hover:text-[#111111] border border-[#E5E4DF]'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* TABLA PRINCIPAL DE PEDIDOS */}
+        <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-2xl shadow-xs overflow-hidden">
+          <div className="p-4 border-b border-[#E5E4DF] flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#111111]">
+              Listado de Órdenes ({filteredOrders.length})
+            </span>
+            <span className="text-xs text-[#82807A]">
+              Haz clic en cualquier pedido para actualizar su tracking al cliente
             </span>
           </div>
-        </div>
 
-        {/* Navegación por Pestañas */}
-        <div className="flex border-b border-slate-800 space-x-1 sm:space-x-4">
-          <button
-            onClick={() => setActiveTab('orders')}
-            className={`py-3 px-4 text-sm font-semibold border-b-2 flex items-center gap-2 transition-all ${
-              activeTab === 'orders'
-                ? 'border-amber-500 text-amber-400 bg-slate-900/40 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-white hover:border-slate-700'
-            }`}
-          >
-            <Package className="w-4 h-4" />
-            <span>Gestión de Pedidos ({orders.length})</span>
-          </button>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#FAF9F6] text-[#82807A] font-mono uppercase tracking-wider border-b border-[#E5E4DF]">
+                <tr>
+                  <th className="py-3 px-4">Pedido / Fecha</th>
+                  <th className="py-3 px-4">Cliente / Óptica</th>
+                  <th className="py-3 px-4">Fase de Seguimiento</th>
+                  <th className="py-3 px-4">Courier / Guía</th>
+                  <th className="py-3 px-4 text-right">Total ($ CLP)</th>
+                  <th className="py-3 px-4 text-center">Estado Comercial</th>
+                  <th className="py-3 px-4 text-center">Acción</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E5E4DF]">
+                {loadingOrders ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-[#82807A]">
+                      <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-[#9E7D4F]" />
+                      <span>Cargando pedidos de ópticas...</span>
+                    </td>
+                  </tr>
+                ) : filteredOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-[#82807A]">
+                      No se encontraron pedidos con los filtros aplicados.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredOrders.map((ord) => {
+                    const tracking = parseOrderTracking(ord);
+                    const shortId = ord.id.split('-')[0].toUpperCase();
+                    const createdDate = ord.created_at
+                      ? new Date(ord.created_at).toLocaleDateString('es-CL', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })
+                      : 'Reciente';
 
-          <button
-            onClick={() => setActiveTab('sync')}
-            className={`py-3 px-4 text-sm font-semibold border-b-2 flex items-center gap-2 transition-all ${
-              activeTab === 'sync'
-                ? 'border-amber-500 text-amber-400 bg-slate-900/40 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-white hover:border-slate-700'
-            }`}
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>Actualización Rápida (Stock y Precios)</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('scraper')}
-            className={`py-3 px-4 text-sm font-semibold border-b-2 flex items-center gap-2 transition-all ${
-              activeTab === 'scraper'
-                ? 'border-amber-500 text-amber-400 bg-slate-900/40 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-white hover:border-slate-700'
-            }`}
-          >
-            <Play className="w-4 h-4" />
-            <span>Scraper de Catálogo Completo</span>
-          </button>
-        </div>
-
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* PESTAÑA 1: GESTIÓN MAESTRA DE PEDIDOS                            */}
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {activeTab === 'orders' && (
-          <div className="space-y-6">
-            
-            {/* KPI Metrics */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
-                <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wider block">Total Órdenes</span>
-                <span className="text-2xl font-bold text-white mt-1 block">{totalOrdersCount}</span>
-              </div>
-              <div className="bg-slate-900 border border-emerald-500/30 rounded-xl p-4 text-center bg-emerald-950/10">
-                <span className="text-[11px] font-mono text-emerald-400 uppercase tracking-wider block">Pagados / Aprobados</span>
-                <span className="text-2xl font-bold text-emerald-300 mt-1 block">{paidOrdersCount}</span>
-              </div>
-              <div className="bg-slate-900 border border-blue-500/30 rounded-xl p-4 text-center bg-blue-950/10">
-                <span className="text-[11px] font-mono text-blue-400 uppercase tracking-wider block">En Preparación</span>
-                <span className="text-2xl font-bold text-blue-300 mt-1 block">{preparingOrdersCount}</span>
-              </div>
-              <div className="bg-slate-900 border border-indigo-500/30 rounded-xl p-4 text-center bg-indigo-950/10">
-                <span className="text-[11px] font-mono text-indigo-400 uppercase tracking-wider block">En Reparto Chile</span>
-                <span className="text-2xl font-bold text-indigo-300 mt-1 block">{shippedOrdersCount}</span>
-              </div>
-              <div className="bg-slate-900 border border-amber-500/30 rounded-xl p-4 text-center bg-amber-950/10 col-span-2 sm:col-span-1">
-                <span className="text-[11px] font-mono text-amber-400 uppercase tracking-wider block">En Revisión</span>
-                <span className="text-2xl font-bold text-amber-300 mt-1 block">{attentionOrdersCount}</span>
-              </div>
-            </div>
-
-            {/* Barra de Filtros y Búsqueda */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="relative w-full sm:w-80">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                <input
-                  type="text"
-                  placeholder="Buscar por ID, RUT, cliente, óptica o tracking..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-
-              <div className="flex items-center gap-3 w-full sm:w-auto">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                >
-                  <option value="all">Todos los Estados</option>
-                  <option value="paid">Pagados</option>
-                  <option value="preparing">En Preparación</option>
-                  <option value="shipped">Enviados</option>
-                  <option value="delivered">Entregados</option>
-                  <option value="requires_attention">En Revisión (Stock)</option>
-                  <option value="payment_pending">Pago Pendiente</option>
-                  <option value="cancelled">Cancelados</option>
-                </select>
-
-                <button
-                  onClick={fetchOrders}
-                  disabled={loadingOrders}
-                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-semibold text-slate-300 flex items-center gap-1.5 transition"
-                  title="Recargar Pedidos"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loadingOrders ? 'animate-spin' : ''}`} />
-                  <span>Actualizar</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Listado de Pedidos */}
-            <div className="space-y-4">
-              {loadingOrders ? (
-                <div className="p-12 text-center text-slate-400 font-mono text-sm">
-                  Cargando pedidos de la plataforma...
-                </div>
-              ) : filteredOrders.length === 0 ? (
-                <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center text-slate-400">
-                  No se encontraron pedidos que coincidan con los filtros aplicados.
-                </div>
-              ) : (
-                filteredOrders.map((ord) => {
-                  const tracking = parseOrderTracking(ord);
-                  const isExpanded = expandedOrderId === ord.id;
-
-                  return (
-                    <div
-                      key={ord.id}
-                      className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl p-5 transition shadow-sm"
-                    >
-                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800/80">
-                        {/* Identificador y Cliente */}
-                        <div className="space-y-1.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-sm font-bold text-amber-300 bg-slate-800 px-2.5 py-0.5 rounded border border-slate-700">
-                              #{ord.id.split('-')[0].toUpperCase()}
-                            </span>
-                            <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded border uppercase tracking-wider ${
-                              ord.status === 'delivered' ? 'bg-emerald-950 text-emerald-300 border-emerald-700' :
-                              ['paid', 'preparing', 'shipped'].includes(ord.status) ? 'bg-blue-950 text-blue-300 border-blue-700' :
-                              ord.status === 'requires_attention' ? 'bg-amber-950 text-amber-300 border-amber-700' :
-                              'bg-slate-800 text-slate-300 border-slate-700'
-                            }`}>
-                              {ord.status}
-                            </span>
-                            <span className="text-[11px] font-medium text-slate-400">
-                              {new Date(ord.created_at).toLocaleDateString('es-CL', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </span>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-300">
-                            <strong className="text-white flex items-center gap-1">
-                              <Building2 className="w-3.5 h-3.5 text-amber-400" />
-                              {ord.business_name || ord.customer_name || 'Cliente'}
-                            </strong>
-                            {ord.business_rut && <span className="font-mono text-slate-400">RUT: {ord.business_rut}</span>}
-                            {ord.shipping_commune && <span className="text-slate-400">📍 {ord.shipping_commune}</span>}
-                            {ord.customer_phone && <span className="text-slate-400">📞 {ord.customer_phone}</span>}
-                          </div>
-                        </div>
-
-                        {/* Montos y Acciones */}
-                        <div className="flex flex-wrap items-center gap-4">
-                          <div className="text-right">
-                            <span className="text-[10px] text-slate-400 font-mono uppercase block">Total Pedido</span>
-                            <span className="text-lg font-bold text-white font-mono">
-                              ${(ord.total_amount || 0).toLocaleString('es-CL')} CLP
-                            </span>
-                            <span className="text-[11px] text-emerald-400 block font-mono">
-                              Pago: {ord.payment_status}
-                            </span>
-                          </div>
-
-                          <button
-                            onClick={() => handleSelectOrderForEdit(ord)}
-                            className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow transition flex items-center gap-1.5"
-                          >
-                            <Settings className="w-3.5 h-3.5" />
-                            <span>Modificar Estado</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Info de Seguimiento y Courier */}
-                      <div className="pt-3 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-amber-300 font-semibold text-[11px]">
-                            Etapa: {tracking.stageInfo.label} ({tracking.currentStep}/5)
+                    return (
+                      <tr
+                        key={ord.id}
+                        onClick={() => handleSelectOrderForEdit(ord)}
+                        className={`cursor-pointer transition hover:bg-[#FAF9F6] ${
+                          selectedOrder?.id === ord.id ? 'bg-[#FAF6EF]/60' : ''
+                        }`}
+                      >
+                        <td className="py-3.5 px-4">
+                          <span className="font-mono font-bold text-[#111111] block">
+                            #{shortId}
                           </span>
-                          {tracking.trackingNumber && (
-                            <span className="font-mono text-slate-300">
-                              🚚 {tracking.courier || 'Guía'}: <strong className="text-white">{tracking.trackingNumber}</strong>
-                            </span>
-                          )}
-                          {tracking.customNote && (
-                            <span className="italic text-slate-400 max-w-md truncate">
-                              "{tracking.customNote}"
-                            </span>
-                          )}
-                        </div>
+                          <span className="text-[11px] text-[#82807A] block mt-0.5">
+                            {createdDate}
+                          </span>
+                        </td>
 
-                        <Link
-                          href={`/mis-pedidos/${ord.id}`}
-                          target="_blank"
-                          className="text-amber-400 hover:text-amber-300 text-xs flex items-center gap-1 font-semibold"
-                        >
-                          <span>Ver Ficha Pública</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </Link>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+                        <td className="py-3.5 px-4">
+                          <span className="font-semibold text-[#111111] block">
+                            {ord.business_name || ord.customer_name || 'Óptica Mayorista'}
+                          </span>
+                          <span className="text-[11px] text-[#82807A] block">
+                            {ord.business_rut || ord.customer_email || 'Sin RUT'}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#FAF6EF] text-[#9E7D4F] border border-[#EADFC9]">
+                            {tracking.currentStageKey === 'logistica_usa' && <Building2 className="w-3 h-3" />}
+                            {tracking.currentStageKey === 'viajando' && <Plane className="w-3 h-3" />}
+                            {tracking.currentStageKey === 'desaduanamiento' && <ShieldCheck className="w-3 h-3" />}
+                            {tracking.currentStageKey === 'reparto_chile' && <Truck className="w-3 h-3" />}
+                            {tracking.currentStageKey === 'entregado' && <CheckCircle2 className="w-3 h-3" />}
+                            <span>{tracking.stageInfo.label}</span>
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          {tracking.trackingNumber ? (
+                            <div>
+                              <span className="font-semibold text-[#111111] block text-[11px]">
+                                {tracking.courier || ord.shipping_provider || 'Courier'}
+                              </span>
+                              <span className="font-mono text-[11px] text-[#9E7D4F] block">
+                                {tracking.trackingNumber}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-[#82807A] italic">
+                              Pendiente asignación
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right font-mono font-semibold text-[#111111]">
+                          ${(ord.total_amount || 0).toLocaleString('es-CL')}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-center">
+                          <span
+                            className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold border ${getStatusBadge(
+                              ord.status
+                            )}`}
+                          >
+                            {getStatusText(ord.status)}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4 text-center">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#FAF9F6] border border-[#E5E4DF] text-[#111111] text-[11px] font-semibold hover:border-[#B89768] hover:bg-[#FAF6EF] transition"
+                          >
+                            <span>Actualizar</span>
+                            <ChevronRight className="w-3 h-3 text-[#9E7D4F]" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
 
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* MODAL EDITOR DE PEDIDO                                          */}
-        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* MODAL / PANEL DE EDICIÓN DEL SEGUIMIENTO AL CLIENTE */}
         {selectedOrder && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-2xl">
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-[#FFFFFF] border border-[#E5E4DF] rounded-3xl max-w-3xl w-full my-8 p-6 sm:p-8 shadow-2xl space-y-6 relative max-h-[90vh] overflow-y-auto">
               
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              {/* Header Modal */}
+              <div className="flex items-center justify-between border-b border-[#E5E4DF] pb-4">
                 <div>
-                  <span className="text-xs font-mono text-amber-400 uppercase tracking-widest block">
-                    Modificar Pedido
-                  </span>
-                  <h2 className="text-xl font-serif font-bold text-white">
-                    Orden #{selectedOrder.id.split('-')[0].toUpperCase()}
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FAF6EF] border border-[#EADFC9] text-[#9E7D4F] text-[11px] font-semibold uppercase mb-1">
+                    <span>Pedido #{selectedOrder.id.split('-')[0].toUpperCase()}</span>
+                  </div>
+                  <h2 className="font-editorial font-serif text-2xl font-bold text-[#111111]">
+                    Informar al Cliente sobre su Pedido
                   </h2>
+                  <p className="text-xs text-[#575551] mt-0.5">
+                    {selectedOrder.business_name || selectedOrder.customer_name} • RUT: {selectedOrder.business_rut || 'Sin registrar'}
+                  </p>
                 </div>
+
                 <button
                   onClick={() => setSelectedOrder(null)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  className="w-8 h-8 rounded-full bg-[#FAF9F6] border border-[#E5E4DF] flex items-center justify-center text-[#575551] hover:text-[#111111] transition"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
               {/* Toast Feedback */}
               {orderToast && (
-                <div className={`p-3 rounded-lg text-xs flex items-center gap-2 ${
-                  orderToast.type === 'success' ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-600' : 'bg-rose-950/80 text-rose-300 border border-rose-600'
-                }`}>
-                  <span>{orderToast.type === 'success' ? '✅' : '❌'}</span>
+                <div
+                  className={`p-4 rounded-xl text-xs flex items-center gap-2.5 ${
+                    orderToast.type === 'success'
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                      : 'bg-rose-50 text-rose-800 border border-rose-200'
+                  }`}
+                >
+                  {orderToast.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
                   <span>{orderToast.message}</span>
                 </div>
               )}
 
-              <form onSubmit={handleSaveOrderChanges} className="space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Estado Principal */}
-                  <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5 uppercase tracking-wide">
-                      Estado del Pedido (Interno)
-                    </label>
-                    <select
-                      value={editStatus}
-                      onChange={(e) => setEditStatus(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    >
-                      {ORDER_STATUS_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label} ({opt.value})
-                        </option>
-                      ))}
-                    </select>
+              <form onSubmit={handleSaveOrderChanges} className="space-y-6">
+                
+                {/* 1. SELECCIÓN DE FASE LOGÍSTICA (LÍNEA DE TIEMPO DEL CLIENTE) */}
+                <div className="space-y-3">
+                  <label className="block text-xs font-semibold text-[#111111] uppercase tracking-wider">
+                    📍 1. Fase del Envío (Lo que el cliente ve en su línea de tiempo)
+                  </label>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5">
+                    {IMPORT_STAGES.map((st) => {
+                      const isCurrent = editStage === st.key;
+                      return (
+                        <button
+                          type="button"
+                          key={st.key}
+                          onClick={() => setEditStage(st.key)}
+                          className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between ${
+                            isCurrent
+                              ? 'bg-[#111111] border-[#111111] text-white shadow-md'
+                              : 'bg-[#FAF9F6] border-[#E5E4DF] text-[#575551] hover:border-[#82807A]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full mb-2">
+                            <span className="text-[10px] font-mono opacity-80">Paso {st.step}</span>
+                            {st.key === 'logistica_usa' && <Building2 className="w-3.5 h-3.5" />}
+                            {st.key === 'viajando' && <Plane className="w-3.5 h-3.5" />}
+                            {st.key === 'desaduanamiento' && <ShieldCheck className="w-3.5 h-3.5" />}
+                            {st.key === 'reparto_chile' && <Truck className="w-3.5 h-3.5" />}
+                            {st.key === 'entregado' && <CheckCircle2 className="w-3.5 h-3.5" />}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-xs block leading-tight">{st.label}</span>
+                            <span className={`text-[10px] block mt-0.5 ${isCurrent ? 'text-[#B89768]' : 'text-[#82807A]'}`}>
+                              {st.badge}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
+                </div>
 
-                  {/* Estado del Pago */}
+                {/* 2. COURIER Y GUÍA DE TRANSPORTE */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5 uppercase tracking-wide">
-                      Estado de Pago (Mercado Pago / Transferencia)
-                    </label>
-                    <select
-                      value={editPaymentStatus}
-                      onChange={(e) => setEditPaymentStatus(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    >
-                      {PAYMENT_STATUS_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label} ({opt.value})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Etapa de Importación (Línea de Tiempo) */}
-                  <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5 uppercase tracking-wide">
-                      Fase de Importación (Visible para Cliente)
-                    </label>
-                    <select
-                      value={editStage}
-                      onChange={(e) => setEditStage(e.target.value as ImportStageKey)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    >
-                      {IMPORT_STAGES.map((st) => (
-                        <option key={st.key} value={st.key}>
-                          Paso {st.step}: {st.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Courier / Empresa de Envío */}
-                  <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5 uppercase tracking-wide">
-                      Empresa de Transporte / Courier
+                    <label className="block text-xs font-semibold text-[#111111] uppercase tracking-wider mb-1.5">
+                      🚚 Empresa de Despacho (Courier)
                     </label>
                     <select
                       value={editCourier}
                       onChange={(e) => setEditCourier(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl px-3 py-2 text-xs text-[#111111] focus:outline-none focus:border-[#B89768]"
                     >
                       {COURIER_OPTIONS.map((c) => (
-                        <option key={c.id} value={c.name}>{c.name}</option>
+                        <option key={c.id} value={c.name}>
+                          {c.name}
+                        </option>
                       ))}
                     </select>
                   </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#111111] uppercase tracking-wider mb-1.5">
+                      🏷️ N° de Guía o Seguimiento
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={editTrackingNumber}
+                        onChange={(e) => setEditTrackingNumber(e.target.value)}
+                        placeholder="Ej: 123456789 (Starken / Chilexpress)"
+                        className="w-full bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl pl-3 pr-10 py-2 text-xs text-[#111111] font-mono focus:outline-none focus:border-[#B89768]"
+                      />
+                      {editTrackingNumber && (
+                        <button
+                          type="button"
+                          onClick={() => handleCopyTracking(editTrackingNumber)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-[#82807A] hover:text-[#111111]"
+                          title="Copiar guía"
+                        >
+                          {copiedTracking ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                {/* Número de Guía / Tracking */}
+                {/* 3. MENSAJE DIRECTO AL CLIENTE */}
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5 uppercase tracking-wide">
-                    Número de Guía o Código de Tracking
-                  </label>
-                  <input
-                    type="text"
-                    value={editTrackingNumber}
-                    onChange={(e) => setEditTrackingNumber(e.target.value)}
-                    placeholder="Ej: 1234567890 (DHL) o 99887766 (Chilexpress)"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-
-                {/* Nota para el Cliente */}
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5 uppercase tracking-wide">
-                    Nota o Actualización Logística (Se muestra en el seguimiento)
+                  <label className="block text-xs font-semibold text-[#111111] uppercase tracking-wider mb-1.5">
+                    💬 Mensaje o Nota Visible para la Óptica
                   </label>
                   <textarea
                     rows={2}
                     value={editCustomNote}
                     onChange={(e) => setEditCustomNote(e.target.value)}
-                    placeholder="Ej: Mercadería arribó a Santiago. En proceso de internación aduanera."
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    placeholder="Ej: 'Tu pedido arribó hoy a Santiago y fue entregado a Starken para despacho a tu sucursal. Llegada estimada en 24-48 horas.'"
+                    className="w-full bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl p-3 text-xs text-[#111111] focus:outline-none focus:border-[#B89768]"
                   />
+                  <span className="text-[11px] text-[#82807A] mt-1 block">
+                    Este mensaje aparece destacado en la pantalla de seguimiento del cliente (`/seguimiento`).
+                  </span>
                 </div>
 
-                {/* Ítems del Pedido (Para compra al proveedor) */}
-                <div className="pt-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-2">
-                    📦 Detalle de Armazones a Comprar ({orderItems.length} ítems)
+                {/* 4. ESTADO COMERCIAL & PAGO */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#E5E4DF]">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#111111] uppercase tracking-wider mb-1.5">
+                      Estado General del Pedido
+                    </label>
+                    <select
+                      value={editStatus}
+                      onChange={(e) => setEditStatus(e.target.value)}
+                      className="w-full bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl px-3 py-2 text-xs text-[#111111] focus:outline-none focus:border-[#B89768]"
+                    >
+                      {ORDER_STATUS_OPTIONS.map((st) => (
+                        <option key={st.value} value={st.value}>
+                          {st.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#111111] uppercase tracking-wider mb-1.5">
+                      Estado de Pago
+                    </label>
+                    <select
+                      value={editPaymentStatus}
+                      onChange={(e) => setEditPaymentStatus(e.target.value)}
+                      className="w-full bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl px-3 py-2 text-xs text-[#111111] focus:outline-none focus:border-[#B89768]"
+                    >
+                      {PAYMENT_STATUS_OPTIONS.map((ps) => (
+                        <option key={ps.value} value={ps.value}>
+                          {ps.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* 5. ARMAZONES DEL PEDIDO (DETALLE DE MODELOS A DESPACHAR) */}
+                <div className="pt-2 border-t border-[#E5E4DF]">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[#111111] block mb-2">
+                    👓 Armazones del Pedido ({orderItems.length} modelos)
                   </span>
-                  <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-x-auto max-h-40">
+                  
+                  <div className="bg-[#FAF9F6] border border-[#E5E4DF] rounded-xl overflow-hidden max-h-40 overflow-y-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-800/80 text-slate-400 uppercase font-mono">
+                      <thead className="bg-[#FFFFFF] text-[#82807A] font-mono uppercase border-b border-[#E5E4DF]">
                         <tr>
-                          <th className="py-1.5 px-3">SKU / Modelo</th>
-                          <th className="py-1.5 px-3">Marca</th>
-                          <th className="py-1.5 px-3 text-center">Cant.</th>
-                          <th className="py-1.5 px-3 text-right">Unitario Neto</th>
+                          <th className="py-2 px-3">SKU / Modelo</th>
+                          <th className="py-2 px-3">Marca</th>
+                          <th className="py-2 px-3 text-center">Cant.</th>
+                          <th className="py-2 px-3 text-right">Precio Neto</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800">
+                      <tbody className="divide-y divide-[#E5E4DF]">
                         {loadingOrderItems ? (
-                          <tr><td colSpan={4} className="py-3 text-center text-slate-500">Cargando ítems...</td></tr>
+                          <tr><td colSpan={4} className="py-4 text-center text-[#82807A]">Cargando modelos...</td></tr>
                         ) : orderItems.length === 0 ? (
-                          <tr><td colSpan={4} className="py-3 text-center text-slate-500">Sin ítems vinculados.</td></tr>
+                          <tr><td colSpan={4} className="py-4 text-center text-[#82807A]">Sin ítems vinculados.</td></tr>
                         ) : (
                           orderItems.map((it, idx) => (
                             <tr key={idx}>
-                              <td className="py-1.5 px-3 font-mono text-amber-300">{it.sku || it.product_id}</td>
-                              <td className="py-1.5 px-3 text-white">{it.brand_name || it.product_name}</td>
-                              <td className="py-1.5 px-3 text-center font-bold text-white">{it.quantity}</td>
-                              <td className="py-1.5 px-3 text-right font-mono text-slate-300">
+                              <td className="py-2 px-3 font-mono font-bold text-[#111111]">{it.sku || it.product_id}</td>
+                              <td className="py-2 px-3 text-[#575551]">{it.brand_name || it.product_name}</td>
+                              <td className="py-2 px-3 text-center font-bold text-[#111111]">{it.quantity}</td>
+                              <td className="py-2 px-3 text-right font-mono text-[#575551]">
                                 ${(it.unit_price_net || 0).toLocaleString('es-CL')}
                               </td>
                             </tr>
@@ -795,22 +751,23 @@ export default function AdminMasterPage() {
                   </div>
                 </div>
 
-                {/* Botones de Acción */}
-                <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
+                {/* BOTONES DE ACCIÓN */}
+                <div className="pt-4 border-t border-[#E5E4DF] flex items-center justify-end gap-3">
                   <button
                     type="button"
                     onClick={() => setSelectedOrder(null)}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition"
+                    className="px-5 py-2.5 rounded-full bg-[#FAF9F6] border border-[#E5E4DF] text-[#575551] text-xs font-semibold hover:text-[#111111] transition"
                   >
-                    Cancelar
+                    Cerrar
                   </button>
+
                   <button
                     type="submit"
                     disabled={savingOrder}
-                    className="px-6 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition shadow flex items-center gap-1.5"
+                    className="px-6 py-2.5 rounded-full bg-[#111111] hover:bg-[#333333] text-white font-semibold text-xs transition shadow-md flex items-center gap-2 disabled:opacity-60"
                   >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>{savingOrder ? 'Guardando...' : 'Guardar y Notificar'}</span>
+                    <Save className="w-3.5 h-3.5 text-[#B89768]" />
+                    <span>{savingOrder ? 'Actualizando y Notificando...' : 'Guardar y Notificar al Cliente'}</span>
                   </button>
                 </div>
               </form>
@@ -818,307 +775,7 @@ export default function AdminMasterPage() {
           </div>
         )}
 
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* PESTAÑA 2: SINCRONIZACIÓN RÁPIDA (STOCK Y PRECIOS)               */}
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {activeTab === 'sync' && (
-          <div className="space-y-6">
-            {/* Banner Informativo de Ejecución */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-slate-900/90 border border-amber-500/30 rounded-xl p-4 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-2 text-amber-400 font-semibold text-sm mb-1.5">
-                    <span>☁️ Opción 1: Recálculo Inmediato Cloud (Desde esta Web)</span>
-                  </div>
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    Aplica la cotización del dólar, aranceles de importación (6% CIF) y margen comercial a los <strong>{catalogTotal.toLocaleString('es-CL')} productos</strong> en Supabase en menos de 1 segundo. Ideal para ajustar precios masivos al instante sin esperar.
-                  </p>
-                </div>
-                <div className="mt-3 text-[11px] font-mono text-amber-300/80">
-                  ⚡ Se ejecuta directamente con el botón amarillo inferior.
-                </div>
-              </div>
-
-              <div className="bg-slate-900/90 border border-blue-500/30 rounded-xl p-4 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-2 text-blue-400 font-semibold text-sm mb-1.5">
-                    <span>🖥️ Opción 2: Extracción en Vivo desde NYWD (Sin Terminal ni IDE)</span>
-                  </div>
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    Para navegar la web del proveedor en tiempo real, saltar Captchas con tu sesión y cotejar el stock/precios unitarios reales, tienes en tu Escritorio el lanzador directo:
-                  </p>
-                  <div className="mt-2 p-2 bg-slate-950 border border-slate-800 rounded text-xs font-mono text-blue-300">
-                    📂 Escritorio &gt; <strong>⚡ Sincronizar-Stock-NYWD.bat</strong>
-                  </div>
-                </div>
-                <div className="mt-3 text-[11px] font-mono text-slate-400">
-                  👆 Solo haz doble clic en tu escritorio; no requiere abrir Visual Studio Code ni consolas.
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                    ⚡ Actualización de Precios y Reglas Comerciales
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Recalcula y sincroniza landed cost CIF, aranceles y margen B2B en Supabase ({catalogTotal.toLocaleString('es-CL')} productos registrados) sin tocar descripciones ni corromper imágenes.
-                  </p>
-                </div>
-                <div className="text-[11px] font-mono px-3 py-1 rounded bg-slate-800 text-amber-300 border border-slate-700 self-start sm:self-auto">
-                  ☁️ Modo Cloud Supabase Activo
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5 uppercase tracking-wide">
-                    Marca a Sincronizar
-                  </label>
-                  <select
-                    value={syncBrand}
-                    onChange={(e) => setSyncBrand(e.target.value)}
-                    disabled={syncLoading}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  >
-                    <option value="TODAS">🌟 TODAS LAS MARCAS ({catalogTotal.toLocaleString('es-CL')} productos)</option>
-                    {availableBrands.length > 0 ? (
-                      availableBrands.map((b) => (
-                        <option key={b.name} value={b.name}>
-                          {b.name} ({b.count} productos)
-                        </option>
-                      ))
-                    ) : (
-                      POPULAR_BRANDS.filter((b) => b !== 'TODAS').map((b) => (
-                        <option key={b} value={b}>{b}</option>
-                      ))
-                    )}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5 uppercase tracking-wide">
-                    Dólar CLP (Cálculo Landed Cost)
-                  </label>
-                  <input
-                    type="number"
-                    value={syncDolar}
-                    onChange={(e) => setSyncDolar(e.target.value)}
-                    disabled={syncLoading}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5 uppercase tracking-wide">
-                    Margen Extra % (Opcional)
-                  </label>
-                  <input
-                    type="number"
-                    value={syncMargin}
-                    onChange={(e) => setSyncMargin(e.target.value)}
-                    disabled={syncLoading}
-                    placeholder="Regla B2B estándar"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-
-                <div className="flex flex-col justify-center space-y-2 pt-2">
-                  <label className="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={syncHeadless}
-                      onChange={(e) => setSyncHeadless(e.target.checked)}
-                      disabled={syncLoading}
-                      className="rounded border-slate-700 text-amber-500 focus:ring-amber-400 bg-slate-800"
-                    />
-                    <span>Modo Invisible (Headless)</span>
-                  </label>
-
-                  <label className="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={syncDryRun}
-                      onChange={(e) => setSyncDryRun(e.target.checked)}
-                      disabled={syncLoading}
-                      className="rounded border-slate-700 text-amber-500 focus:ring-amber-400 bg-slate-800"
-                    />
-                    <span>Simular sin guardar (Dry-Run)</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <span className="text-[11px] text-slate-400">
-                  💡 Para sincronizar stock directamente raspando NYWD en vivo, abre en tu escritorio: <code className="bg-slate-800 text-amber-300 px-1.5 py-0.5 rounded font-mono">⚡ Sincronizar-Stock-NYWD.bat</code>
-                </span>
-                <button
-                  onClick={handleRunFastSync}
-                  disabled={syncLoading}
-                  className="w-full sm:w-auto px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition shadow flex items-center justify-center gap-2"
-                >
-                  {syncLoading ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Sincronizando {syncBrand === 'TODAS' ? `los ${catalogTotal} productos` : syncBrand}...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>⚡ Recalcular Precios en la Nube ({syncBrand === 'TODAS' ? `${catalogTotal} productos` : syncBrand})</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Sync Feedback Toast */}
-            {syncToast && (
-              <div className={`p-4 rounded-xl text-xs flex items-center gap-2.5 ${
-                syncToast.type === 'success' ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-600/50' : 'bg-rose-950/80 text-rose-300 border border-rose-600/50'
-              }`}>
-                <span>{syncToast.type === 'success' ? '✅' : '❌'}</span>
-                <span>{syncToast.message}</span>
-              </div>
-            )}
-
-            {/* Sync Metrics Table */}
-            {syncSummary && (
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h3 className="text-sm font-semibold text-white uppercase tracking-wider">
-                    📊 Último Resumen de Sincronización ({syncSummary.durationSeconds}s)
-                  </h3>
-                  <span className="text-xs font-mono text-slate-400">
-                    {new Date(syncSummary.timestamp).toLocaleString('es-CL')}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                  <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
-                    <span className="text-xs font-mono text-slate-400 uppercase">Escaneados</span>
-                    <p className="text-xl font-bold text-white mt-1">{syncSummary.totalScanned}</p>
-                  </div>
-                  <div className="p-3 bg-emerald-950/30 rounded-lg border border-emerald-600/30">
-                    <span className="text-xs font-mono text-emerald-400 uppercase">Actualizados</span>
-                    <p className="text-xl font-bold text-emerald-300 mt-1">{syncSummary.totalUpdated}</p>
-                  </div>
-                  <div className="p-3 bg-amber-950/30 rounded-lg border border-amber-600/30">
-                    <span className="text-xs font-mono text-amber-400 uppercase">Sin Stock (0)</span>
-                    <p className="text-xl font-bold text-amber-300 mt-1">{syncSummary.totalOutOfStock}</p>
-                  </div>
-                  <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
-                    <span className="text-xs font-mono text-slate-400 uppercase">Sin Cambios</span>
-                    <p className="text-xl font-bold text-slate-300 mt-1">{syncSummary.totalUnchanged}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* PESTAÑA 3: SCRAPER DE CATÁLOGO COMPLETO                          */}
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {activeTab === 'scraper' && (
-          <div className="space-y-6">
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl space-y-6">
-              <div>
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  🚀 Extracción Completa de Catálogo (Nuevos Modelos e Imágenes)
-                </h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  Ejecuta el scraper principal para importar nuevos armazones, descargar y optimizar fotos a WebP (Sharp Lanczos-3), y extraer especificaciones (material, forma, género).
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5 uppercase tracking-wide">
-                    Marca
-                  </label>
-                  <select
-                    value={scraperBrand}
-                    onChange={(e) => setScraperBrand(e.target.value)}
-                    disabled={scraperLoading}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  >
-                    <option value="TODAS">🌟 TODAS LAS MARCAS ({catalogTotal.toLocaleString('es-CL')} productos)</option>
-                    {availableBrands.length > 0 ? (
-                      availableBrands.map((b) => (
-                        <option key={b.name} value={b.name}>
-                          {b.name} ({b.count} productos)
-                        </option>
-                      ))
-                    ) : (
-                      POPULAR_BRANDS.filter((b) => b !== 'TODAS').map((b) => (
-                        <option key={b} value={b}>{b}</option>
-                      ))
-                    )}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5 uppercase tracking-wide">
-                    Páginas Máximas por Marca
-                  </label>
-                  <input
-                    type="number"
-                    value={scraperPages}
-                    onChange={(e) => setScraperPages(e.target.value)}
-                    disabled={scraperLoading}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-
-                <div className="flex items-center pt-5">
-                  <label className="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={scraperHeadless}
-                      onChange={(e) => setScraperHeadless(e.target.checked)}
-                      disabled={scraperLoading}
-                      className="rounded border-slate-700 text-amber-500 focus:ring-amber-400 bg-slate-800"
-                    />
-                    <span>Ejecutar en modo Invisible (Headless)</span>
-                  </label>
-                </div>
-              </div>
-
-              {scraperMessage && (
-                <div className="p-3 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono text-amber-300">
-                  {scraperMessage}
-                </div>
-              )}
-
-              <div className="pt-3 border-t border-slate-800 flex justify-between items-center">
-                <span className="text-xs text-slate-400">
-                  ⚙️ Corre en segundo plano para no bloquear el navegador ni el servidor.
-                </span>
-                <button
-                  onClick={handleRunFullScraper}
-                  disabled={scraperLoading}
-                  className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition shadow flex items-center gap-2"
-                >
-                  {scraperLoading ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Iniciando Scraper...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4 fill-current" />
-                      <span>Iniciar Ingesta de Catálogo</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
       </div>
-    </div>
+    </main>
   );
 }
