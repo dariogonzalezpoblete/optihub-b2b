@@ -70,7 +70,7 @@ export default async function CatalogoPage({
     .limit(2500);
 
   const facetList = (allFacetItems || []).filter(
-    (item) => !isFillerBrand(item.marca) && item.marca && item.marca.toLowerCase() !== 'select'
+    (item) => item.marca && item.marca.toLowerCase() !== 'select'
   );
   const allDbBrands = Array.from(new Set(facetList.map((r) => r.marca).filter((b) => b && b.toLowerCase() !== 'select')));
   const allDbGeneros = Array.from(new Set(facetList.map((r) => r.genero).filter((g) => g && g.toLowerCase() !== 'select')));
@@ -108,9 +108,6 @@ export default async function CatalogoPage({
     if (matched.length > 0) {
       query = query.in('marca', matched);
     }
-  } else {
-    // Ocultar marcas de relleno de bajo valor para proyectar máxima exclusividad
-    query = query.not('marca', 'in', '("GAP","Gap","Chesterfield","Adensco","Bebe","Emozioni","Elasta")');
   }
 
   const colores = parseList(params.color);

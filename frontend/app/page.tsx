@@ -28,6 +28,7 @@ interface MarcoDestacado {
 export default function Home() {
   const { isLoggedIn } = useAuth();
   const [destacados, setDestacados] = useState<MarcoDestacado[]>([]);
+  const [totalModelos, setTotalModelos] = useState<number | null>(null);
   const [loadingDestacados, setLoadingDestacados] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string>('todos');
 
@@ -48,10 +49,16 @@ export default function Home() {
           query = query.gt('stock', 0);
         }
 
-        const { data, error } = await query.limit(16);
+        const [{ data, error }, { count }] = await Promise.all([
+          query.limit(16),
+          supabase.from('marcos').select('*', { count: 'exact', head: true }).gt('stock', 0),
+        ]);
 
         if (!cancelled && !error && data) {
           setDestacados(data as unknown as MarcoDestacado[]);
+        }
+        if (!cancelled && count !== null && count !== undefined) {
+          setTotalModelos(count);
         }
       } catch (err) {
         console.error('Error cargando destacados:', err);
@@ -358,7 +365,11 @@ export default function Home() {
             href="/catalogo"
             className="btn-secondary !py-3.5 !px-8 text-xs font-bold"
           >
-            <span>Ver los más de 1.000 modelos en el catálogo</span>
+            <span>
+              {totalModelos
+                ? `Ver los ${totalModelos.toLocaleString('es-CL')} modelos disponibles en el catálogo`
+                : 'Ver todos los modelos disponibles en el catálogo'}
+            </span>
             <ArrowRight className="w-4 h-4 ml-1 text-[#B89768]" />
           </Link>
         </div>
