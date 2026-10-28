@@ -972,6 +972,11 @@ export class CatalogRunner {
     // Prompt user to press ENTER in terminal instead of aborting
     console.log('\n' + '═'.repeat(65));
     console.log(`⏳ Si ya navegaste al catálogo de '${resolvedBrand}' en Chrome:`);
+    try {
+      if (process.stdin.isPaused()) {
+        process.stdin.resume();
+      }
+    } catch {}
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
     await new Promise<void>((resolve) => {
       rl.question(`>>> Presiona [ENTER] en esta terminal para comenzar a extraer '${resolvedBrand}': `, () => {

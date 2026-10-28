@@ -100,40 +100,54 @@ export class SessionManager {
   public async isSessionValid(page: Page): Promise<boolean> {
     try {
       Logger.info('Verificando si la sesión en NYWD ya está activa...');
-      await page.goto(CONFIG.PROVIDER.CATALOG_URL, {
-        waitUntil: 'domcontentloaded',
-        timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
-      });
 
-      await page.waitForTimeout(1800);
+      // First check cookies in context
+      const cookies = await page.context().cookies();
+      const hasAuthCookie = cookies.some(
+        (c) => c.name === '.ASPXAUTH' || c.name === 'authdata' || c.name === 'UserID' || c.name === 'Username'
+      );
+
       const currentUrl = page.url().toLowerCase();
 
-      // If redirected to login or 404, session is not valid
-      if (currentUrl.includes('/login') || currentUrl.includes('signin') || currentUrl.includes('/404')) {
-        Logger.warn('NYWD redirigió a la página de login o 404. Es necesario iniciar sesión.');
+      // Only navigate if not already on an active NYWD page
+      if (!currentUrl.includes('nywd.com') || currentUrl.includes('/login') || currentUrl.includes('/404')) {
+        await page.goto(CONFIG.PROVIDER.CATALOG_URL, {
+          waitUntil: 'domcontentloaded',
+          timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
+        }).catch(() => {});
+        await page.waitForTimeout(1500);
+      } else {
+        await page.waitForTimeout(600);
+      }
+
+      const activeUrl = page.url().toLowerCase();
+
+      // If redirected to login, session has expired
+      if (activeUrl.includes('/login') || activeUrl.includes('signin')) {
+        Logger.warn('NYWD redirigió a la página de login. Es necesario iniciar sesión.');
         return false;
       }
 
       // Check for password inputs indicating login view
       const hasLoginForm = await page.$('input[type="password"]');
-      if (hasLoginForm && !currentUrl.includes('listing-brand')) {
+      if (hasLoginForm && !activeUrl.includes('listing-brand')) {
         Logger.warn('Formulario de login detectado en la página. Sesión no activa.');
         return false;
       }
 
-      // Check for authentic auth cookies (.ASPXAUTH, authdata, UserID)
-      const cookies = await page.context().cookies();
-      const hasAuthCookie = cookies.some(
-        (c) => c.name === '.ASPXAUTH' || c.name === 'authdata' || c.name === 'UserID'
-      );
-
-      // Check for authenticated elements (e.g. brand navigation, account menu, logout)
+      // Check for authenticated elements in DOM using valid CSS selectors
       const isAuthenticated = await page.evaluate(() => {
+        const text = document.body ? document.body.innerText.toLowerCase() : '';
         const hasLogout = !!document.querySelector('a[href*="logout" i], a[href*="signout" i], .logout, #btnlogout');
-        const hasAccount = !!document.querySelector('a[href*="my-account" i], a[href*="profile" i], .user-name, #account-dropdown');
-        const hasBrands = !!document.querySelector('a:has-text("BRANDS"), [id*="BrandList"], #shop-brands');
+        const hasAccount = !!document.querySelector('a[href*="my-account" i], a[href*="profile" i], .user-name, #account-dropdown') ||
+          text.includes('multifocus') ||
+          text.includes('my account') ||
+          text.includes('sign out');
+        const hasBrands = Array.from(document.querySelectorAll('a')).some(
+          (a) => (a.innerText || a.textContent || '').trim().toUpperCase() === 'BRANDS'
+        );
         return hasLogout || hasAccount || hasBrands;
-      });
+      }).catch(() => false);
 
       if (hasAuthCookie || isAuthenticated) {
         Logger.success('✅ Sesión activa verificada: Acceso a NYWD confirmado sin pedir clave.');
@@ -188,6 +202,12 @@ export class SessionManager {
    * Prompts the user in console to press Enter after completing captcha
    */
   private async promptUserKey(message: string): Promise<void> {
+    try {
+      if (process.stdin.isPaused()) {
+        process.stdin.resume();
+      }
+    } catch {}
+
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
@@ -393,11 +413,17 @@ export class SessionManager {
               );
 
               const hasAuthElement = await page.evaluate(() => {
+                const text = document.body ? document.body.innerText.toLowerCase() : '';
                 const hasLogout = !!document.querySelector('a[href*="logout" i], a[href*="signout" i], #btnlogout');
-                const hasAccount = !!document.querySelector('a[href*="my-account" i], a[href*="profile" i], .user-name, #account-dropdown');
-                const hasBrands = !!document.querySelector('a:has-text("BRANDS"), [id*="BrandList"], #shop-brands');
+                const hasAccount = !!document.querySelector('a[href*="my-account" i], a[href*="profile" i], .user-name, #account-dropdown') ||
+                  text.includes('multifocus') ||
+                  text.includes('my account') ||
+                  text.includes('sign out');
+                const hasBrands = Array.from(document.querySelectorAll('a')).some(
+                  (a) => (a.innerText || a.textContent || '').trim().toUpperCase() === 'BRANDS'
+                );
                 return hasLogout || hasAccount || hasBrands;
-              });
+              }).catch(() => false);
 
               if (hasAuthCookie || hasAuthElement) {
                 Logger.success(`¡Ingreso a NYWD detectado exitosamente en: ${page.url()}!`);
