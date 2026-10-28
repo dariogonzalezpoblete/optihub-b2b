@@ -1,13 +1,14 @@
 import { SupabaseService } from './services/supabase';
-import { calculateB2BPricing, getBrandMarginPercentage } from './services/pricing';
+import { calculateB2BPricing } from './services/pricing';
 import { Logger } from './utils/logger';
 
 async function main() {
   const startTime = Date.now();
   console.log('\n╔════════════════════════════════════════════════════════════════╗');
-  console.log('║       OptiHub B2B - Recalculador de Márgenes por Marca         ║');
-  console.log('║   • Marcas Medias:    40% de ganancia (Guess, Nike, Adidas...) ║');
-  console.log('║   • Alta Gama:        70% de ganancia (Gucci, Tom Ford, etc.)  ║');
+  console.log('║       OptiHub B2B - Recalculador de Márgenes por Tramos        ║');
+  console.log('║   • Costo <= $45.000:      +$18.000 CLP de ganancia neta       ║');
+  console.log('║   • Costo $45.001-$70.000: +$28.000 CLP de ganancia neta       ║');
+  console.log('║   • Costo > $70.000:       +$50.000 CLP de ganancia neta       ║');
   console.log('╚════════════════════════════════════════════════════════════════╝\n');
 
   const supabaseService = new SupabaseService();
@@ -43,22 +44,21 @@ async function main() {
   Logger.info(`Total productos cargados: ${allProducts.length}`);
 
   const itemsToUpdate: any[] = [];
-  const brandStats: Record<string, { count: number; margin: number; sampleBefore: number; sampleAfter: number }> = {};
+  const brandStats: Record<string, { count: number; sampleBefore: number; sampleAfter: number; profit: number }> = {};
 
   for (const prod of allProducts) {
     const priceUsd = prod.precio_usd ? parseFloat(prod.precio_usd) : 0;
     if (priceUsd <= 0) continue;
 
     const brand = (prod.marca || '').trim();
-    const margin = getBrandMarginPercentage(brand);
     const calculated = calculateB2BPricing(priceUsd, brand);
 
     if (!brandStats[brand]) {
       brandStats[brand] = {
         count: 0,
-        margin,
         sampleBefore: prod.precio_neto_clp || 0,
         sampleAfter: calculated.precio_neto_clp,
+        profit: calculated.ganancia_clp,
       };
     }
     brandStats[brand].count++;
@@ -92,8 +92,7 @@ async function main() {
 
   const sortedBrands = Object.entries(brandStats).sort((a, b) => b[1].count - a[1].count);
   for (const [bName, stats] of sortedBrands) {
-    const tier = stats.margin === 70 ? '👑 ALTA GAMA (70%)' : '📦 MARCA MEDIA (40%)';
-    console.log(`  • ${bName.padEnd(20)} [${tier}]: ${String(stats.count).padStart(4)} items | Ejemplo: $${stats.sampleBefore.toLocaleString('es-CL')} -> $${stats.sampleAfter.toLocaleString('es-CL')}`);
+    console.log(`  • ${bName.padEnd(20)} [${String(stats.count).padStart(4)} items] | Ejemplo: $${stats.sampleBefore.toLocaleString('es-CL')} -> $${stats.sampleAfter.toLocaleString('es-CL')} (Ganancia: +$${stats.profit.toLocaleString('es-CL')})`);
   }
 
   console.log('════════════════════════════════════════════════════════════════\n');

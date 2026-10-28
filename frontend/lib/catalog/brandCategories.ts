@@ -174,22 +174,48 @@ export function getRotationBadge(brand: string): { label: string; bg: string; te
 }
 
 /**
- * Calculadora de Margen Retail Sugerido (PVP de Mercado Óptico)
- * Basado en multiplicador estándar B2B de 2.8x - 3.0x sobre costo neto.
+ * Calculadora de Margen Retail Sugerido (PVP de Mercado Óptico en Chile)
+ * Refleja los precios reales de venta al público en ópticas de Chile (GMO, Rotter & Krauss, etc.)
+ * • Piso estricto: Ningún armazón sugerido bajo $99.900 CLP (los Guess y marcas de entrada parten desde $99.900-$109.900)
+ * • Escala realista de mercado sin inflar artificialmente las marcas de lujo
  */
 export function calculateRetailProjection(precioNetoClp?: number | null) {
   if (!precioNetoClp || precioNetoClp <= 0) {
     return {
       pvpSugerido: 0,
-      margenPorcentaje: 65,
+      margenPorcentaje: 50,
       gananciaPorUnidad: 0
     };
   }
 
-  // Multiplicador retail estándar de ópticas en Chile (~2.85x sobre neto)
-  const rawPvp = precioNetoClp * 2.85;
-  // Redondeo comercial a terminación $900 (ej. $129.900)
-  const pvpSugerido = Math.round(rawPvp / 1000) * 1000 - 100;
+  let rawPvp: number;
+
+  if (precioNetoClp <= 55000) {
+    // Modelos de entrada / Bestsellers (Guess, Converse, etc.):
+    // En ópticas siempre parten desde $99.900 a $119.900
+    rawPvp = Math.max(99900, precioNetoClp * 2.1);
+  } else if (precioNetoClp <= 90000) {
+    // Gama media / Sport (Adidas, Nike, Calvin Klein, Emporio Armani):
+    // En ópticas se venden habitualmente entre $129.900 y $169.900
+    rawPvp = Math.max(129900, precioNetoClp * 1.85);
+  } else if (precioNetoClp <= 160000) {
+    // Gama alta técnica / titanio (IC! Berlin, Burberry):
+    // En ópticas se venden entre $229.900 y $269.900
+    rawPvp = Math.max(229900, precioNetoClp * 1.65);
+  } else {
+    // Lujo superior (Gucci, Tom Ford, Prada, etc.):
+    // En ópticas se venden entre $349.900 y $449.900
+    rawPvp = Math.max(349900, precioNetoClp * 1.5);
+  }
+
+  // Redondeo comercial a múltiplos de $10.000 con terminación $900 (ej: $99.900, $109.900, $129.900, $249.900)
+  let pvpSugerido = Math.round(rawPvp / 10000) * 10000 - 100;
+
+  // REGLA DE NEGOCIO ESTRICTA: Ningún sugerido en menos de $99.900
+  if (pvpSugerido < 99900) {
+    pvpSugerido = 99900;
+  }
+
   const gananciaPorUnidad = pvpSugerido - precioNetoClp;
   const margenPorcentaje = Math.round((gananciaPorUnidad / pvpSugerido) * 100);
 

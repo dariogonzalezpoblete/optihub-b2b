@@ -88,19 +88,26 @@ export function calculateB2BPricing(
   const costoTotalChile = cifClp + adValoremClp + fleteLocal;
 
   // 2. Commercial Pricing Tiers & Margins
-  let marginPct: number;
-  if (typeof overrides?.marginPercentage === 'number' && overrides.marginPercentage > 0) {
-    marginPct = overrides.marginPercentage;
-  } else {
-    marginPct = getBrandMarginPercentage(brand);
-  }
-
   let precioVentaNetoRaw: number;
-  if (typeof overrides?.customMultiplier === 'number' && overrides.customMultiplier > 0) {
+
+  if (typeof overrides?.marginPercentage === 'number' && overrides.marginPercentage > 0) {
+    precioVentaNetoRaw = costoTotalChile * (1 + overrides.marginPercentage / 100.0);
+  } else if (typeof overrides?.customMultiplier === 'number' && overrides.customMultiplier > 0) {
     precioVentaNetoRaw = priceUsd * overrides.customMultiplier;
   } else {
-    // Commercial margin over landed cost
-    precioVentaNetoRaw = costoTotalChile * (1 + marginPct / 100.0);
+    // Regla OptiHub de Ganancia Neta por Tramo de Costo Puesto en Chile:
+    // • Tramo 1 (Costo Chile <= $45.000): Ganancia de $18.000 CLP (Modelos de entrada / Guess / Converse)
+    // • Tramo 2 (Costo Chile de $45.001 a $70.000): Ganancia de $28.000 CLP (Gama media / Adidas / Nike / CK)
+    // • Tramo 3 (Costo Chile > $70.000): Ganancia de $50.000 CLP (Gama alta y Lujo / Gucci / Tom Ford / Burberry / IC! Berlin)
+    let gananciaFija: number;
+    if (costoTotalChile <= 45000) {
+      gananciaFija = 18000;
+    } else if (costoTotalChile <= 70000) {
+      gananciaFija = 28000;
+    } else {
+      gananciaFija = 50000;
+    }
+    precioVentaNetoRaw = costoTotalChile + gananciaFija;
   }
 
   // 3. Round to nearest 1,000 CLP for market standard B2B pricing
