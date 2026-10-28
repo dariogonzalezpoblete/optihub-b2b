@@ -108,34 +108,39 @@ export class SessionManager {
       await page.waitForTimeout(1800);
       const currentUrl = page.url().toLowerCase();
 
-      // If redirected to login, session has expired
-      if (currentUrl.includes('/login') || currentUrl.includes('signin')) {
-        Logger.warn('NYWD redirigió a la página de login. La sesión anterior ha expirado.');
+      // If redirected to login or 404, session is not valid
+      if (currentUrl.includes('/login') || currentUrl.includes('signin') || currentUrl.includes('/404')) {
+        Logger.warn('NYWD redirigió a la página de login o 404. Es necesario iniciar sesión.');
         return false;
       }
 
       // Check for password inputs indicating login view
       const hasLoginForm = await page.$('input[type="password"]');
-      if (hasLoginForm && !currentUrl.includes('wholesale') && !currentUrl.includes('listing-brand') && !currentUrl.includes('new-home')) {
-        Logger.warn('Formulario de login detectado en la página. Sesión expirada.');
+      if (hasLoginForm && !currentUrl.includes('listing-brand')) {
+        Logger.warn('Formulario de login detectado en la página. Sesión no activa.');
         return false;
       }
 
-      // Check for authenticated elements (e.g. brand navigation, account menu, prices)
+      // Check for authentic auth cookies (.ASPXAUTH, authdata, UserID)
+      const cookies = await page.context().cookies();
+      const hasAuthCookie = cookies.some(
+        (c) => c.name === '.ASPXAUTH' || c.name === 'authdata' || c.name === 'UserID'
+      );
+
+      // Check for authenticated elements (e.g. brand navigation, account menu, logout)
       const isAuthenticated = await page.evaluate(() => {
-        const text = document.body ? document.body.innerText : '';
-        const hasPrices = text.includes('$');
-        const hasAccount = !!document.querySelector('a[href*="logout"], a[href*="signout"], #account-dropdown, .user-name, a[href*="account"]');
-        const hasBrands = !!document.querySelector('#shop-brands, a[data-target="#shop-brands"], a[href*="listing-brand"]');
-        return hasAccount || (hasPrices && hasBrands);
+        const hasLogout = !!document.querySelector('a[href*="logout" i], a[href*="signout" i], .logout, #btnlogout');
+        const hasAccount = !!document.querySelector('a[href*="my-account" i], a[href*="profile" i], .user-name, #account-dropdown');
+        const hasBrands = !!document.querySelector('a:has-text("BRANDS"), [id*="BrandList"], #shop-brands');
+        return hasLogout || hasAccount || hasBrands;
       });
 
-      if (isAuthenticated) {
-        Logger.success('✅ Sesión activa verificada: Acceso al catálogo mayorista confirmado sin pedir clave.');
+      if (hasAuthCookie || isAuthenticated) {
+        Logger.success('✅ Sesión activa verificada: Acceso a NYWD confirmado sin pedir clave.');
         return true;
       }
 
-      Logger.warn('No se detectaron marcas de usuario autenticado en la página.');
+      Logger.warn('No se detectaron credenciales autenticadas en la página.');
       return false;
     } catch (err) {
       Logger.warn('Error al verificar el estado de la sesión:', err);
@@ -377,23 +382,24 @@ export class SessionManager {
         await new Promise((r) => setTimeout(r, 1200));
         try {
           const url = page.url().toLowerCase();
-          const isNotOnLogin = url.startsWith('http') && !url.includes('/login') && !url.includes('signin');
+          const isNotOnLogin = url.startsWith('http') && !url.includes('/login') && !url.includes('signin') && !url.includes('/404');
 
           if (isNotOnLogin) {
             const hasPwd = await page.$('input[type="password"]');
             if (!hasPwd) {
               const cookies = await context.cookies();
               const hasAuthCookie = cookies.some(
-                (c) => c.name === '.ASPXAUTH' || c.name === 'authdata' || c.name === 'ASP.NET_SessionId'
+                (c) => c.name === '.ASPXAUTH' || c.name === 'authdata' || c.name === 'UserID'
               );
 
-              if (
-                hasAuthCookie ||
-                url.includes('wholesale') ||
-                url.includes('new-home') ||
-                url.includes('listing-brand') ||
-                url.includes('account')
-              ) {
+              const hasAuthElement = await page.evaluate(() => {
+                const hasLogout = !!document.querySelector('a[href*="logout" i], a[href*="signout" i], #btnlogout');
+                const hasAccount = !!document.querySelector('a[href*="my-account" i], a[href*="profile" i], .user-name, #account-dropdown');
+                const hasBrands = !!document.querySelector('a:has-text("BRANDS"), [id*="BrandList"], #shop-brands');
+                return hasLogout || hasAccount || hasBrands;
+              });
+
+              if (hasAuthCookie || hasAuthElement) {
                 Logger.success(`¡Ingreso a NYWD detectado exitosamente en: ${page.url()}!`);
                 isDone = true;
                 break;

@@ -1,3 +1,4 @@
+import readline from 'readline';
 import { BrowserContext, Page } from 'playwright';
 import { NetworkInterceptor } from './interceptor';
 import { ImageOptimizer } from './imageOptimizer';
@@ -795,8 +796,8 @@ export class CatalogRunner {
     Logger.info(`Buscando marca '${resolvedBrand}' en catálogo de NYWD...`);
 
     const currentUrl = page.url().toLowerCase();
-    if (!currentUrl.includes('new-home') && !currentUrl.includes('wholesale') && !currentUrl.includes('listing-brand')) {
-      await page.goto(`${CONFIG.PROVIDER.BASE_URL}/new-home`, {
+    if (currentUrl.includes('/404') || currentUrl.includes('/login') || !currentUrl.includes('nywd.com')) {
+      await page.goto(`${CONFIG.PROVIDER.BASE_URL}/index`, {
         waitUntil: 'domcontentloaded',
         timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
       }).catch(() => {});
@@ -812,7 +813,7 @@ export class CatalogRunner {
       if (await brandsMenuActivator.isVisible({ timeout: 3000 }).catch(() => false)) {
         await brandsMenuActivator.hover().catch(() => {});
         await brandsMenuActivator.click().catch(() => {});
-        await page.waitForTimeout(600);
+        await page.waitForTimeout(800);
       }
     } catch {}
 
@@ -828,16 +829,11 @@ export class CatalogRunner {
         const text = (a.innerText || a.textContent || '').trim();
         if (!text || text.length < 2) continue;
 
-        const isBrandContainer = a.closest('#shop-brands, [id*="BrandList"], .dropdown-menu, .mega-menu') !== null;
-        const isBrandHref = href.includes('listing-brand') || href.includes('brand=') || href.includes('/brand');
-
-        if (isBrandContainer || isBrandHref) {
-          const cleanText = text.replace(/\s*\(\d+\)$/, '').trim();
-          const key = `${cleanText.toLowerCase()}|${href}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            list.push({ text: cleanText, href });
-          }
+        const cleanText = text.replace(/\s*\(\d+\)$/, '').trim();
+        const key = `${cleanText.toLowerCase()}|${href}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          list.push({ text: cleanText, href });
         }
       }
       return list;
@@ -946,7 +942,7 @@ export class CatalogRunner {
       Logger.debug(`Nota en búsqueda por texto:`, e);
     }
 
-    // 4. Interactive fallback with strict validation
+    // 4. Interactive fallback with user assistance
     const startUrl = page.url();
     Logger.info(`Esperando selección manual de '${resolvedBrand}' en Chrome...`);
     console.log('\n' + '═'.repeat(65));
@@ -954,14 +950,15 @@ export class CatalogRunner {
     console.log(`   (El bot detectará automáticamente cuando abras '${resolvedBrand}').`);
     console.log('═'.repeat(65) + '\n');
 
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 15; i++) {
       await page.waitForTimeout(1000);
       const currUrl = page.url();
       if (currUrl !== startUrl) {
         const matchesTarget = await page.evaluate((target) => {
           const bodyText = (document.body ? document.body.innerText : '').toLowerCase();
           const t = target.toLowerCase();
-          return bodyText.includes(t) && (window.location.href.includes('listing-brand') || window.location.href.includes('search'));
+          return (bodyText.includes(t) || window.location.href.toLowerCase().includes(t.replace(/\s+/g, '-'))) &&
+            (window.location.href.includes('listing-brand') || window.location.href.includes('search') || window.location.href.includes('product'));
         }, resolvedBrand);
 
         if (matchesTarget) {
@@ -972,8 +969,19 @@ export class CatalogRunner {
       }
     }
 
-    Logger.warn(`No se logró ingresar al catálogo de '${resolvedBrand}'. Se omitirá de forma segura.`);
-    return false;
+    // Prompt user to press ENTER in terminal instead of aborting
+    console.log('\n' + '═'.repeat(65));
+    console.log(`⏳ Si ya navegaste al catálogo de '${resolvedBrand}' en Chrome:`);
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    await new Promise<void>((resolve) => {
+      rl.question(`>>> Presiona [ENTER] en esta terminal para comenzar a extraer '${resolvedBrand}': `, () => {
+        rl.close();
+        resolve();
+      });
+    });
+
+    Logger.success(`Continuando con la extracción de '${resolvedBrand}' en: ${page.url()}`);
+    return true;
   }
 
   /**

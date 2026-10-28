@@ -29,7 +29,7 @@ export const CONFIG = {
   PROVIDER: {
     BASE_URL: process.env.PROVIDER_BASE_URL || 'https://www.nywd.com',
     LOGIN_URL: process.env.PROVIDER_LOGIN_URL || 'https://www.nywd.com/login',
-    CATALOG_URL: process.env.PROVIDER_CATALOG_URL || 'https://www.nywd.com/wholesale',
+    CATALOG_URL: process.env.PROVIDER_CATALOG_URL || 'https://www.nywd.com/index',
     USERNAME: process.env.PROVIDER_USERNAME || process.env.NYWD_USERNAME || '',
     PASSWORD: process.env.PROVIDER_PASSWORD || process.env.NYWD_PASSWORD || '',
   },
