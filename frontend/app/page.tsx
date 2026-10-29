@@ -14,6 +14,7 @@ import RecentlyViewed from '@/components/catalog/RecentlyViewed';
 import HeroSpotlight from '@/components/home/HeroSpotlight';
 import ImportSteps from '@/components/home/ImportSteps';
 import FaqSection from '@/components/home/FaqSection';
+import BrandLogosMarquee from '@/components/brands/BrandLogosMarquee';
 
 interface MarcoDestacado {
   id_ext: string;
@@ -26,19 +27,6 @@ interface MarcoDestacado {
   material?: string;
   forma?: string;
 }
-
-const BRAND_MAISONS = [
-  'TOM FORD',
-  'BURBERRY',
-  'FERRAGAMO',
-  'ZEISS',
-  'GUESS',
-  'CALVIN KLEIN',
-  'ADIDAS',
-  'NIKE',
-  'TOMMY HILFIGER',
-  'SWAROVSKI',
-];
 
 export default function Home() {
   const { isLoggedIn } = useAuth();
@@ -196,25 +184,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 3. VITRINA DE CASAS OFICIALES (BRAND MAISONS BAR) */}
-      <section className="mt-14 border-y border-[#E6E2DD] bg-[#FFFFFF] py-6 overflow-x-auto no-scrollbar">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-8 min-w-max">
-          <span className="text-[10px] uppercase tracking-[0.25em] text-[#9E8256] font-medium pr-6 border-r border-[#E6E2DD]">
-            MARCAS OFICIALES
-          </span>
-          <div className="flex items-center gap-10 lg:gap-14">
-            {BRAND_MAISONS.map((brand) => (
-              <Link
-                key={brand}
-                href={`/catalogo?marca=${encodeURIComponent(brand)}`}
-                className="text-[12px] uppercase tracking-[0.24em] text-[#5C5A55] hover:text-[#0F0F0F] hover:tracking-[0.28em] transition-all font-sans"
-              >
-                {brand}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* 3. VITRINA DE CASAS OFICIALES (DYNAMIC MARQUEE CON LOGOS) */}
+      <BrandLogosMarquee />
 
       {/* 4. CURADURÍA POR ESPECIALIDAD (LÍNEAS OFTÁLMICAS Y SOLARES CON BORDES ARQUITECTÓNICOS) */}
       <section className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
