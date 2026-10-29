@@ -277,35 +277,6 @@ export const OFFICIAL_BRANDS: BrandItem[] = [
     ),
   },
   {
-    id: 'oakley',
-    name: 'Oakley',
-    query: 'Oakley',
-    category: 'Sport',
-    logo: (
-      <div className="flex items-center gap-2">
-        <svg viewBox="0 0 28 16" className="w-6 h-auto stroke-current fill-none" strokeWidth="2.4" aria-label="Oakley O emblem">
-          <ellipse cx="14" cy="8" rx="11" ry="5.5" />
-        </svg>
-        <span className="font-sans font-black text-xs sm:text-sm tracking-[0.22em] uppercase">
-          OAKLEY
-        </span>
-      </div>
-    ),
-  },
-  {
-    id: 'ray-ban',
-    name: 'Ray-Ban',
-    query: 'Ray-Ban',
-    category: 'Bestseller',
-    logo: (
-      <div className="flex items-center">
-        <span className="font-serif italic font-extrabold text-base tracking-tight text-[#0F0F0F] transform -rotate-3">
-          Ray·Ban
-        </span>
-      </div>
-    ),
-  },
-  {
     id: 'emporio-armani',
     name: 'Emporio Armani',
     query: 'Emporio Armani',
