@@ -30,8 +30,20 @@ export async function GET() {
       .from('marcos')
       .select('id_ext', { count: 'exact', head: true });
 
-    // Fetch unique brands
-    const { data: brandRows } = await supabase.from('marcos').select('marca');
+    // Fetch all brands in batches to avoid PostgREST 1000-row limit
+    let brandRows: Array<{ marca?: string }> = [];
+    let from = 0;
+    const step = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from('marcos')
+        .select('marca')
+        .range(from, from + step - 1);
+      if (error || !data || data.length === 0) break;
+      brandRows = brandRows.concat(data);
+      if (data.length < step) break;
+      from += step;
+    }
 
     const brandCounts: Record<string, number> = {};
     if (brandRows) {

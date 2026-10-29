@@ -63,11 +63,32 @@ export default async function CatalogoPage({
     ? 'sol'
     : '';
 
-  // 2. Consulta optimizada en una sola llamada de metadatos globales para facetas
-  const { data: allFacetItems } = await supabase
+  // 2. Consulta exhaustiva de metadatos globales para facetas (sin corte de 1000 items de PostgREST)
+  const PAGE_SIZE = 1000;
+  const { count: totalFacetCount } = await supabase
     .from('marcos')
-    .select(MARCOS_FACET_PUBLIC_COLUMNS)
-    .limit(2500);
+    .select('id', { count: 'exact', head: true });
+
+  const countToUse = typeof totalFacetCount === 'number' && totalFacetCount > 0 ? totalFacetCount : 4000;
+  const totalPagesFacet = Math.max(1, Math.ceil(countToUse / PAGE_SIZE));
+  const facetRequests = [];
+  for (let p = 0; p < totalPagesFacet; p++) {
+    const from = p * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    facetRequests.push(
+      supabase
+        .from('marcos')
+        .select(MARCOS_FACET_PUBLIC_COLUMNS)
+        .range(from, to)
+    );
+  }
+  const facetResponses = await Promise.all(facetRequests);
+  const allFacetItems: any[] = [];
+  for (const res of facetResponses) {
+    if (res.data) {
+      allFacetItems.push(...res.data);
+    }
+  }
 
   const facetList = (allFacetItems || []).filter(
     (item) => item.marca && item.marca.toLowerCase() !== 'select'
@@ -107,6 +128,10 @@ export default async function CatalogoPage({
     );
     if (matched.length > 0) {
       query = query.in('marca', matched);
+    } else {
+      // Fallback si la marca no tuvo match exacto normalizado
+      const brandFilters = marcas.map((m) => `marca.ilike.%${m.replace(/[^a-zA-Z0-9]/g, '')}%`).join(',');
+      query = query.or(brandFilters);
     }
   }
 

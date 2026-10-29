@@ -26,13 +26,16 @@ interface MarcoDestacado {
 }
 
 const BRAND_MAISONS = [
+  'TOM FORD',
   'BURBERRY',
-  'CARRERA',
+  'FERRAGAMO',
+  'ZEISS',
   'GUESS',
   'CALVIN KLEIN',
-  'LACOSTE',
+  'ADIDAS',
   'NIKE',
   'TOMMY HILFIGER',
+  'SWAROVSKI',
 ];
 
 export default function Home() {

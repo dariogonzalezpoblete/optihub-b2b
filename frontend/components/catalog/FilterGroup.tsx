@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Check, ChevronDown, Search } from 'lucide-react';
 import type { FacetOption } from '@/lib/catalog/types';
 
 interface FilterGroupProps {
@@ -13,6 +13,7 @@ interface FilterGroupProps {
   variant?: 'list' | 'chips';
   initialVisible?: number;
   defaultOpen?: boolean;
+  searchable?: boolean;
 }
 
 export default function FilterGroup({
@@ -24,17 +25,25 @@ export default function FilterGroup({
   variant = 'list',
   initialVisible = 6,
   defaultOpen = true,
+  searchable = false,
 }: FilterGroupProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [expanded, setExpanded] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredOptions = useMemo(() => {
+    if (!searchTerm.trim()) return options;
+    const clean = searchTerm.toLowerCase().trim();
+    return options.filter((o) => o.label.toLowerCase().includes(clean));
+  }, [options, searchTerm]);
 
   if (!options.length) return null;
 
   const visible =
-    variant === 'chips' || expanded || options.length <= initialVisible
-      ? options
-      : options.filter((o, i) => i < initialVisible || selected.includes(o.key));
-  const hiddenCount = options.length - visible.length;
+    variant === 'chips' || expanded || searchTerm.trim() || filteredOptions.length <= initialVisible
+      ? filteredOptions
+      : filteredOptions.filter((o, i) => i < initialVisible || selected.includes(o.key));
+  const hiddenCount = filteredOptions.length - visible.length;
 
   return (
     <div className="border-b border-[#E6E2DD] last:border-b-0 py-4">
@@ -62,6 +71,28 @@ export default function FilterGroup({
       {open && (
         <div className="mt-3 animate-fade-in">
           {subtitle && <p className="text-[10px] text-[#787670] mb-2 font-mono uppercase">{subtitle}</p>}
+
+          {searchable && options.length > 8 && (
+            <div className="mb-2.5 relative">
+              <input
+                type="text"
+                placeholder={`Buscar ${title.toLowerCase()}...`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full text-xs pl-7 pr-6 py-1.5 bg-[#FAF9F6] border border-[#E6E2DD] placeholder-[#787670] text-[#0F0F0F] focus:outline-none focus:border-[#0F0F0F] rounded-none transition"
+              />
+              <Search className="w-3.5 h-3.5 text-[#787670] absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#787670] hover:text-[#0F0F0F] cursor-pointer"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          )}
 
           {variant === 'chips' ? (
             <div className="grid grid-cols-2 gap-1.5">

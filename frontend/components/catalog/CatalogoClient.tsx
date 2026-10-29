@@ -290,7 +290,7 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
             </div>
 
             {/* Grid de Productos Impecable en Blanco Puro */}
-            {loading ? (
+            {loading || (groupedResults.length === 0 && totalCount > 0) ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 sm:gap-8">
                 {Array.from({ length: 9 }).map((_, i) => (
                   <div key={i} className="bg-[#FFFFFF] border border-[#E6E2DD] overflow-hidden animate-pulse">
@@ -307,7 +307,7 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
                   </div>
                 ))}
               </div>
-            ) : totalCount === 0 ? (
+            ) : totalCount === 0 || groupedResults.length === 0 ? (
               <div className="text-center py-20 bg-[#FFFFFF] border border-[#E6E2DD] p-8">
                 <Search className="w-8 h-8 text-[#787670] mx-auto mb-3" />
                 <p className="text-[#0F0F0F] font-serif text-lg">No hay armazones con esta combinación de filtros.</p>

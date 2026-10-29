@@ -121,13 +121,23 @@ export class SupabaseService {
   public async getAllCatalogBrands(): Promise<string[]> {
     if (!this.client) return [];
     try {
-      const { data, error } = await this.client
-        .from(CONFIG.SUPABASE.TABLE_MARCOS)
-        .select('marca');
+      let allRows: Array<{ marca?: string }> = [];
+      let from = 0;
+      const step = 1000;
+      while (true) {
+        const { data, error } = await this.client
+          .from(CONFIG.SUPABASE.TABLE_MARCOS)
+          .select('marca')
+          .range(from, from + step - 1);
 
-      if (error || !data) return [];
+        if (error || !data || data.length === 0) break;
+        allRows = allRows.concat(data);
+        if (data.length < step) break;
+        from += step;
+      }
+
       const set = new Set<string>();
-      data.forEach((row) => {
+      allRows.forEach((row) => {
         if (row.marca && row.marca.trim()) {
           set.add(row.marca.trim());
         }

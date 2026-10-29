@@ -25,7 +25,8 @@ export const BRAND_SEGMENTS: BrandSegment[] = [
       'Hugo Boss', 
       'Tommy Hilfiger', 
       'Lacoste', 
-      'Carrera'
+      'Carrera',
+      'Emporio Armani'
     ],
     description: 'Modelos de alta rotación comprobada en el mercado óptico chileno.'
   },
@@ -43,7 +44,11 @@ export const BRAND_SEGMENTS: BrandSegment[] = [
       'Salvatore Ferragamo', 
       'Versace', 
       'Prada', 
-      'Chopard'
+      'Chopard',
+      'Philipp Plein',
+      'Roberto Cavalli',
+      'Moschino',
+      'Palm Angels'
     ],
     description: 'Armazones de prestigio internacional con alto valor de reventa.'
   },
@@ -59,6 +64,7 @@ export const BRAND_SEGMENTS: BrandSegment[] = [
       'Converse', 
       'Carrera', 
       'SPY', 
+      'Spy',
       'Under Armour', 
       'Spyder'
     ],
@@ -125,7 +131,7 @@ export function getRotationBadge(brand: string): { label: string; bg: string; te
   if (!brand) return null;
   const b = brand.toLowerCase();
 
-  if (['guess', 'calvin klein', 'tommy hilfiger', 'hugo boss', 'lacoste', 'dkny'].some(x => b.includes(x))) {
+  if (['guess', 'calvin klein', 'tommy hilfiger', 'hugo boss', 'lacoste', 'dkny', 'emporio armani'].some(x => b.includes(x))) {
     return {
       label: 'Bestseller Chile',
       bg: 'bg-amber-500/15 border-amber-500/30',
@@ -134,7 +140,7 @@ export function getRotationBadge(brand: string): { label: string; bg: string; te
     };
   }
 
-  if (['gucci', 'burberry', 'bmw', 'tom ford', 'versace', 'ferragamo', 'prada', 'chopard'].some(x => b.includes(x))) {
+  if (['gucci', 'burberry', 'bmw', 'tom ford', 'versace', 'ferragamo', 'prada', 'chopard', 'philipp plein', 'roberto cavalli', 'moschino', 'palm angels'].some(x => b.includes(x))) {
     return {
       label: 'Alta Gama',
       bg: 'bg-purple-500/15 border-purple-500/30',
@@ -161,7 +167,7 @@ export function getRotationBadge(brand: string): { label: string; bg: string; te
     };
   }
 
-  if (['nike', 'adidas', 'rudy project', 'bolle', 'converse', 'carrera', 'spy'].some(x => b.includes(x))) {
+  if (['nike', 'adidas', 'rudy project', 'bolle', 'converse', 'carrera', 'spy', 'under armour'].some(x => b.includes(x))) {
     return {
       label: 'Sport',
       bg: 'bg-emerald-500/15 border-emerald-500/30',

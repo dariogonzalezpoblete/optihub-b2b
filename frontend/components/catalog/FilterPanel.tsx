@@ -18,6 +18,8 @@ export default function FilterPanel({ facets, state, onToggle }: FilterPanelProp
         options={facets.marca}
         selected={state.marca}
         onToggle={(k) => onToggle('marca', k)}
+        initialVisible={10}
+        searchable={true}
       />
       <FilterGroup
         title="Color Predominante"
