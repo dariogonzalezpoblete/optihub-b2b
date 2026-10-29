@@ -18,7 +18,7 @@ import {
   sanitizeEmailError,
 } from './orderEmailOutboxService';
 import { sendOrderConfirmationEmails, type OrderEmailPayload, type OrderItemEmail, type BillingEmailData } from '../email';
-import { checkBusinessMutationAllowed } from '../env/runtimeEnv';
+import { checkBusinessMutationAllowed, getRuntimeEnvironment } from '../env/runtimeEnv';
 import {
   getMercadoPagoAccessToken,
   isMercadoPagoSandboxMode,
@@ -738,7 +738,13 @@ export async function processMercadoPagoWebhookEvent(
     if (!mpWebhookSecret) {
       // If running in Sandbox (TEST- token) without MP_WEBHOOK_SECRET configured yet,
       // allow fallback to server-to-server verification via MP API (`fetchMercadoPagoPayment`).
-      if (!isMercadoPagoSandboxMode(mpAccessToken)) {
+      // El modo permisivo solo es válido si el entorno de ejecución es identificado de forma fiable como
+      // local (development/test). En production, preview o entorno desconocido el secreto es obligatorio,
+      // aunque MP_SANDBOX_MODE esté activo.
+      const runtimeEnv = getRuntimeEnvironment();
+      const unsignedSandboxAllowed =
+        (runtimeEnv === 'development' || runtimeEnv === 'test') && isMercadoPagoSandboxMode(mpAccessToken);
+      if (!unsignedSandboxAllowed) {
         console.error('[MP Webhook] MP_WEBHOOK_SECRET is not configured on the server');
         return {
           statusCode: 500,

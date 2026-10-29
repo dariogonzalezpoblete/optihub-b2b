@@ -19,12 +19,19 @@ import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import OrderTrackingTimeline from '@/components/orders/OrderTrackingTimeline';
 
+/**
+ * Columnas mínimas necesarias para el seguimiento (timeline y cabecera).
+ * No incluye datos personales, de facturación, de pago ni campos internos.
+ */
+const TRACKING_ORDER_COLUMNS =
+  'id, status, payment_status, created_at, notes, shipping_provider, tracking_number';
+
 export default function SeguimientoPage() {
   const [orderNumber, setOrderNumber] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [trackedOrder, setTrackedOrder] = useState<null | any>(null);
   const [error, setError] = useState('');
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,8 +49,9 @@ export default function SeguimientoPage() {
     try {
       const { data, error: sbError } = await supabase
         .from('orders')
-        .select('*')
+        .select(TRACKING_ORDER_COLUMNS)
         .eq('id', orderNumber.trim())
+        .eq('user_id', user?.id ?? '')
         .single();
 
       if (sbError || !data) {

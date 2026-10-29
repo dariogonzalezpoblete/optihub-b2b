@@ -19,6 +19,9 @@ export interface DatabasePoolConfig {
   statement_timeout?: number;
 }
 
+/** Código de error interno cuando falta la configuración de conexión a la base de datos. */
+export const DB_NOT_CONFIGURED_CODE = 'DB_NOT_CONFIGURED';
+
 // Global reference to ensure a singleton pool across Next.js hot reloads in development
 declare global {
   var __optihubPgPool: Pool | undefined;
@@ -49,6 +52,16 @@ function getPoolConfig(): DatabasePoolConfig {
       connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT_MS || 10000),
       statement_timeout: Number(process.env.PG_STATEMENT_TIMEOUT_MS || 15000),
     };
+  }
+
+  // En producción no se permite el fallback silencioso a 127.0.0.1: sin cadena de conexión ni PGHOST
+  // explícito el pool intentaría conectar a localhost (ECONNREFUSED en Vercel) ocultando la causa real.
+  if (process.env.NODE_ENV === 'production' && !process.env.PGHOST) {
+    const err = new Error(
+      'Configuración de base de datos ausente: defina DATABASE_URL, POSTGRES_URL o SUPABASE_DB_URL.'
+    ) as Error & { code?: string };
+    err.code = DB_NOT_CONFIGURED_CODE;
+    throw err;
   }
 
   const host = (process.env.PGHOST || '127.0.0.1').trim();
@@ -98,6 +111,7 @@ export function isPoolConnectionError(error: unknown): boolean {
   const code = (error as { code?: string }).code;
 
   return (
+    code === DB_NOT_CONFIGURED_CODE ||
     code === 'ECONNREFUSED' ||
     code === 'ETIMEDOUT' ||
     code === 'EHOSTUNREACH' ||

@@ -39,14 +39,18 @@ def calculate_b2b_pricing(
         precio_venta_neto_raw = costo_total_chile * (1 + margin_percentage / 100.0)
     elif custom_multiplier is not None and custom_multiplier > 0:
         precio_venta_neto_raw = price_usd * custom_multiplier
-    elif costo_origen_clp < 20000:
-        precio_venta_neto_raw = price_usd * 2500.0
-    elif costo_origen_clp <= 70000:
-        precio_venta_neto_raw = price_usd * 1900.0
-    elif costo_origen_clp <= 120000:
-        precio_venta_neto_raw = costo_total_chile + 60000.0
+    elif price_usd >= 200:
+        ganancia_fija = 80000.0
+        precio_venta_neto_raw = costo_total_chile + ganancia_fija
+    elif costo_total_chile <= 45000:
+        ganancia_fija = 18000.0
+        precio_venta_neto_raw = costo_total_chile + ganancia_fija
+    elif costo_total_chile <= 85000:
+        ganancia_fija = 28000.0
+        precio_venta_neto_raw = costo_total_chile + ganancia_fija
     else:
-        precio_venta_neto_raw = costo_total_chile + 100000.0
+        ganancia_fija = 50000.0
+        precio_venta_neto_raw = costo_total_chile + ganancia_fija
 
     # 3. Rounding to nearest 1,000 CLP (Chilean B2B standard)
     precio_neto_clp = int(round(precio_venta_neto_raw / 1000.0) * 1000)

@@ -95,14 +95,17 @@ export function calculateB2BPricing(
   } else if (typeof overrides?.customMultiplier === 'number' && overrides.customMultiplier > 0) {
     precioVentaNetoRaw = priceUsd * overrides.customMultiplier;
   } else {
-    // Regla OptiHub de Ganancia Neta por Tramo de Costo Puesto en Chile:
+    // Regla OptiHub de Ganancia Neta por Tramo de Costo Puesto en Chile / USD:
     // • Tramo 1 (Costo Chile <= $45.000): Ganancia de $18.000 CLP (Modelos de entrada / Guess / Converse)
-    // • Tramo 2 (Costo Chile de $45.001 a $70.000): Ganancia de $28.000 CLP (Gama media / Adidas / Nike / CK)
-    // • Tramo 3 (Costo Chile > $70.000): Ganancia de $50.000 CLP (Gama alta y Lujo / Gucci / Tom Ford / Burberry / IC! Berlin)
+    // • Tramo 2 (Costo Chile de $45.001 a $85.000): Ganancia de $28.000 CLP (Gama media / Adidas / Nike / CK / Emporio Armani)
+    // • Tramo 3 (Costo Chile > $85.000 y USD < 200): Ganancia de $50.000 CLP (Gama alta y Lujo / Tom Ford / Burberry / IC! Berlin)
+    // • Tramo 4 (USD >= 200): Ganancia de $80.000 CLP (Ultra Lujo / Gucci)
     let gananciaFija: number;
-    if (costoTotalChile <= 45000) {
+    if (priceUsd >= 200) {
+      gananciaFija = 80000;
+    } else if (costoTotalChile <= 45000) {
       gananciaFija = 18000;
-    } else if (costoTotalChile <= 70000) {
+    } else if (costoTotalChile <= 85000) {
       gananciaFija = 28000;
     } else {
       gananciaFija = 50000;

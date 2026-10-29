@@ -22,17 +22,28 @@ assert(tier1.ganancia_clp >= 18000, `Tier 1 margin (got ${tier1.ganancia_clp})`)
 assert(tier1.precio_neto_clp === 44000, `Tier 1 precio neto (got ${tier1.precio_neto_clp})`);
 assert(tier1.iva_clp === Math.round(tier1.precio_neto_clp * 0.19), 'IVA 19% calculation');
 
-// 3. Tier 2 (Costo Chile $45.001 - $70.000 CLP -> Ganancia fija +$28.000 CLP)
+// 3. Tier 2 (Costo Chile $45.001 - $85.000 CLP -> Ganancia fija +$28.000 CLP)
 // Price $50.00 USD -> Costo Chile ~ $60.906 CLP -> Ganancia $28.000 CLP -> Neto $89.000 CLP
+// Price $65.00 USD (Emporio Armani) -> Costo Chile ~ $76.011 CLP -> Ganancia $28.000 CLP -> Neto $104.000 CLP
 const tier2 = calculateB2BPricing(50.0);
 assert(tier2.ganancia_clp >= 28000, `Tier 2 margin (got ${tier2.ganancia_clp})`);
 assert(tier2.precio_neto_clp === 89000, `Tier 2 calculation (got ${tier2.precio_neto_clp})`);
 
-// 4. Tier 3 (Costo Chile > $70.000 CLP -> Ganancia fija +$50.000 CLP)
+const armaniTier2 = calculateB2BPricing(65.0);
+assert(armaniTier2.ganancia_clp >= 27000 && armaniTier2.ganancia_clp <= 29000, `Armani Tier 2 margin (got ${armaniTier2.ganancia_clp})`);
+assert(armaniTier2.precio_neto_clp === 104000, `Armani Tier 2 precio neto (got ${armaniTier2.precio_neto_clp})`);
+
+// 4. Tier 3 (Costo Chile > $85.000 CLP y USD < 200 -> Ganancia fija +$50.000 CLP)
 // Price $100.00 USD -> Costo Chile ~ $111.256 CLP -> Ganancia $50.000 CLP -> Neto $161.000 CLP
 const tier3 = calculateB2BPricing(100.0);
 assert(tier3.precio_neto_clp > tier3.costo_total_chile_clp, 'Tier 3 must cover landed costs');
 assert(tier3.ganancia_clp >= 49000, `Tier 3 margin bracket (got ${tier3.ganancia_clp})`);
 assert(tier3.precio_neto_clp === 161000, `Tier 3 precio neto (got ${tier3.precio_neto_clp})`);
+
+// 5. Tier 4 (USD >= 200 -> Ganancia fija +$80.000 CLP)
+// Price $230.00 USD -> Costo Chile ~ $242.166 CLP -> Ganancia $80.000 CLP -> Neto $322.000 CLP
+const tier4 = calculateB2BPricing(230.0);
+assert(tier4.ganancia_clp >= 79000, `Tier 4 margin bracket (got ${tier4.ganancia_clp})`);
+assert(tier4.precio_neto_clp === 322000, `Tier 4 precio neto (got ${tier4.precio_neto_clp})`);
 
 console.log('✅ All Gated Pricing tests passed successfully!');

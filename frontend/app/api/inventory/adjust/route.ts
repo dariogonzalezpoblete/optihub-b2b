@@ -14,7 +14,7 @@ const VALID_TYPES = new Set(['RETURN', 'ADJUSTMENT', 'SALE']);
 
 // Zod schema for the incoming payload
 const AdjustStockSchema = z.object({
-  productId: z.string().min(1, { message: 'productId is required' }).trim(),
+  productId: z.string().trim().min(1, { message: 'productId is required' }),
   quantityDelta: z.number()
     .int()
     .refine((n) => n !== 0, { message: 'quantityDelta must be non‑zero' })

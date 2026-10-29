@@ -255,14 +255,16 @@ def calculate_b2b_pricing(price_usd: float) -> dict:
     costo_neto_chile = cif_clp + ad_valorem_clp + flete_local
     costo_origen_clp = price_usd * dolar
 
-    if costo_origen_clp < 20000:
-        precio_venta_neto = price_usd * 2500.0
-    elif costo_origen_clp <= 70000:
-        precio_venta_neto = price_usd * 1900.0
-    elif costo_origen_clp <= 120000:
-        precio_venta_neto = costo_neto_chile + 60000.0
+    if price_usd >= 200:
+        ganancia_fija = 80000.0
+    elif costo_neto_chile <= 45000:
+        ganancia_fija = 18000.0
+    elif costo_neto_chile <= 85000:
+        ganancia_fija = 28000.0
     else:
-        precio_venta_neto = costo_neto_chile + 100000.0
+        ganancia_fija = 50000.0
+
+    precio_venta_neto = costo_neto_chile + ganancia_fija
 
     return {
         "precio_bruto_clp": int(round((precio_venta_neto * 1.19), -3)),

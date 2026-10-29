@@ -6,9 +6,10 @@ async function main() {
   const startTime = Date.now();
   console.log('\n╔════════════════════════════════════════════════════════════════╗');
   console.log('║       OptiHub B2B - Recalculador de Márgenes por Tramos        ║');
-  console.log('║   • Costo <= $45.000:      +$18.000 CLP de ganancia neta       ║');
-  console.log('║   • Costo $45.001-$70.000: +$28.000 CLP de ganancia neta       ║');
-  console.log('║   • Costo > $70.000:       +$50.000 CLP de ganancia neta       ║');
+  console.log('║   • Costo <= $45.000:       +$18.000 CLP de ganancia neta      ║');
+  console.log('║   • Costo $45.001-$85.000:  +$28.000 CLP de ganancia neta      ║');
+  console.log('║   • Costo > $85.000 (<$200):+$50.000 CLP de ganancia neta      ║');
+  console.log('║   • Costo USD >= $200:      +$80.000 CLP de ganancia neta      ║');
   console.log('╚════════════════════════════════════════════════════════════════╝\n');
 
   const supabaseService = new SupabaseService();
