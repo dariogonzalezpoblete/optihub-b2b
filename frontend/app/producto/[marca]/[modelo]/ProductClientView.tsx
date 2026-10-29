@@ -13,8 +13,9 @@ import {
   type EnrichedMarco,
 } from '@/lib/catalog/types';
 import { 
-  ArrowLeft, Lock, ShoppingBag, AlertCircle, Check, ShieldCheck, Truck, Sparkles, Box, FileCheck
+  ArrowLeft, Lock, ShoppingBag, AlertCircle, Check, ShieldCheck, Truck, Sparkles, Box, FileCheck, TrendingUp
 } from 'lucide-react';
+import { calculateRetailProjection } from '@/lib/catalog/brandCategories';
 
 interface Props {
   variants: EnrichedMarco[];
@@ -88,6 +89,12 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
     setActiveVariant(variant);
     setActiveImageIndex(0);
   };
+
+  const retail = useMemo(() => {
+    return activeVariant?.precio_neto_clp 
+      ? calculateRetailProjection(activeVariant.precio_neto_clp, baseProduct.marca)
+      : null;
+  }, [activeVariant?.precio_neto_clp, baseProduct.marca]);
 
   const currentImages = useMemo(() => {
     if (!activeVariant) return [];
@@ -349,6 +356,30 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
             <p className="text-[#5C5A55] text-xs sm:text-sm mt-3 leading-relaxed">
               Armazón óptico original importado directamente desde distribuidor oficial en EE.UU. para ópticas autorizadas en Chile.
             </p>
+
+            {/* Proyección Retail Sugerida para Dueños de Ópticas */}
+            {isLoggedIn && retail && retail.pvpSugerido > 0 && (
+              <div className="mt-5 pt-4 border-t border-[#E6E2DD] bg-[#FAF9F6] p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <span className="text-[10px] text-[#5C5A55] uppercase tracking-wider block font-medium">
+                    PVP Sugerido en Óptica / Mercado:
+                  </span>
+                  <span className="text-xl font-bold font-mono text-[#0F0F0F] tabular-nums">
+                    ${retail.pvpSugerido.toLocaleString('es-CL')}{' '}
+                    <span className="text-xs font-normal text-[#787670]">CLP</span>
+                  </span>
+                </div>
+                <div className="text-left sm:text-right">
+                  <span className="text-[10px] text-[#9E8256] uppercase tracking-wider block font-semibold flex items-center gap-1 sm:justify-end">
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    Margen ~{retail.margenPorcentaje}%
+                  </span>
+                  <span className="text-xs font-bold text-[#0F0F0F] font-mono tabular-nums">
+                    +${retail.gananciaPorUnidad.toLocaleString('es-CL')} utilidad/un
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Grilla B2B de Variantes */}

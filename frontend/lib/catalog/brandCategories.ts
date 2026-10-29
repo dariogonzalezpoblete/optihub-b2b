@@ -181,11 +181,11 @@ export function getRotationBadge(brand: string): { label: string; bg: string; te
 
 /**
  * Calculadora de Margen Retail Sugerido (PVP de Mercado Óptico en Chile)
- * Refleja los precios reales de venta al público en ópticas de Chile (GMO, Rotter & Krauss, etc.)
- * • Piso estricto: Ningún armazón sugerido bajo $99.900 CLP (los Guess y marcas de entrada parten desde $99.900-$109.900)
- * • Escala realista de mercado sin inflar artificialmente las marcas de lujo
+ * Guiada por referencias reales de mercado (Farfetch, VisionDirecta, GMO, Rotter & Krauss)
+ * para presentar precios de venta al público creíbles, aspiracionales y con alto margen
+ * comercial que entusiasme al dueño de óptica B2B.
  */
-export function calculateRetailProjection(precioNetoClp?: number | null) {
+export function calculateRetailProjection(precioNetoClp?: number | null, brand?: string) {
   if (!precioNetoClp || precioNetoClp <= 0) {
     return {
       pvpSugerido: 0,
@@ -194,32 +194,150 @@ export function calculateRetailProjection(precioNetoClp?: number | null) {
     };
   }
 
+  const b = (brand || '').toLowerCase().trim();
+
+  // Pisos y multiplicadores según categoría de marca en Farfetch / VisionDirecta / GMO:
+
+  // 1. Alta Costura & Diseñador Internacional de Lujo (Farfetch / Boutiques)
+  const isFarfetchLuxuryTier = [
+    'roberto cavalli',
+    'cavalli',
+    'tom ford',
+    'gucci',
+    'philipp plein',
+    'chopard',
+    'palm angels',
+    'salvatore ferragamo',
+    'ferragamo',
+    'prada',
+    'versace',
+    'balenciaga',
+    'cartier',
+    'saint laurent',
+    'ysl',
+    'celine',
+    'dior',
+    'bottega veneta',
+    'fendi',
+    'alexander mcqueen',
+    'burberry'
+  ].some(x => b.includes(x));
+
+  // 2. Especialidad Clínica de Precisión & Titanio
+  const isClinicalHighPrecision = [
+    'ic! berlin',
+    'ic berlin',
+    'zeiss',
+    'silhouette',
+    'flexon'
+  ].some(x => b.includes(x));
+
+  // 3. Gemas de Moda Femenina & Joyería / Cristales
+  const isJewelryAndFashion = [
+    'swarovski',
+    'moschino',
+    'tous',
+    'tiffany',
+    'kate spade',
+    'furla',
+    'marc jacobs'
+  ].some(x => b.includes(x));
+
+  // 4. Sport Técnico de Alto Rendimiento & Línea Alemana
+  const isSportAndEngineering = [
+    'bmw',
+    'rudy project',
+    'spy',
+    'under armour',
+    'nike',
+    'adidas',
+    'bolle'
+  ].some(x => b.includes(x));
+
+  // 5. Bestsellers Masivos de Alta Rotación en Chile
+  const isBestsellerMassMarket = [
+    'guess',
+    'calvin klein',
+    'tommy hilfiger',
+    'emporio armani',
+    'converse',
+    'dkny',
+    'lacoste',
+    'carrera',
+    'hugo boss',
+    'hugo'
+  ].some(x => b.includes(x));
+
   let rawPvp: number;
 
-  if (precioNetoClp <= 55000) {
-    // Modelos de entrada / Bestsellers (Guess, Converse, etc.):
-    // En ópticas siempre parten desde $99.900 a $119.900
-    rawPvp = Math.max(99900, precioNetoClp * 2.1);
-  } else if (precioNetoClp <= 90000) {
-    // Gama media / Sport (Adidas, Nike, Calvin Klein, Emporio Armani):
-    // En ópticas se venden habitualmente entre $129.900 y $169.900
-    rawPvp = Math.max(129900, precioNetoClp * 1.85);
-  } else if (precioNetoClp <= 160000) {
-    // Gama alta técnica / titanio (IC! Berlin, Burberry):
-    // En ópticas se venden entre $229.900 y $269.900
-    rawPvp = Math.max(229900, precioNetoClp * 1.65);
+  if (isFarfetchLuxuryTier) {
+    // Modelos de Farfetch / Boutiques de Alta Costura:
+    // Roberto Cavalli, Tom Ford, Gucci, Ferragamo, Philipp Plein, etc.
+    // En Farfetch y VisionDirecta Chile parten desde $329.900 a $489.900+
+    if (b.includes('chopard')) {
+      rawPvp = Math.max(499900, precioNetoClp * 2.6);
+    } else if (b.includes('gucci') || b.includes('tom ford') || b.includes('philipp plein')) {
+      rawPvp = Math.max(359900, precioNetoClp * 2.35);
+    } else if (b.includes('roberto cavalli') || b.includes('cavalli')) {
+      // Modelos Farfetch/VisionDirecta: piso estricto sobre $300.000 (habitualmente $349.900)
+      rawPvp = Math.max(349900, precioNetoClp * 2.25);
+    } else if (b.includes('palm angels') || b.includes('ferragamo') || b.includes('salvatore ferragamo')) {
+      rawPvp = Math.max(319900, precioNetoClp * 2.25);
+    } else if (b.includes('burberry')) {
+      rawPvp = Math.max(269900, precioNetoClp * 2.1);
+    } else {
+      rawPvp = Math.max(329900, precioNetoClp * 2.2);
+    }
+  } else if (isClinicalHighPrecision) {
+    if (b.includes('ic! berlin') || b.includes('ic berlin')) {
+      rawPvp = Math.max(349900, precioNetoClp * 2.4);
+    } else if (b.includes('zeiss')) {
+      rawPvp = Math.max(229900, precioNetoClp * 2.6);
+    } else {
+      rawPvp = Math.max(239900, precioNetoClp * 2.3);
+    }
+  } else if (isJewelryAndFashion) {
+    if (b.includes('swarovski')) {
+      rawPvp = Math.max(249900, precioNetoClp * 2.1);
+    } else if (b.includes('moschino')) {
+      rawPvp = Math.max(249900, precioNetoClp * 2.25);
+    } else {
+      rawPvp = Math.max(229900, precioNetoClp * 2.2);
+    }
+  } else if (isSportAndEngineering) {
+    if (b.includes('bmw')) {
+      rawPvp = Math.max(229900, precioNetoClp * 2.2);
+    } else if (b.includes('rudy project')) {
+      rawPvp = Math.max(189900, precioNetoClp * 2.2);
+    } else if (b.includes('spy')) {
+      rawPvp = Math.max(159900, precioNetoClp * 2.1);
+    } else {
+      rawPvp = Math.max(149900, precioNetoClp * 2.1);
+    }
+  } else if (isBestsellerMassMarket) {
+    if (b.includes('tommy hilfiger') || b.includes('calvin klein') || b.includes('lacoste') || b.includes('carrera') || b.includes('emporio armani')) {
+      rawPvp = Math.max(149900, precioNetoClp * 2.15);
+    } else {
+      rawPvp = Math.max(119900, precioNetoClp * 2.2);
+    }
   } else {
-    // Lujo superior (Gucci, Tom Ford, Prada, etc.):
-    // En ópticas se venden entre $349.900 y $449.900
-    rawPvp = Math.max(349900, precioNetoClp * 1.5);
+    if (precioNetoClp <= 55000) {
+      rawPvp = Math.max(119900, precioNetoClp * 2.2);
+    } else if (precioNetoClp <= 90000) {
+      rawPvp = Math.max(169900, precioNetoClp * 2.1);
+    } else if (precioNetoClp <= 140000) {
+      rawPvp = Math.max(269900, precioNetoClp * 2.1);
+    } else {
+      rawPvp = Math.max(349900, precioNetoClp * 2.2);
+    }
   }
 
-  // Redondeo comercial a múltiplos de $10.000 con terminación $900 (ej: $99.900, $109.900, $129.900, $249.900)
+  // Redondeo comercial chileno a múltiplos de $10.000 con terminación $900
   let pvpSugerido = Math.round(rawPvp / 10000) * 10000 - 100;
 
-  // REGLA DE NEGOCIO ESTRICTA: Ningún sugerido en menos de $99.900
-  if (pvpSugerido < 99900) {
-    pvpSugerido = 99900;
+  // Piso comercial estricto para ópticas en Chile
+  if (pvpSugerido < 119900) {
+    pvpSugerido = 119900;
   }
 
   const gananciaPorUnidad = pvpSugerido - precioNetoClp;

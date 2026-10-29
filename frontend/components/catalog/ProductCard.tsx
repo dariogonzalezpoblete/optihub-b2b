@@ -26,7 +26,7 @@ export default function ProductCard({ variants, isLoggedIn, idx, materialLabels 
   const active = (variants && variants[selectedIndex]) || (variants && variants[0]) || ({} as EnrichedMarco);
   const activeStock = getValidStock(active?.stock);
   const materialLabel = materialLabels?.find((o) => o.key === active?._k?.material)?.label ?? active?.material;
-  const retail = calculateRetailProjection(active?.precio_neto_clp);
+  const retail = calculateRetailProjection(active?.precio_neto_clp, active?.marca);
 
   const mainImgSrc = active?.imagen_principal && active.imagen_principal.trim()
     ? active.imagen_principal.trim()

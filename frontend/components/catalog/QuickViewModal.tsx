@@ -82,8 +82,8 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
   const currentImageUrl = currentImages[activeImageIndex] || currentImages[0] || (activeVariant?.imagen_principal && activeVariant.imagen_principal.trim()) || "/placeholder.png";
 
   const retail = useMemo(() => {
-    return activeVariant?.precio_neto_clp ? calculateRetailProjection(activeVariant.precio_neto_clp) : null;
-  }, [activeVariant?.precio_neto_clp]);
+    return activeVariant?.precio_neto_clp ? calculateRetailProjection(activeVariant.precio_neto_clp, activeVariant?.marca) : null;
+  }, [activeVariant?.precio_neto_clp, activeVariant?.marca]);
 
   const handleQuantityChange = (id_ext: string, val: string, maxStock: number, remainingStock: number) => {
     let num = parseInt(val, 10);
