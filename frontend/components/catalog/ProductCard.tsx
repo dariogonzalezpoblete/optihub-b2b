@@ -34,6 +34,16 @@ export default function ProductCard({ variants, isLoggedIn, idx, materialLabels,
     ? active.imagen_principal.trim()
     : '/placeholder.png';
 
+  const [imgSrc, setImgSrc] = useState<string>(mainImgSrc);
+
+  useEffect(() => {
+    setImgSrc(
+      active?.imagen_principal && active.imagen_principal.trim()
+        ? active.imagen_principal.trim()
+        : '/placeholder.png'
+    );
+  }, [active?.imagen_principal, selectedIndex]);
+
   const productHref = `/producto/${encodeURIComponent(active?.marca || '')}/${encodeURIComponent(active?.modelo || '')}${active?.id_ext ? `?sku=${encodeURIComponent(active.id_ext)}` : ''}`;
 
   const calibreText = active?._dims?.calibre 
@@ -64,12 +74,14 @@ export default function ProductCard({ variants, isLoggedIn, idx, materialLabels,
 
         <div className="relative w-full h-full flex items-center justify-center">
           <Image
-            src={mainImgSrc}
+            unoptimized
+            src={imgSrc}
             alt={`${active?.marca || ''} ${active?.modelo || ''}`}
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
             className="object-contain p-4 mix-blend-multiply group-hover:scale-105 transition-transform duration-500 ease-out"
             priority={idx < 3}
+            onError={() => setImgSrc('/placeholder.png')}
           />
         </div>
 
