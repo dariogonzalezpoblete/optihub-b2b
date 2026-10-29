@@ -69,6 +69,8 @@ async function main() {
 
     itemsToUpdate.push({
       id_ext: prod.id_ext,
+      marca: prod.marca,
+      modelo: prod.modelo,
       stock: prod.stock,
       precio_usd: priceUsd,
       precio_neto_clp: calculated.precio_neto_clp,
@@ -82,6 +84,37 @@ async function main() {
     });
   }
 
+  // Estandarización de precios por modelo:
+  // Se cobra el precio del color más alto para todas las variantes del mismo modelo,
+  // quedando cualquier descuento del proveedor como ganancia neta para OptiHub.
+  const modelGroups = new Map<string, any[]>();
+  for (const item of itemsToUpdate) {
+    const key = `${(item.marca || '').toLowerCase().trim()}###${(item.modelo || '').toLowerCase().trim()}`;
+    if (!modelGroups.has(key)) modelGroups.set(key, []);
+    modelGroups.get(key)!.push(item);
+  }
+
+  let standardizedCount = 0;
+  for (const group of modelGroups.values()) {
+    if (group.length > 1) {
+      const maxNeto = Math.max(...group.map((i) => i.precio_neto_clp));
+      const maxItem = group.find((i) => i.precio_neto_clp === maxNeto);
+      const maxBruto = maxItem.precio_bruto_clp;
+
+      for (const item of group) {
+        if (item.precio_neto_clp < maxNeto) {
+          standardizedCount++;
+          item.precio_neto_clp = maxNeto;
+          item.precio_bruto_clp = maxBruto;
+          if (item.costo_total_chile_clp) {
+            item.ganancia_clp = Math.round((maxNeto - item.costo_total_chile_clp) / 1000) * 1000;
+          }
+        }
+      }
+    }
+  }
+
+  Logger.info(`Estandarizados ${standardizedCount} variantes al precio máximo de su modelo.`);
   Logger.info(`Actualizando ${itemsToUpdate.length} productos en Supabase en lotes...`);
   await supabaseService.updateStockAndPricingBatch(itemsToUpdate);
 

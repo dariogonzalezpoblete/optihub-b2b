@@ -12,6 +12,8 @@ import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import RecentlyViewed from '@/components/catalog/RecentlyViewed';
 import HeroSpotlight from '@/components/home/HeroSpotlight';
+import ImportSteps from '@/components/home/ImportSteps';
+import FaqSection from '@/components/home/FaqSection';
 
 interface MarcoDestacado {
   id_ext: string;
@@ -449,8 +451,14 @@ export default function Home() {
         </div>
       </section>
 
+      {/* 5.5. CÓMO FUNCIONA LA IMPORTACIÓN CONSOLIDADA OPTIHUB */}
+      <ImportSteps />
+
       {/* 6. VISTOS RECIENTEMENTE */}
       <RecentlyViewed />
+
+      {/* 6.5. PREGUNTAS FRECUENTES B2B */}
+      <FaqSection />
 
       {/* 7. BANNER FINAL CTA DE CONVERSIÓN MINIMALISTA */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">

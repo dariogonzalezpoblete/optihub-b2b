@@ -3,15 +3,11 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
 import { useCartStore } from "@/store/useCartStore";
 import { useAuth } from "@/context/AuthContext";
-import { Check, Lock, Search, SlidersHorizontal, AlertCircle } from "lucide-react";
+import { Check, Lock, Search, SlidersHorizontal, AlertCircle, ArrowRight } from "lucide-react";
 
 import {
-  MARCOS_B2B_COLUMNS,
-  MARCOS_B2B_COMMERCIAL_OVERLAY_COLUMNS,
-  MARCOS_PUBLIC_COLUMNS,
   type EnrichedMarco,
   type Marco,
 } from "@/lib/catalog/types";
@@ -29,9 +25,11 @@ import ActiveFilterChips from "@/components/catalog/ActiveFilterChips";
 import PredictiveSearch from "@/components/catalog/PredictiveSearch";
 import SortSelect from "@/components/catalog/SortSelect";
 import ProductCard from "@/components/catalog/ProductCard";
+import QuickAddDrawer from "@/components/catalog/QuickAddDrawer";
 import QuickSegmentPills from "@/components/catalog/QuickSegmentPills";
 import MoqProgressBar from "@/components/catalog/MoqProgressBar";
 import { normalizeText } from "@/lib/catalog/normalize";
+import { trackB2BEvent } from "@/lib/analytics";
 
 interface Props { 
   initialMarcos: any[]; 
@@ -47,10 +45,11 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
   const [toastMessage, setToastMessage] = useState<string>("");
   const [toastType, setToastType] = useState<"success" | "warning">("success");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [quickAddVariants, setQuickAddVariants] = useState<EnrichedMarco[] | null>(null);
   const [mounted, setMounted] = useState(false);
 
-  // Auth Context
-  const { isLoggedIn } = useAuth();
+  // Auth Context: Seguridad B2B
+  const { isLoggedIn, isB2BApproved, isB2BPending, opticaData, session } = useAuth();
 
   // Store global de Zustand
   const addToCart = useCartStore((state) => state.addToCart);
@@ -67,7 +66,8 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
     setMarcos(initialMarcos);
     setLoading(false);
 
-    if (!mounted || !isLoggedIn || !initialMarcos || initialMarcos.length === 0) {
+    // Protección en el cliente: SOLO solicitar tarifas si el usuario está autenticado y VERIFICADO B2B
+    if (!mounted || !isLoggedIn || !isB2BApproved || !session?.access_token || !initialMarcos || initialMarcos.length === 0) {
       return;
     }
 
@@ -77,29 +77,44 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
     if (ids.length === 0) return;
 
     let cancelled = false;
-    supabase
-      .from("marcos")
-      .select(MARCOS_B2B_COMMERCIAL_OVERLAY_COLUMNS)
-      .in("id_ext", ids)
-      .then(({ data, error }) => {
-        if (cancelled || error || !data) return;
+    fetch('/api/catalog/pricing', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ ids }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled || !data || !Array.isArray(data.items)) return;
         const b2bMap = new Map(
-          (data as unknown as Array<{ id_ext: string; precio_neto_clp?: number; precio_bruto_clp?: number; stock?: number }>).map(
+          (data.items as Array<{ id_ext: string; precio_neto_clp?: number | null; precio_bruto_clp?: number | null; stock?: number | null }>).map(
             (row) => [row.id_ext, row]
           )
         );
         setMarcos((prev) =>
           prev.map((item) => {
             const b2b = b2bMap.get(item.id_ext);
-            return b2b ? { ...item, ...b2b } : item;
+            return b2b
+              ? {
+                  ...item,
+                  precio_neto_clp: typeof b2b.precio_neto_clp === 'number' ? b2b.precio_neto_clp : undefined,
+                  precio_bruto_clp: typeof b2b.precio_bruto_clp === 'number' ? b2b.precio_bruto_clp : undefined,
+                  stock: typeof b2b.stock === 'number' ? b2b.stock : undefined,
+                }
+              : item;
           })
         );
+      })
+      .catch((err) => {
+        console.error('[CatalogoClient] Error al consultar tarifas B2B:', err);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [initialMarcos, mounted, isLoggedIn]);
+  }, [initialMarcos, mounted, isLoggedIn, isB2BApproved, session?.access_token]);
 
   // Datos derivados
   const enriched = useMemo(() => enrichMarcos(marcos), [marcos]);
@@ -111,10 +126,23 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
   }, [allFacetItems, enriched]);
   const facets = useMemo(() => getFacets(facetSource, filters), [facetSource, filters]);
   const results = useMemo(
-    () => applyFilters(enriched, filters, mounted && isLoggedIn),
-    [enriched, filters, mounted, isLoggedIn]
+    () => applyFilters(enriched, filters, mounted && isLoggedIn && isB2BApproved),
+    [enriched, filters, mounted, isLoggedIn, isB2BApproved]
   );
   const activeCount = countActiveFilters(filters);
+
+  // Telemetría B2B: Registrar navegación y filtros en el catálogo
+  useEffect(() => {
+    if (!mounted) return;
+    const selectedBrand = filters.marca && filters.marca.length > 0 ? filters.marca.join(', ') : undefined;
+    const selectedCategory = filters.tipo || (filters.material && filters.material.length > 0 ? filters.material.join(', ') : undefined);
+    trackB2BEvent('view_catalog', {
+      brand: selectedBrand,
+      category: selectedCategory,
+      search_term: filters.q || undefined,
+      filter_count: activeCount,
+    });
+  }, [mounted, filters.marca, filters.tipo, filters.material, filters.q, activeCount]);
 
   // Agrupación de resultados por marca y modelo
   const groupedResults = useMemo(() => {
@@ -127,56 +155,80 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
     return Array.from(map.values());
   }, [results]);
 
-  const openProduct = useCallback((m: EnrichedMarco) => {
-    router.push('/producto/' + encodeURIComponent(m.marca) + '/' + encodeURIComponent(m.modelo) + (m.id_ext ? '?sku=' + encodeURIComponent(m.id_ext) : ''));
+  const openProduct = useCallback((m: Marco) => {
+    router.push(`/producto/${encodeURIComponent(m.marca)}/${encodeURIComponent(m.modelo)}`);
   }, [router]);
 
-  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const handleOpenQuickAdd = useCallback((variants: EnrichedMarco[]) => {
+    setQuickAddVariants(variants);
+  }, []);
 
-  const totalUnidades = mounted ? getTotalUnits() : 0;
+  const handleCloseQuickAdd = useCallback(() => {
+    setQuickAddVariants(null);
+  }, []);
 
-  const filterPanelProps = { facets, state: filters, onToggle: toggle };
+  const filterPanelProps = {
+    filters,
+    facets,
+    onToggle: toggle,
+    onSetQuery: setQuery,
+    onSetSort: setSort,
+    onClearAll: clearAll,
+    onSetTipo: setTipo,
+    tipo: filters.tipo,
+  };
 
   return (
-    <div className="min-h-screen bg-[#FAF9F6] text-[#0F0F0F] pb-32">
-      
-      {/* Toast flotante de confirmación / advertencia */}
+    <div className="min-h-screen bg-[#FAF9F6] text-[#0F0F0F] pb-24">
+      {/* Toast Notificación */}
       {toastMessage && (
-        <div className={`fixed top-24 right-4 z-50 px-4 py-3 border flex items-center gap-2 animate-slide-down ${
-          toastType === "warning" ? "bg-[#9E8256] text-white border-[#9E8256]" : "bg-[#0F0F0F] text-white border-[#E6E2DD]"
-        }`}>
-          {toastType === "warning" ? <AlertCircle className="w-4 h-4 shrink-0" /> : <Check className="w-4 h-4 shrink-0 text-[#9E8256]" />}
-          <span className="text-xs tracking-wider uppercase font-medium">{toastMessage}</span>
+        <div className="fixed bottom-6 right-6 z-50 animate-slide-up">
+          <div
+            className={`border px-5 py-3 shadow-lg flex items-center gap-3 text-xs tracking-wide uppercase font-medium ${
+              toastType === "success"
+                ? "bg-[#0F0F0F] text-white border-[#0F0F0F]"
+                : "bg-[#FFFDF9] text-[#0F0F0F] border-[#9E8256]"
+            }`}
+          >
+            {toastType === "success" ? (
+              <Check className="w-4 h-4 text-[#9E8256]" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-[#9E8256]" />
+            )}
+            <span>{toastMessage}</span>
+          </div>
         </div>
       )}
 
-      {/* --- ENCABEZADO DE CATÁLOGO EDITORIAL --- */}
-      <div className="bg-[#FFFFFF] border-b border-[#E6E2DD] py-12 px-4 sm:px-6 lg:px-8 mb-8">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-          <div className="text-left">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-4 h-[1px] bg-[#9E8256]" />
-              <span className="text-[10px] uppercase tracking-[0.22em] text-[#9E8256] font-medium">
-                DISTRIBUCIÓN MAYORISTA OFICIAL · USA
+      {/* CABECERA EDITORIAL Y PROPUESTA DE VALOR B2B */}
+      <div className="border-b border-[#E6E2DD] bg-[#FFFFFF] py-12 px-4 sm:px-6 lg:px-8 mb-8">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-6 h-[1px] bg-[#9E8256]" />
+              <span className="text-[10px] uppercase tracking-[0.25em] text-[#9E8256] font-medium">
+                DISTRIBUCIÓN MAYORISTA EXCLUSIVA PARA ÓPTICAS
               </span>
             </div>
-            <h1 className="font-serif text-3xl sm:text-5xl font-normal text-[#0F0F0F] tracking-tight">
-              Catálogo de Armazones & Gafas
+            <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl font-normal text-[#0F0F0F] tracking-tight">
+              Catálogo Oficial B2B
             </h1>
-            <p className="mt-2 text-sm sm:text-base text-[#5C5A55] max-w-2xl font-sans">
-              Importación directa desde EE.UU. con stock verificado en origen. 
-              <span className="text-[#0F0F0F] font-medium"> Mínimo mayorista de 10 unidades combinables</span> entre cualquier marca y modelo.
+            <p className="text-[#5C5A55] text-xs sm:text-sm mt-3 max-w-2xl leading-relaxed">
+              Armazones oftálmicos graduables y gafas de sol de primeras marcas importados desde EE.UU. Factura electrónica SII en pesos chilenos y compra mínima de 10 unidades combinables.
             </p>
           </div>
 
-          <div className="bg-[#F4F2ED] border border-[#E6E2DD] p-4 flex items-center gap-3.5">
-            <div className="p-2.5 bg-[#FFFFFF] border border-[#E6E2DD] text-[#9E8256]">
-              <svg className="w-4 h-4 stroke-[1.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
+          <div className="flex items-center gap-6 border-t md:border-t-0 md:border-l border-[#E6E2DD] pt-4 md:pt-0 md:pl-8 text-xs text-[#5C5A55]">
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-[#787670] block font-medium">Compra Mínima</span>
+              <p className="text-sm font-bold text-[#0F0F0F] font-mono tabular-nums">10 unidades</p>
             </div>
             <div>
-              <p className="text-[10px] text-[#5C5A55] uppercase tracking-[0.18em]">Tránsito de Importación</p>
+              <span className="text-[10px] uppercase tracking-wider text-[#787670] block font-medium">Facturación</span>
+              <p className="text-sm font-bold text-[#0F0F0F] font-mono">DTE / Factura SII</p>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-[#787670] block font-medium">Plazo Entrega</span>
               <p className="text-sm font-bold text-[#0F0F0F] font-mono tabular-nums">10 a 15 días hábiles</p>
             </div>
           </div>
@@ -187,10 +239,10 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
         
         {/* BARRA DE PROGRESO DE MOQ EN VIVO (BANNER SUPERIOR) */}
         {mounted && (
-          <MoqProgressBar variant="banner" isLoggedIn={isLoggedIn} className="mb-2" />
+          <MoqProgressBar variant="banner" isLoggedIn={isLoggedIn && isB2BApproved} className="mb-2" />
         )}
 
-        {/* BANNER INFORMATIVO PARA USUARIOS NO LOGUEADOS (GATEKEEPING B2B) */}
+        {/* BANNER 1: INFORMATIVO PARA USUARIOS NO LOGUEADOS (GATEKEEPING B2B) */}
         {mounted && !isLoggedIn && (
           <div className="bg-[#FFFFFF] border border-[#E6E2DD] p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div className="flex items-center gap-4">
@@ -227,9 +279,63 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
           </div>
         )}
 
+        {/* BANNER 2: INFORMATIVO ELEGANTE PARA ÓPTICAS LOGUEADAS CON VALIDACIÓN SII EN PROCESO */}
+        {mounted && isLoggedIn && isB2BPending && (
+          <div className="bg-[#FAF6ED] border border-[#E6D7B8] p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-2 shadow-xs">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-[#F3EAD3] text-[#846C44] border border-[#D9C496] flex-shrink-0 mt-0.5">
+                <Lock className="w-5 h-5 text-[#846C44] stroke-[1.5]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <h3 className="text-base font-semibold text-[#0F0F0F]">
+                    Cuenta de Óptica en Validación Tributaria SII
+                  </h3>
+                  <span className="text-[10px] bg-[#EFE4C8] text-[#846C44] border border-[#D9C496] px-2 py-0.5 uppercase tracking-wider font-semibold font-mono">
+                    VERIFICACIÓN EN CURSO
+                  </span>
+                  {opticaData?.rut_empresa && (
+                    <span className="text-[10px] font-mono text-[#5C5A55] bg-white border border-[#E6D7B8] px-2 py-0.5">
+                      RUT: {opticaData.rut_empresa}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-[#5C5A55] mt-1.5 max-w-2xl leading-relaxed">
+                  Bienvenido a OptiHub. Su cuenta para <strong className="text-[#0F0F0F]">{opticaData?.nombre_optica || opticaData?.razon_social || 'su óptica'}</strong> está siendo verificada ante el Servicio de Impuestos Internos. Los precios mayoristas netos e importación directa se activarán una vez confirmado su giro comercial.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <a
+                href={`https://wa.me/56989338537?text=${encodeURIComponent(
+                  `Hola OptiHub B2B, acabo de ingresar a mi cuenta de óptica (${opticaData?.nombre_optica || 'Óptica'}, RUT: ${opticaData?.rut_empresa || ''}). Mi cuenta está en validación SII y solicito activación comercial prioritaria.`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  trackB2BEvent('click_whatsapp_b2b', {
+                    source: 'catalog',
+                  });
+                }}
+                className="inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1EBE5D] text-white px-6 py-3 text-[11px] uppercase tracking-[0.18em] font-semibold border border-[#20BA5A] transition-colors text-center flex-1 md:flex-none shadow-xs"
+              >
+                <span>Activar por WhatsApp</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </div>
+        )}
+
         {/* --- LAYOUT: SIDEBAR DE FILTROS + RESULTADOS --- */}
         <div className="flex gap-8 items-start">
-          <FilterSidebar {...filterPanelProps} activeCount={activeCount} onClearAll={clearAll} />
+          <FilterSidebar
+            facets={facets}
+            state={filters}
+            onToggle={toggle}
+            activeCount={activeCount}
+            onClearAll={clearAll}
+          />
 
           <div className="flex-1 min-w-0 space-y-6">
             {/* Curaduría de Marcas: Pestañas Rápidas por Segmento */}
@@ -263,7 +369,7 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
                     </span>
                   )}
                 </button>
-                <SortSelect value={filters.sort} onChange={setSort} canSeePrices={mounted && isLoggedIn} />
+                <SortSelect value={filters.sort} onChange={setSort} canSeePrices={mounted && isLoggedIn && isB2BApproved} />
               </div>
             </div>
 
@@ -279,32 +385,22 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
                   </>
                 )}
               </p>
+
               <ActiveFilterChips
                 state={filters}
                 facets={facets}
                 onRemove={toggle}
-                onClearQuery={() => setQuery("")}
-                onClearAll={() => clearAll()}
-                onRemoveTipo={() => setTipo("")}
+                onClearQuery={() => setQuery('')}
+                onClearAll={clearAll}
+                onRemoveTipo={() => setTipo('')}
               />
             </div>
 
-            {/* Grid de Productos Impecable en Blanco Puro */}
-            {loading || (groupedResults.length === 0 && totalCount > 0) ? (
+            {/* GRILLA DE PRODUCTOS */}
+            {loading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 sm:gap-8">
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <div key={i} className="bg-[#FFFFFF] border border-[#E6E2DD] overflow-hidden animate-pulse">
-                    <div className="aspect-[4/3] bg-[#F4F2ED]" />
-                    <div className="p-6 space-y-3">
-                      <div className="h-3 skeleton w-1/3" />
-                      <div className="h-5 skeleton w-3/4" />
-                      <div className="h-3 skeleton w-1/2" />
-                      <div className="pt-3 border-t border-[#E6E2DD] flex justify-between items-center">
-                        <div className="h-4 skeleton w-20" />
-                        <div className="h-6 skeleton w-14" />
-                      </div>
-                    </div>
-                  </div>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="aspect-3/4 bg-[#E6E2DD]/40 animate-pulse border border-[#E6E2DD]" />
                 ))}
               </div>
             ) : totalCount === 0 || groupedResults.length === 0 ? (
@@ -326,8 +422,9 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
                     key={`${variants[0].marca}-${variants[0].modelo}`}
                     variants={variants}
                     idx={idx}
-                    isLoggedIn={mounted && isLoggedIn}
+                    isLoggedIn={mounted && isLoggedIn && isB2BApproved}
                     onOpen={openProduct}
+                    onQuickAdd={handleOpenQuickAdd}
                     materialLabels={facets.material}
                   />
                 ))}
@@ -337,46 +434,66 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
             {/* Paginación SSR */}
             {totalPages > 1 && (
               <div className="flex justify-center items-center gap-4 mt-12 pt-8 border-t border-[#E6E2DD]">
-                <button
-                  disabled={currentPage <= 1}
-                  onClick={() => setPage(currentPage - 1)}
-                  className="px-6 py-3 bg-[#FFFFFF] text-[#0F0F0F] border border-[#E6E2DD] disabled:opacity-30 hover:border-[#0F0F0F] transition font-medium text-[11px] uppercase tracking-[0.16em]"
-                >
-                  Anterior
-                </button>
-                <span className="text-xs text-[#5C5A55] font-mono tabular-nums">
-                  Página <span className="text-[#0F0F0F] font-bold">{currentPage}</span> de {totalPages}
+                {currentPage > 1 ? (
+                  <button
+                    onClick={() => setPage(currentPage - 1)}
+                    className="border border-[#0F0F0F] text-[#0F0F0F] hover:bg-[#0F0F0F] hover:text-white px-5 py-2.5 text-[11px] uppercase tracking-[0.16em] transition-colors"
+                  >
+                    ← Anterior
+                  </button>
+                ) : (
+                  <span className="border border-[#E6E2DD] text-[#787670] px-5 py-2.5 text-[11px] uppercase tracking-[0.16em] cursor-not-allowed">
+                    ← Anterior
+                  </span>
+                )}
+
+                <span className="text-xs uppercase tracking-widest text-[#5C5A55] font-mono">
+                  Página {currentPage} de {totalPages}
                 </span>
-                <button
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setPage(currentPage + 1)}
-                  className="px-6 py-3 bg-[#FFFFFF] text-[#0F0F0F] border border-[#E6E2DD] disabled:opacity-30 hover:border-[#0F0F0F] transition font-medium text-[11px] uppercase tracking-[0.16em]"
-                >
-                  Siguiente
-                </button>
+
+                {currentPage < totalPages ? (
+                  <button
+                    onClick={() => setPage(currentPage + 1)}
+                    className="border border-[#0F0F0F] text-[#0F0F0F] hover:bg-[#0F0F0F] hover:text-white px-5 py-2.5 text-[11px] uppercase tracking-[0.16em] transition-colors"
+                  >
+                    Siguiente →
+                  </button>
+                ) : (
+                  <span className="border border-[#E6E2DD] text-[#787670] px-5 py-2.5 text-[11px] uppercase tracking-[0.16em] cursor-not-allowed">
+                    Siguiente →
+                  </span>
+                )}
               </div>
             )}
-
           </div>
         </div>
-
       </div>
 
-      {/* Drawer de filtros (mobile) */}
+      {/* Drawer Mobile de Filtros */}
       <FilterDrawer
-        {...filterPanelProps}
         open={drawerOpen}
-        onClose={closeDrawer}
+        onClose={() => setDrawerOpen(false)}
+        facets={facets}
+        state={filters}
+        onToggle={toggle}
         resultCount={totalCount}
         activeCount={activeCount}
         onClearAll={clearAll}
       />
 
-      {/* --- BARRA FLOTANTE DE PROGRESO MOQ EN NEGRO OBSIDIANA / BRONCE --- */}
-      {mounted && totalUnidades > 0 && (
-        <MoqProgressBar variant="floating" isLoggedIn={isLoggedIn} />
+      {/* Drawer de Compra Rápida por Matriz */}
+      {quickAddVariants && (
+        <QuickAddDrawer
+          isOpen={!!quickAddVariants}
+          onClose={handleCloseQuickAdd}
+          variants={quickAddVariants}
+        />
       )}
 
+      {/* Barra Flotante Inferior de Progreso MOQ en Vivo */}
+      {mounted && (
+        <MoqProgressBar variant="floating" isLoggedIn={isLoggedIn && isB2BApproved} />
+      )}
     </div>
   );
 }

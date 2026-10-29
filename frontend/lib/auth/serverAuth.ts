@@ -58,16 +58,49 @@ export function isUserAdmin(user: User | null | undefined): boolean {
   return allowed.includes(normalizedEmail);
 }
 
+/**
+ * Determina si un usuario autenticado posee autorización B2B activa y verificada (SII/Comercial).
+ *
+ * Falla cerrado (false):
+ * - Si el usuario es null/undefined
+ * - Si la cuenta está en estado 'pendiente' o no verificada
+ * Retorna true:
+ * - Si el usuario es Administrador de la plataforma
+ * - Si app_metadata.b2b_approved === true
+ * - Si user_metadata.verificado_b2b === true o user_metadata.estado_verificacion === 'verificado' o user_metadata.estado === 'activo'
+ */
+export function isUserB2BApproved(user: User | null | undefined): boolean {
+  if (!user) return false;
+  if (isUserAdmin(user)) return true;
+
+  if (user.app_metadata?.b2b_approved === true || user.app_metadata?.b2b_status === 'approved') {
+    return true;
+  }
+
+  const meta = user.user_metadata || {};
+  if (meta.estado_verificacion === 'rechazado' || meta.estado === 'bloqueado') {
+    return false;
+  }
+
+  if (meta.verificado_b2b === true || meta.estado_verificacion === 'verificado' || meta.estado === 'activo') {
+    return true;
+  }
+
+  return false;
+}
+
 export interface ServerAuthSuccess {
   authenticated: true;
   user: User;
   isAdmin: boolean;
+  isB2BApproved: boolean;
 }
 
 export interface ServerAuthFailure {
   authenticated: false;
   user: null;
   isAdmin: false;
+  isB2BApproved: false;
   response: Response;
 }
 
@@ -102,6 +135,7 @@ export async function authenticateServerRequest(
       authenticated: false,
       user: null,
       isAdmin: false,
+      isB2BApproved: false,
       response: Response.json(
         { error: 'No autorizado: Cabecera Authorization requerida.' },
         { status: 401 }
@@ -115,6 +149,7 @@ export async function authenticateServerRequest(
       authenticated: false,
       user: null,
       isAdmin: false,
+      isB2BApproved: false,
       response: Response.json(
         { error: 'No autorizado: Formato de token inválido. Se espera Bearer <token>.' },
         { status: 401 }
@@ -133,6 +168,7 @@ export async function authenticateServerRequest(
           authenticated: false,
           user: null,
           isAdmin: false,
+          isB2BApproved: false,
           response: Response.json(
             { error: 'No autorizado: Token inválido o sesión expirada.' },
             { status: 401 }
@@ -143,12 +179,14 @@ export async function authenticateServerRequest(
         authenticated: true,
         user: data.user,
         isAdmin: isUserAdmin(data.user),
+        isB2BApproved: isUserB2BApproved(data.user),
       };
     } catch {
       return {
         authenticated: false,
         user: null,
         isAdmin: false,
+        isB2BApproved: false,
         response: Response.json(
           { error: 'No autorizado: Error al verificar token de acceso.' },
           { status: 401 }
@@ -166,6 +204,7 @@ export async function authenticateServerRequest(
       authenticated: false,
       user: null,
       isAdmin: false,
+      isB2BApproved: false,
       response: Response.json(
         { error: 'Error interno del servidor: Servicio de autenticación no configurado.' },
         { status: 500 }
@@ -194,6 +233,7 @@ export async function authenticateServerRequest(
         authenticated: false,
         user: null,
         isAdmin: false,
+        isB2BApproved: false,
         response: Response.json(
           { error: 'No autorizado: Token inválido o sesión expirada.' },
           { status: 401 }
@@ -205,6 +245,7 @@ export async function authenticateServerRequest(
       authenticated: true,
       user,
       isAdmin: isUserAdmin(user),
+      isB2BApproved: isUserB2BApproved(user),
     };
   } catch (err: unknown) {
     console.error('[ServerAuth] Excepción al invocar auth.getUser');
@@ -212,6 +253,7 @@ export async function authenticateServerRequest(
       authenticated: false,
       user: null,
       isAdmin: false,
+      isB2BApproved: false,
       response: Response.json(
         { error: 'No autorizado: Error al validar token.' },
         { status: 401 }

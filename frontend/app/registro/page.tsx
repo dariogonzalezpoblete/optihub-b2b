@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth, OpticaMetadata } from '@/context/AuthContext';
 import { formatRUT, isValidRUT, cleanRUT } from '@/lib/utils/rut';
 import { checkPasswordRules } from '@/lib/utils/password';
 import { REGIONES_CHILE, getCommunesForRegion } from '@/lib/data/chileRegions';
+import { trackB2BEvent } from '@/lib/analytics';
 import {
   Building2,
   User,
@@ -21,7 +22,19 @@ import {
   EyeOff,
   Check,
   ShieldCheck,
+  FileText,
+  Briefcase,
+  Clock,
+  MessageCircle,
 } from 'lucide-react';
+
+const GIROS_SII_OPTICOS = [
+  'Venta al por menor de artículos ópticos e instrumental médico (Óptica)',
+  'Consultas médicas oftalmológicas y centros oftalmológicos',
+  'Laboratorio y taller de biselado / montaje óptico',
+  'Distribución y comercialización mayorista de insumos oftálmicos',
+  'Otro giro relacionado a la salud visual y optometría',
+];
 
 function RegisterForm() {
   const router = useRouter();
@@ -31,8 +44,10 @@ function RegisterForm() {
   const { register, isLoggedIn } = useAuth();
 
   const [formData, setFormData] = useState({
+    razon_social: '',
     nombre_optica: '',
     rut_empresa: '',
+    giro_comercial: GIROS_SII_OPTICOS[0],
     nombre_contacto: '',
     telefono: '',
     region: 'Región Metropolitana de Santiago',
@@ -44,15 +59,26 @@ function RegisterForm() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState(false);
+  const [successData, setSuccessData] = useState<OpticaMetadata | null>(null);
   const [loading, setLoading] = useState(false);
+  const hasTrackedStartRef = useRef(false);
+
+  const handleFormFocus = () => {
+    if (!hasTrackedStartRef.current) {
+      hasTrackedStartRef.current = true;
+      trackB2BEvent('start_b2b_registration', {
+        entry_point: 'formulario_registro_b2b',
+      });
+    }
+  };
 
   useEffect(() => {
-    if (isLoggedIn) {
+    if (isLoggedIn && !successData) {
       router.push(redirectPath);
     }
-  }, [isLoggedIn, redirectPath, router]);
+  }, [isLoggedIn, redirectPath, router, successData]);
 
   const availableCommunes = useMemo(() => {
     return getCommunesForRegion(formData.region);
@@ -84,6 +110,14 @@ function RegisterForm() {
   const isRutValid = isRutComplete && isValidRUT(formData.rut_empresa);
   const isRutInvalid = isRutComplete && !isRutValid;
 
+  const handleRutBlur = () => {
+    if (isRutComplete) {
+      trackB2BEvent('rut_validation_result', {
+        is_valid: isRutValid,
+      });
+    }
+  };
+
   const pwdRules = useMemo(() => {
     return checkPasswordRules(formData.password, formData.confirmPassword);
   }, [formData.password, formData.confirmPassword]);
@@ -92,8 +126,23 @@ function RegisterForm() {
     e.preventDefault();
     setErrorMsg('');
 
+    if (!formData.razon_social.trim()) {
+      setErrorMsg('Debe indicar la Razón Social tributaria registrada ante el SII.');
+      return;
+    }
+
+    if (!formData.nombre_optica.trim()) {
+      setErrorMsg('Debe indicar el Nombre Comercial o Fantasía de la óptica.');
+      return;
+    }
+
     if (!isValidRUT(formData.rut_empresa)) {
       setErrorMsg('El RUT ingresado no es válido. Debe ser un RUT chileno oficial con su dígito verificador correcto (Módulo 11).');
+      return;
+    }
+
+    if (!formData.giro_comercial) {
+      setErrorMsg('Por favor seleccione el Giro Comercial SII correspondiente a su actividad.');
       return;
     }
 
@@ -120,67 +169,148 @@ function RegisterForm() {
     }
     if (!pwdRules.hasNumber) {
       setErrorMsg('La contraseña debe contener al menos un número (0-9).');
+      return;
     }
     if (formData.password !== formData.confirmPassword) {
       setErrorMsg('Las contraseñas no coinciden.');
       return;
     }
 
+    if (!acceptedTerms) {
+      setErrorMsg('Debe aceptar los Términos y Condiciones Mayoristas y la Política de Privacidad de OPTIHUB para continuar.');
+      return;
+    }
+
     setLoading(true);
 
     const metadata: OpticaMetadata = {
+      razon_social: formData.razon_social.trim(),
       nombre_optica: formData.nombre_optica.trim(),
       rut_empresa: formData.rut_empresa.trim(),
+      giro_comercial: formData.giro_comercial,
+      giro: formData.giro_comercial,
       nombre_contacto: formData.nombre_contacto.trim(),
       telefono: formData.telefono.trim(),
       region: formData.region,
       comuna: formData.comuna,
       ciudad: `${formData.comuna}, ${formData.region}`,
+      rol: 'optica',
+      verificado_b2b: false,
+      estado_verificacion: 'pendiente',
+      fecha_solicitud: new Date().toISOString(),
     };
 
     try {
-      const { data, error } = await register(formData.email.trim(), formData.password, metadata);
+      const { error } = await register(formData.email.trim(), formData.password, metadata);
 
       if (error) {
         setErrorMsg(error.message || 'Error al procesar el registro de la óptica.');
       } else {
-        if (data?.user && !data.session) {
-          setSuccessMsg(true);
-        } else {
-          router.push(redirectPath);
-        }
+        trackB2BEvent('complete_b2b_registration', {
+          region: formData.region,
+          comuna: formData.comuna,
+          giro_type: formData.giro_comercial,
+        });
+        setSuccessData(metadata);
       }
-    } catch (err: any) {
+    } catch {
       setErrorMsg('Ocurrió un error inesperado al registrar la cuenta. Por favor intente nuevamente.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (successMsg) {
+  // PANTALLA FORMAL DE CONFIRMACIÓN Y CONTACTO WHATSAPP PARA ACTIVACIÓN PRIORITARIA
+  if (successData) {
+    const whatsappMessage = `Hola OptiHub B2B, acabo de registrar la óptica ${successData.nombre_optica || 'Óptica'} (Razón Social: ${successData.razon_social || 'N/A'}, RUT: ${successData.rut_empresa}, Giro: ${successData.giro_comercial}). Solicito la activación prioritaria de mi cuenta comercial para acceder al catálogo mayorista.`;
+    const whatsappUrl = `https://wa.me/56989338537?text=${encodeURIComponent(whatsappMessage)}`;
+
     return (
       <div className="min-h-[85vh] bg-[#FAF9F6] text-[#0F0F0F] flex items-center justify-center px-4 py-16">
-        <div className="max-w-md w-full bg-[#FFFFFF] border border-[#E6E2DD] p-8 sm:p-12 text-center">
-          <div className="w-12 h-12 bg-[#F7F3EB] text-[#846C44] border border-[#9E8256]/30 flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="w-6 h-6" />
+        <div className="max-w-xl w-full bg-[#FFFFFF] border border-[#E6E2DD] p-8 sm:p-12 text-left">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 bg-[#F7F3EB] text-[#846C44] border border-[#9E8256]/30 flex items-center justify-center flex-shrink-0">
+              <Clock className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="block text-[10px] uppercase tracking-[0.22em] text-[#9E8256] font-semibold">
+                VALIDACIÓN TRIBUTARIA SII · KYC B2B
+              </span>
+              <h2 className="font-serif text-2xl sm:text-3xl font-normal text-[#0F0F0F] tracking-tight">
+                Solicitud de Alta Comercial Recibida
+              </h2>
+            </div>
           </div>
-          <span className="block text-[10px] uppercase tracking-[0.22em] text-[#9E8256] font-semibold mb-2">
-            SOLICITUD PROCESADA
-          </span>
-          <h2 className="font-serif text-2xl sm:text-3xl font-normal text-[#0F0F0F] tracking-tight">
-            ¡Registro Enviado con Éxito!
-          </h2>
-          <p className="text-[#5C5A55] text-xs sm:text-sm mt-3 leading-relaxed">
-            Hemos registrado los datos de su óptica. Revise su bandeja de entrada en <span className="text-[#0F0F0F] font-semibold">{formData.email}</span> para verificar su cuenta y comenzar a cotizar armazones al por mayor.
-          </p>
-          <div className="mt-8">
-            <Link
-              href="/login"
-              className="w-full inline-flex items-center justify-center gap-2 bg-[#0F0F0F] hover:bg-[#262626] text-white py-4 px-6 transition text-[11px] uppercase tracking-[0.2em] border border-[#0F0F0F]"
+
+          <div className="p-4 bg-[#FAF6ED] border border-[#E6D7B8] mb-6">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2 h-2 rounded-full bg-[#846C44] animate-pulse" />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#846C44]">
+                Estado: En Revisión Comercial (Validación de Giro Óptico)
+              </span>
+            </div>
+            <p className="text-xs text-[#5C5A55] leading-relaxed">
+              Para proteger a las ópticas establecidas en Chile, OptiHub verifica la concordancia del RUT y Giro Comercial ante el SII antes de habilitar la visualización de precios netos e importación directa.
+            </p>
+          </div>
+
+          {/* Ficha Resumen de la Óptica Registrada */}
+          <div className="bg-[#FAF9F6] border border-[#E6E2DD] p-5 mb-8 space-y-2.5 text-xs">
+            <div className="flex justify-between border-b border-[#E6E2DD] pb-2">
+              <span className="text-[#5C5A55] uppercase tracking-wider text-[10px]">Razón Social SII:</span>
+              <span className="font-semibold text-[#0F0F0F]">{successData.razon_social}</span>
+            </div>
+            <div className="flex justify-between border-b border-[#E6E2DD] pb-2">
+              <span className="text-[#5C5A55] uppercase tracking-wider text-[10px]">Nombre Comercial:</span>
+              <span className="font-semibold text-[#0F0F0F]">{successData.nombre_optica}</span>
+            </div>
+            <div className="flex justify-between border-b border-[#E6E2DD] pb-2">
+              <span className="text-[#5C5A55] uppercase tracking-wider text-[10px]">RUT de Empresa:</span>
+              <span className="font-mono font-bold text-[#0F0F0F]">{successData.rut_empresa}</span>
+            </div>
+            <div className="flex justify-between border-b border-[#E6E2DD] pb-2">
+              <span className="text-[#5C5A55] uppercase tracking-wider text-[10px]">Giro Comercial:</span>
+              <span className="font-medium text-[#0F0F0F] text-right max-w-xs">{successData.giro_comercial}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[#5C5A55] uppercase tracking-wider text-[10px]">Ubicación:</span>
+              <span className="text-[#0F0F0F]">{successData.ciudad}</span>
+            </div>
+          </div>
+
+          {/* Botones de Acción */}
+          <div className="space-y-3">
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                trackB2BEvent('click_whatsapp_b2b', {
+                  source: 'registration',
+                });
+              }}
+              className="w-full inline-flex items-center justify-center gap-2.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white py-4 px-6 transition text-[11px] uppercase tracking-[0.2em] font-semibold border border-[#20BA5A] shadow-xs"
             >
-              <span>Ir a Iniciar Sesión</span>
-              <ArrowRight className="w-4 h-4 text-[#9E8256]" />
-            </Link>
+              <MessageCircle className="w-4 h-4 fill-white" />
+              <span>Solicitar Activación Inmediata por WhatsApp</span>
+            </a>
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Link
+                href="/catalogo"
+                className="flex-1 inline-flex items-center justify-center gap-2 bg-[#0F0F0F] hover:bg-[#262626] text-white py-3.5 px-4 transition text-[11px] uppercase tracking-[0.18em] border border-[#0F0F0F] text-center"
+              >
+                <span>Explorar Catálogo (Modo Vitrina)</span>
+                <ArrowRight className="w-3.5 h-3.5 text-[#9E8256]" />
+              </Link>
+
+              <Link
+                href="/login"
+                className="flex-1 inline-flex items-center justify-center gap-2 bg-transparent hover:bg-[#FAF9F6] text-[#0F0F0F] py-3.5 px-4 transition text-[11px] uppercase tracking-[0.18em] border border-[#D5D0C8] text-center"
+              >
+                <span>Iniciar Sesión</span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -189,26 +319,26 @@ function RegisterForm() {
 
   return (
     <div className="min-h-screen bg-[#FAF9F6] text-[#0F0F0F] flex items-center justify-center px-4 py-16">
-      <div className="max-w-xl w-full">
+      <div className="max-w-2xl w-full">
         {/* Cabecera Editorial */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-3">
             <span className="w-6 h-[1px] bg-[#9E8256]" />
             <span className="text-[10px] uppercase tracking-[0.25em] text-[#9E8256] font-medium">
-              ALTA COMERCIAL B2B · USA
+              ALTA COMERCIAL B2B · USA & CHILE
             </span>
             <span className="w-6 h-[1px] bg-[#9E8256]" />
           </div>
           <h1 className="font-serif text-3xl sm:text-4xl font-normal text-[#0F0F0F] tracking-tight">
             Registro de Óptica B2B
           </h1>
-          <p className="text-[#5C5A55] text-xs sm:text-sm mt-2.5 max-w-md mx-auto leading-relaxed">
-            Cree su cuenta comercial para acceder a precios mayoristas netos, inventario sincronizado e importación directa desde USA.
+          <p className="text-[#5C5A55] text-xs sm:text-sm mt-2.5 max-w-lg mx-auto leading-relaxed">
+            Inscripción exclusiva para ópticas, oftalmólogos y laboratorios en Chile. Facturación electrónica SII, precios netos en CLP e importación directa desde USA.
           </p>
         </div>
 
         {/* Tarjeta de Formulario Ejecutiva */}
-        <div className="bg-[#FFFFFF] border border-[#E6E2DD] p-8 sm:p-10">
+        <div className="bg-[#FFFFFF] border border-[#E6E2DD] p-8 sm:p-10 shadow-xs">
           {errorMsg && (
             <div className="mb-6 p-4 bg-[#FAF4F4] border border-[#E6D0D0] text-[#9E3838] text-xs flex items-start gap-3">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#9E3838]" />
@@ -216,12 +346,32 @@ function RegisterForm() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Fila 1: Nombre Óptica & RUT Empresa */}
+          <form onSubmit={handleSubmit} onFocusCapture={handleFormFocus} className="space-y-5">
+            {/* Fila 1: Razón Social SII & Nombre Comercial */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-semibold text-[#5C5A55] uppercase tracking-[0.18em] mb-2">
-                  Nombre Comercial / Óptica
+                  Razón Social (Tributaria SII) <span className="text-[#9E8256]">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#787670]">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    name="razon_social"
+                    value={formData.razon_social}
+                    onChange={handleChange}
+                    placeholder="Ej: Inversiones Ópticas del Sur SpA"
+                    className="w-full bg-[#FFFFFF] border border-[#D5D0C8] pl-10 pr-4 py-2.5 text-xs text-[#0F0F0F] placeholder-[#787670] focus:outline-none focus:border-[#0F0F0F] focus:ring-0 rounded-none transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold text-[#5C5A55] uppercase tracking-[0.18em] mb-2">
+                  Nombre de Fantasía / Óptica <span className="text-[#9E8256]">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#787670]">
@@ -238,11 +388,14 @@ function RegisterForm() {
                   />
                 </div>
               </div>
+            </div>
 
+            {/* Fila 2: RUT de Empresa & Giro Comercial SII */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-[10px] font-semibold text-[#5C5A55] uppercase tracking-[0.18em]">
-                    RUT de Empresa o Titular
+                    RUT de Empresa o Titular <span className="text-[#9E8256]">*</span>
                   </label>
                   {isRutValid && (
                     <span className="inline-flex items-center gap-1 text-[9px] font-mono text-[#2D6A4F] bg-[#F4F8F5] border border-[#C4D9C8] px-1.5 py-0.5">
@@ -263,6 +416,7 @@ function RegisterForm() {
                   name="rut_empresa"
                   value={formData.rut_empresa}
                   onChange={handleChange}
+                  onBlur={handleRutBlur}
                   placeholder="Ej: 76.543.210-3"
                   className={`w-full bg-[#FFFFFF] border px-4 py-2.5 text-xs font-mono text-[#0F0F0F] placeholder-[#787670] focus:outline-none focus:ring-0 rounded-none transition tabular-nums ${
                     isRutInvalid
@@ -273,13 +427,37 @@ function RegisterForm() {
                   }`}
                 />
               </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold text-[#5C5A55] uppercase tracking-[0.18em] mb-2">
+                  Giro Comercial SII <span className="text-[#9E8256]">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#787670]">
+                    <Briefcase className="w-4 h-4" />
+                  </div>
+                  <select
+                    required
+                    name="giro_comercial"
+                    value={formData.giro_comercial}
+                    onChange={handleChange}
+                    className="w-full bg-[#FFFFFF] border border-[#D5D0C8] pl-10 pr-4 py-2.5 text-xs text-[#0F0F0F] focus:outline-none focus:border-[#0F0F0F] focus:ring-0 rounded-none transition cursor-pointer"
+                  >
+                    {GIROS_SII_OPTICOS.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
 
-            {/* Fila 2: Encargado & Teléfono */}
+            {/* Fila 3: Encargado & Teléfono / WhatsApp */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-semibold text-[#5C5A55] uppercase tracking-[0.18em] mb-2">
-                  Nombre del Encargado / Óptico
+                  Nombre del Encargado / Óptico <span className="text-[#9E8256]">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#787670]">
@@ -299,7 +477,7 @@ function RegisterForm() {
 
               <div>
                 <label className="block text-[10px] font-semibold text-[#5C5A55] uppercase tracking-[0.18em] mb-2">
-                  Teléfono / WhatsApp
+                  Teléfono / WhatsApp de Facturación <span className="text-[#9E8256]">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#787670]">
@@ -318,7 +496,7 @@ function RegisterForm() {
               </div>
             </div>
 
-            {/* Fila 3: Región y Comuna */}
+            {/* Fila 4: Región y Comuna */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-semibold text-[#5C5A55] uppercase tracking-[0.18em] mb-2">
@@ -369,10 +547,10 @@ function RegisterForm() {
               </div>
             </div>
 
-            {/* Fila 4: Correo Electrónico Comercial */}
+            {/* Fila 5: Correo Electrónico Comercial */}
             <div>
               <label className="block text-[10px] font-semibold text-[#5C5A55] uppercase tracking-[0.18em] mb-2">
-                Correo Electrónico Comercial
+                Correo Electrónico Comercial / DTE <span className="text-[#9E8256]">*</span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#787670]">
@@ -390,11 +568,11 @@ function RegisterForm() {
               </div>
             </div>
 
-            {/* Fila 5: Contraseñas */}
+            {/* Fila 6: Contraseñas */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-semibold text-[#5C5A55] uppercase tracking-[0.18em] mb-2">
-                  Contraseña
+                  Contraseña <span className="text-[#9E8256]">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#787670]">
@@ -422,7 +600,7 @@ function RegisterForm() {
 
               <div>
                 <label className="block text-[10px] font-semibold text-[#5C5A55] uppercase tracking-[0.18em] mb-2">
-                  Confirmar Contraseña
+                  Confirmar Contraseña <span className="text-[#9E8256]">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#787670]">
@@ -476,17 +654,59 @@ function RegisterForm() {
               )}
             </div>
 
+            {/* Checkbox Obligatorio de Términos y Privacidad */}
+            <div className="p-3.5 bg-[#FAF9F6] border border-[#E6E2DD]">
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  required
+                  id="accepted-terms-checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded-none border border-[#D5D0C8] text-[#0F0F0F] focus:ring-0 focus:ring-offset-0 cursor-pointer accent-[#0F0F0F]"
+                />
+                <span className="text-xs text-[#5C5A55] leading-relaxed">
+                  Acepto los{' '}
+                  <Link
+                    href="/terminos-y-condiciones"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#0F0F0F] font-semibold underline underline-offset-2 hover:text-[#9E8256] transition-colors"
+                  >
+                    Términos y Condiciones Mayoristas
+                  </Link>{' '}
+                  y la{' '}
+                  <Link
+                    href="/politica-de-privacidad"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#0F0F0F] font-semibold underline underline-offset-2 hover:text-[#9E8256] transition-colors"
+                  >
+                    Política de Privacidad
+                  </Link>{' '}
+                  de OPTIHUB.
+                </span>
+              </label>
+            </div>
+
             <div className="pt-2">
               <button
                 type="submit"
-                disabled={loading || !pwdRules.valid || !isRutValid}
-                className="w-full bg-[#0F0F0F] hover:bg-[#262626] disabled:bg-[#E6E2DD] disabled:text-[#787670] text-white font-medium py-4 px-6 transition duration-200 text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 border border-[#0F0F0F] cursor-pointer"
+                disabled={
+                  loading ||
+                  !acceptedTerms ||
+                  !pwdRules.valid ||
+                  !isRutValid ||
+                  !formData.razon_social.trim() ||
+                  !formData.nombre_optica.trim()
+                }
+                className="w-full bg-[#0F0F0F] hover:bg-[#262626] disabled:bg-[#E6E2DD] disabled:text-[#787670] text-white font-medium py-4 px-6 transition duration-200 text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 border border-[#0F0F0F] cursor-pointer disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <span>Registrando Óptica...</span>
                 ) : (
                   <>
-                    <span>Crear Cuenta Mayorista B2B</span>
+                    <span>Solicitar Alta Comercial B2B</span>
                     <ArrowRight className="w-4 h-4 text-[#9E8256]" />
                   </>
                 )}

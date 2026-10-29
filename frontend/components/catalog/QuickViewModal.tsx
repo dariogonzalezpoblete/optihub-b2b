@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { useCartStore, getValidStock, getProductCartKey } from '@/store/useCartStore';
 import type { EnrichedMarco } from '@/lib/catalog/types';
-import { X, Lock, ShoppingBag, Ruler, AlertCircle, TrendingUp, ShieldCheck, Truck, Check } from 'lucide-react';
+import { X, Lock, ShoppingBag, Ruler, AlertCircle, TrendingUp, ShieldCheck, Truck, Check, Plus, Minus } from 'lucide-react';
 import { getRotationBadge, calculateRetailProjection } from '@/lib/catalog/brandCategories';
 
 interface Props {
@@ -17,7 +17,7 @@ interface Props {
 }
 
 export default function QuickViewModal({ variants, isOpen, onClose, initialVariantId }: Props) {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, isB2BApproved } = useAuth();
   const cart = useCartStore((state) => state.cart);
   const addToCart = useCartStore((state) => state.addToCart);
 
@@ -95,6 +95,28 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
       setStockWarning('');
     }
     setQuantities(prev => ({ ...prev, [id_ext]: num }));
+  };
+
+  const handleIncrement = (id_ext: string, remainingStock: number, maxStock: number) => {
+    const current = quantities[id_ext] || 0;
+    if (current >= remainingStock) {
+      setStockWarning(`Stock máximo disponible para este color: ${maxStock} unidades.`);
+      return;
+    }
+    setStockWarning('');
+    setQuantities((prev) => ({ ...prev, [id_ext]: current + 1 }));
+  };
+
+  const handleDecrement = (id_ext: string) => {
+    const current = quantities[id_ext] || 0;
+    if (current <= 1) {
+      const next = { ...quantities };
+      delete next[id_ext];
+      setQuantities(next);
+    } else {
+      setQuantities((prev) => ({ ...prev, [id_ext]: current - 1 }));
+    }
+    setStockWarning('');
   };
 
   const getTotalSelected = () => {
@@ -244,7 +266,7 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
             <p className="text-[#575551] text-xs mt-1">Material: {baseProduct.material || 'Estándar'} • Género: {baseProduct.genero || 'Unisex'}</p>
 
             {/* Calculadora de Margen Retail en Modal para la variante activa */}
-            {isLoggedIn && retail && activeVariant.precio_neto_clp && (
+            {isLoggedIn && isB2BApproved && retail && activeVariant.precio_neto_clp && (
               <div className="mt-4 bg-[#FAF9F6] rounded-2xl p-3.5 border border-[#E6E2DD] flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div>
                   <span className="text-[#82807A] block text-[10px] uppercase font-bold tracking-wider">Costo Mayorista</span>
@@ -412,7 +434,11 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
 
                         {/* Precio y Disponibilidad */}
                         <div className="text-right mr-3 shrink-0 w-28">
-                          <p className="font-bold text-[#0F0F0F] font-tech">${v.precio_neto_clp?.toLocaleString('es-CL')}</p>
+                          <p className="font-bold text-[#0F0F0F] font-tech">
+                            {isLoggedIn && isB2BApproved && typeof v.precio_neto_clp === 'number'
+                              ? `$${v.precio_neto_clp.toLocaleString('es-CL')}`
+                              : 'Reservado B2B'}
+                          </p>
                           {isOut ? (
                             <p className="text-[10px] text-[#A83232] font-semibold">Agotado en origen</p>
                           ) : isMaxInCart ? (
@@ -424,8 +450,18 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                           )}
                         </div>
 
-                        {/* Input de Cantidad: stopPropagation para no disparar el cambio de variante al teclear */}
-                        <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                        {/* Input de Cantidad con Stepper [- / +] */}
+                        <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Disminuir ${v.color || v.codigo_color}`}
+                            disabled={isOut || isMaxInCart || (quantities[v.id_ext] || 0) <= 0}
+                            onClick={() => handleDecrement(v.id_ext)}
+                            className="w-7 h-7 flex items-center justify-center border border-[#E6E2DD] bg-[#FAF9F6] text-[#0F0F0F] hover:bg-[#0F0F0F] hover:text-white hover:border-[#0F0F0F] disabled:opacity-30 disabled:pointer-events-none rounded-lg transition cursor-pointer select-none"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+
                           <input 
                             type="number" 
                             min="0" 
@@ -434,8 +470,18 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                             value={quantities[v.id_ext] || ''} 
                             placeholder="0"
                             onChange={(e) => handleQuantityChange(v.id_ext, e.target.value, maxStock, remainingStock)}
-                            className="w-16 bg-[#FFFFFF] border border-[#E6E2DD] rounded-lg py-1.5 text-center text-[#0F0F0F] font-bold text-sm focus:border-[#9E8256] outline-none disabled:opacity-50 shadow-2xs"
+                            className="w-12 bg-[#FFFFFF] border border-[#E6E2DD] rounded-lg py-1 text-center text-[#0F0F0F] font-bold text-xs focus:border-[#9E8256] outline-none disabled:opacity-50 shadow-2xs tabular-nums"
                           />
+
+                          <button
+                            type="button"
+                            aria-label={`Aumentar ${v.color || v.codigo_color}`}
+                            disabled={isOut || isMaxInCart || (quantities[v.id_ext] || 0) >= remainingStock}
+                            onClick={() => handleIncrement(v.id_ext, remainingStock, maxStock)}
+                            className="w-7 h-7 flex items-center justify-center border border-[#E6E2DD] bg-[#FAF9F6] text-[#0F0F0F] hover:bg-[#0F0F0F] hover:text-white hover:border-[#0F0F0F] disabled:opacity-30 disabled:pointer-events-none rounded-lg transition cursor-pointer select-none"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
                         </div>
                       </div>
                     );

@@ -736,6 +736,11 @@ export class CatalogRunner {
         const cleanColor = (raw.colorCode || '001').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
         const idExt = `${cleanSku}-${cleanColor}`.toUpperCase();
 
+        if (CONFIG.SCRAPER.EXCLUDED_SKUS?.includes(idExt) || CONFIG.SCRAPER.EXCLUDED_SKUS?.includes(cleanSku)) {
+          Logger.warn(`Producto excluido por lista negra / anomalía de proveedor: ${idExt}`);
+          continue;
+        }
+
         const pricing = calculateB2BPricing(raw.priceUsd, productBrand);
 
         products.push({

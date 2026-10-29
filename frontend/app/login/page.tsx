@@ -1,10 +1,15 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Lock, Mail, ArrowRight, AlertCircle } from 'lucide-react';
+import { Lock, Mail, ArrowRight, AlertCircle, Clock } from 'lucide-react';
+
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION_SECONDS = 60;
+const STORAGE_ATTEMPTS_KEY = 'optihub_login_failed_attempts';
+const STORAGE_LOCKOUT_KEY = 'optihub_login_lockout_until';
 
 function LoginForm() {
   const router = useRouter();
@@ -16,8 +21,58 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
 
-  React.useEffect(() => {
+  // Inicializar estado de bloqueo desde sessionStorage para persistencia en recarga
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const storedLockout = sessionStorage.getItem(STORAGE_LOCKOUT_KEY);
+      if (storedLockout) {
+        const lockoutUntil = parseInt(storedLockout, 10);
+        const now = Date.now();
+        if (lockoutUntil > now) {
+          setLockoutSeconds(Math.ceil((lockoutUntil - now) / 1000));
+        } else {
+          sessionStorage.removeItem(STORAGE_LOCKOUT_KEY);
+        }
+      }
+
+      const storedAttempts = sessionStorage.getItem(STORAGE_ATTEMPTS_KEY);
+      if (storedAttempts) {
+        const parsed = parseInt(storedAttempts, 10);
+        if (!isNaN(parsed)) {
+          setFailedAttempts(parsed);
+        }
+      }
+    } catch {
+      // Ignorar restricciones de almacenamiento local/session
+    }
+  }, []);
+
+  // Temporizador de cuenta regresiva para el bloqueo por fuerza bruta
+  useEffect(() => {
+    if (lockoutSeconds <= 0) return;
+
+    const interval = setInterval(() => {
+      setLockoutSeconds((prev) => {
+        if (prev <= 1) {
+          try {
+            sessionStorage.removeItem(STORAGE_LOCKOUT_KEY);
+            sessionStorage.removeItem(STORAGE_ATTEMPTS_KEY);
+          } catch {}
+          setFailedAttempts(0);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [lockoutSeconds]);
+
+  useEffect(() => {
     if (isLoggedIn) {
       router.push(redirectPath);
     }
@@ -25,20 +80,48 @@ function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading || lockoutSeconds > 0) return;
+
     setErrorMsg('');
     setLoading(true);
 
     try {
       const { error } = await login(email.trim(), password);
       if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          setErrorMsg('Correo o contraseña incorrectos. Por favor verifica tus datos.');
-        } else if (error.message.includes('Email not confirmed')) {
-          setErrorMsg('Tu correo electrónico no ha sido confirmado aún. Revisa tu bandeja de entrada.');
+        const nextAttempts = failedAttempts + 1;
+        setFailedAttempts(nextAttempts);
+        try {
+          sessionStorage.setItem(STORAGE_ATTEMPTS_KEY, nextAttempts.toString());
+        } catch {}
+
+        if (nextAttempts >= MAX_FAILED_ATTEMPTS) {
+          const lockoutUntil = Date.now() + LOCKOUT_DURATION_SECONDS * 1000;
+          try {
+            sessionStorage.setItem(STORAGE_LOCKOUT_KEY, lockoutUntil.toString());
+          } catch {}
+          setLockoutSeconds(LOCKOUT_DURATION_SECONDS);
+          setErrorMsg(
+            `Ha alcanzado el límite de ${MAX_FAILED_ATTEMPTS} intentos fallidos consecutivos. Por seguridad de su cuenta mayorista, el acceso ha sido bloqueado temporalmente por ${LOCKOUT_DURATION_SECONDS} segundos.`
+          );
         } else {
-          setErrorMsg(error.message || 'Error al iniciar sesión. Inténtalo nuevamente.');
+          const remaining = MAX_FAILED_ATTEMPTS - nextAttempts;
+          let detail = 'Error al iniciar sesión. Inténtalo nuevamente.';
+          if (error.message.includes('Invalid login credentials')) {
+            detail = 'Correo o contraseña incorrectos. Por favor verifica tus datos.';
+          } else if (error.message.includes('Email not confirmed')) {
+            detail = 'Tu correo electrónico no ha sido confirmado aún. Revisa tu bandeja de entrada.';
+          } else if (error.message) {
+            detail = error.message;
+          }
+          setErrorMsg(`${detail} (${remaining} intento${remaining !== 1 ? 's' : ''} restante${remaining !== 1 ? 's' : ''} antes del bloqueo temporal)`);
         }
       } else {
+        // Acceso exitoso: reiniciar contadores
+        setFailedAttempts(0);
+        try {
+          sessionStorage.removeItem(STORAGE_ATTEMPTS_KEY);
+          sessionStorage.removeItem(STORAGE_LOCKOUT_KEY);
+        } catch {}
         router.push(redirectPath);
       }
     } catch (err: any) {
@@ -47,6 +130,8 @@ function LoginForm() {
       setLoading(false);
     }
   };
+
+  const isLockedOut = lockoutSeconds > 0;
 
   return (
     <div className="min-h-[85vh] bg-[#FAF9F6] text-[#0F0F0F] flex items-center justify-center px-4 py-16">
@@ -69,13 +154,27 @@ function LoginForm() {
         </div>
 
         {/* Tarjeta de Formulario Ejecutiva */}
-        <div className="bg-[#FFFFFF] border border-[#E6E2DD] p-8 sm:p-10">
-          {errorMsg && (
+        <div className="bg-[#FFFFFF] border border-[#E6E2DD] p-8 sm:p-10 shadow-xs">
+          {/* Alerta de bloqueo por fuerza bruta */}
+          {isLockedOut ? (
+            <div className="mb-6 p-4 bg-[#FAF4F4] border border-[#E6D0D0] text-[#9E3838] text-xs flex items-start gap-3">
+              <Clock className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#9E3838] animate-pulse" />
+              <div>
+                <span className="font-semibold block uppercase tracking-wider text-[10px] mb-0.5">
+                  Bloqueo Temporal por Seguridad
+                </span>
+                <span>
+                  Ha alcanzado 5 intentos fallidos consecutivos. Podrá reintentar en{' '}
+                  <strong className="font-mono text-sm">{lockoutSeconds}s</strong>.
+                </span>
+              </div>
+            </div>
+          ) : errorMsg ? (
             <div className="mb-6 p-4 bg-[#FAF4F4] border border-[#E6D0D0] text-[#9E3838] text-xs flex items-start gap-3">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#9E3838]" />
               <span>{errorMsg}</span>
             </div>
-          )}
+          ) : null}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -89,10 +188,11 @@ function LoginForm() {
                 <input
                   type="email"
                   required
+                  disabled={loading || isLockedOut}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="contacto@suoptica.cl"
-                  className="w-full bg-[#FFFFFF] border border-[#D5D0C8] pl-10 pr-4 py-3 text-xs text-[#0F0F0F] placeholder-[#787670] focus:outline-none focus:border-[#0F0F0F] focus:ring-0 rounded-none transition"
+                  className="w-full bg-[#FFFFFF] border border-[#D5D0C8] pl-10 pr-4 py-3 text-xs text-[#0F0F0F] placeholder-[#787670] focus:outline-none focus:border-[#0F0F0F] focus:ring-0 rounded-none transition disabled:bg-[#F4F2ED] disabled:text-[#787670] disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -106,7 +206,7 @@ function LoginForm() {
                   href="/recuperar-password"
                   className="text-[10px] uppercase tracking-[0.14em] text-[#9E8256] hover:text-[#0F0F0F] transition font-medium"
                 >
-                  ¿Olvidó su clave?
+                  ¿OLVIDÓ SU CLAVE?
                 </Link>
               </div>
               <div className="relative">
@@ -116,21 +216,30 @@ function LoginForm() {
                 <input
                   type="password"
                   required
+                  disabled={loading || isLockedOut}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-[#FFFFFF] border border-[#D5D0C8] pl-10 pr-4 py-3 text-xs text-[#0F0F0F] placeholder-[#787670] focus:outline-none focus:border-[#0F0F0F] focus:ring-0 rounded-none transition"
+                  className="w-full bg-[#FFFFFF] border border-[#D5D0C8] pl-10 pr-4 py-3 text-xs text-[#0F0F0F] placeholder-[#787670] focus:outline-none focus:border-[#0F0F0F] focus:ring-0 rounded-none transition disabled:bg-[#F4F2ED] disabled:text-[#787670] disabled:cursor-not-allowed"
                 />
               </div>
             </div>
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-[#0F0F0F] hover:bg-[#262626] disabled:bg-[#E6E2DD] disabled:text-[#787670] text-white font-medium py-4 px-6 transition duration-200 text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 border border-[#0F0F0F] cursor-pointer"
+              disabled={loading || isLockedOut}
+              className="w-full bg-[#0F0F0F] hover:bg-[#262626] disabled:bg-[#E6E2DD] disabled:text-[#787670] text-white font-medium py-4 px-6 transition duration-200 text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 border border-[#0F0F0F] cursor-pointer disabled:cursor-not-allowed"
             >
               {loading ? (
-                <span>Verificando credenciales...</span>
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Verificando credenciales...</span>
+                </>
+              ) : isLockedOut ? (
+                <>
+                  <Clock className="w-4 h-4 text-[#9E8256]" />
+                  <span>Bloqueado temporalmente ({lockoutSeconds}s)</span>
+                </>
               ) : (
                 <>
                   <span>Ingresar al Catálogo Mayorista</span>
@@ -168,7 +277,13 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#FAF9F6] text-[#0F0F0F] flex items-center justify-center text-xs uppercase tracking-widest">Cargando acceso B2B...</div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#FAF9F6] text-[#0F0F0F] flex items-center justify-center text-xs uppercase tracking-widest">
+          Cargando acceso B2B...
+        </div>
+      }
+    >
       <LoginForm />
     </Suspense>
   );

@@ -12,6 +12,9 @@ import {
 
 export interface OpticaMetadata {
   nombre_optica?: string;
+  razon_social?: string;
+  giro_comercial?: string;
+  giro?: string;
   rut_empresa?: string;
   nombre_contacto?: string;
   telefono?: string;
@@ -19,7 +22,10 @@ export interface OpticaMetadata {
   region?: string;
   comuna?: string;
   direccion?: string;
-  giro?: string;
+  rol?: string;
+  verificado_b2b?: boolean;
+  estado_verificacion?: 'pendiente' | 'verificado' | 'rechazado';
+  fecha_solicitud?: string;
 }
 
 interface AuthContextType {
@@ -27,6 +33,9 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isLoggedIn: boolean;
+  isB2BApproved: boolean;
+  isB2BPending: boolean;
+  verificationStatus: 'pendiente' | 'verificado' | 'rechazado' | 'unauthenticated';
   isRecoveryMode: boolean;
   recoveryUserId: string | null;
   opticaData: OpticaMetadata | null;
@@ -47,6 +56,9 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   loading: true,
   isLoggedIn: false,
+  isB2BApproved: false,
+  isB2BPending: false,
+  verificationStatus: 'unauthenticated',
   isRecoveryMode: false,
   recoveryUserId: null,
   opticaData: null,
@@ -121,7 +133,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const login = async (email: string, password: string) => {
-    // Al iniciar sesión manual, limpiar siempre cualquier flag residual de recuperación previa
     clearRecoveryMode();
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -139,9 +150,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         data: {
           ...metadata,
           rol: 'optica',
+          estado_verificacion: 'pendiente',
+          verificado_b2b: false,
+          fecha_solicitud: new Date().toISOString(),
         },
       },
     });
+
+    // Sincronización transparente con public.profiles si existe sesión
+    if (!error && data?.user?.id) {
+      try {
+        await supabase.from('profiles').upsert({
+          id: data.user.id,
+          first_name: metadata.nombre_contacto || null,
+          phone: metadata.telefono || null,
+          rut: metadata.rut_empresa || null,
+          business_name: metadata.razon_social || metadata.nombre_optica || null,
+          business_giro: metadata.giro_comercial || metadata.giro || null,
+          region: metadata.region || null,
+          commune: metadata.comuna || null,
+          billing_address: `${metadata.comuna || ''}, ${metadata.region || ''}`,
+          updated_at: new Date().toISOString(),
+        });
+      } catch (profileErr) {
+        // En caso de confirmación de email pendiente, se sincronizará tras primer inicio
+        console.warn('[AuthContext] Nota: Sincronización de perfil pendiente de activación.', profileErr);
+      }
+    }
+
     return { data, error };
   };
 
@@ -153,7 +189,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const resetPasswordForEmail = async (email: string, redirectTo?: string) => {
-    // Validar siempre a través de resolveSafeRedirectUrl para evitar manipulación o open redirects (ARG-07)
     const targetRedirect = resolveSafeRedirectUrl(redirectTo || process.env.NEXT_PUBLIC_SITE_URL);
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: targetRedirect,
@@ -162,7 +197,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const updatePassword = async (password: string) => {
-    // 1. Validación defensiva de formato de contraseña (ARG-06)
     const validation = validatePasswordInput(password, password);
     if (!validation.valid) {
       return {
@@ -173,8 +207,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       };
     }
 
-    // 2-3. Verificar sesión + prueba de recuperación en memoria (claims verificados por el SDK).
-    // Control de UI: el servidor no garantiza "solo recuperación".
     const decision = await verifyRecoveryAuthorization(supabase);
     if (!decision.authorized) {
       return {
@@ -188,12 +220,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       };
     }
 
-    // 4. Invocar actualización en Supabase Auth
     const { error } = await supabase.auth.updateUser({
       password,
     });
 
-    // 5. Tras el cambio exitoso: consumir la prueba y cerrar la sesión local (nunca falla el éxito)
     if (!error) {
       consumeRecoveryProof();
       clearRecoveryProof();
@@ -214,6 +244,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     ? (user.user_metadata as OpticaMetadata)
     : null;
 
+  // Evaluación estricta de estado de verificación B2B
+  const isAdmin = Boolean(
+    user && (
+      user.app_metadata?.role === 'admin' ||
+      user.user_metadata?.role === 'admin' ||
+      user.user_metadata?.is_admin === true ||
+      ['multifocuslimitada@gmail.com', 'dario.joda.2007@gmail.com', 'contacto@optihub.cl', 'admin@optihub.cl'].includes(
+        user.email?.toLowerCase().trim() || ''
+      )
+    )
+  );
+
+  const isB2BApproved = Boolean(
+    user && (
+      isAdmin ||
+      user.app_metadata?.b2b_approved === true ||
+      user.app_metadata?.b2b_status === 'approved' ||
+      user.user_metadata?.verificado_b2b === true ||
+      user.user_metadata?.estado_verificacion === 'verificado' ||
+      user.user_metadata?.estado === 'activo'
+    )
+  );
+
+  const verificationStatus: 'pendiente' | 'verificado' | 'rechazado' | 'unauthenticated' =
+    !user
+      ? 'unauthenticated'
+      : isB2BApproved
+      ? 'verificado'
+      : user.user_metadata?.estado_verificacion === 'rechazado'
+      ? 'rechazado'
+      : 'pendiente';
+
+  const isB2BPending = Boolean(user && !isB2BApproved && verificationStatus === 'pendiente');
+
   return (
     <AuthContext.Provider
       value={{
@@ -221,6 +285,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         session,
         loading,
         isLoggedIn: !!user,
+        isB2BApproved,
+        isB2BPending,
+        verificationStatus,
         isRecoveryMode,
         recoveryUserId,
         opticaData,

@@ -26,7 +26,14 @@ const jetbrainsMono = JetBrains_Mono({
   display: 'swap',
 });
 
-const BASE_URL = process.env.SITE_URL || 'https://optihub-b2b.vercel.app';
+const BASE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  process.env.SITE_URL ||
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'https://frontend-gules-three-41.vercel.app');
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
@@ -64,11 +71,21 @@ export const metadata: Metadata = {
     siteName: 'OptiHub B2B',
     locale: 'es_CL',
     type: 'website',
+    images: [
+      {
+        url: `${BASE_URL}/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: 'OptiHub B2B - Importación Mayorista de Armazones Ópticos en Chile',
+        type: 'image/png',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'OptiHub | Marcos ópticos al por mayor en Chile',
-    description: 'Importación directa mayorista de armazones para ópticas en Chile. Mínimo 10 unidades combinables.',
+    title: 'OptiHub | Marcos ópticos al por mayor en Chile • Importación Directa',
+    description: 'Importación directa mayorista de armazones para ópticas en Chile. Mínimo 10 unidades combinables y factura electrónica SII.',
+    images: [`${BASE_URL}/og-image.png`],
   },
   robots: {
     index: true,

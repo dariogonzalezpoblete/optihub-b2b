@@ -17,7 +17,14 @@ interface Props {
   }>;
 }
 
-const BASE_URL = process.env.SITE_URL || 'https://optihub-b2b.vercel.app';
+const BASE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  process.env.SITE_URL ||
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'https://frontend-gules-three-41.vercel.app');
 
 // 1. DYNAMIC METADATA (Google SEO & Canonical)
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

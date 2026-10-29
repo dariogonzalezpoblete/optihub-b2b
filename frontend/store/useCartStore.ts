@@ -1,6 +1,16 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Producto, CartItem } from '../types/product';
+import { trackB2BEvent } from '../lib/analytics';
+
+function trackMoqProgress(cart: CartItem[]) {
+  const totalUnits = cart.reduce((sum, item) => sum + (item.cantidad || 0), 0);
+  trackB2BEvent('moq_progress_update', {
+    total_units: totalUnits,
+    moq_reached: totalUnits >= 10,
+    units_missing: Math.max(0, 10 - totalUnits),
+  });
+}
 
 export function getValidStock(stock: unknown): number {
   if (stock === null || stock === undefined) return 0;
@@ -154,25 +164,26 @@ export const useCartStore = create<CartState>()(
           set({ lastError: null });
         }
 
+        let newCart: CartItem[];
         if (existingIndex > -1) {
-          const updated = [...currentCart];
-          updated[existingIndex] = {
-            ...updated[existingIndex],
-            producto: { ...updated[existingIndex].producto, stock: maxStock },
+          newCart = [...currentCart];
+          newCart[existingIndex] = {
+            ...newCart[existingIndex],
+            producto: { ...newCart[existingIndex].producto, stock: maxStock },
             cantidad: nuevaCantidad,
           };
-          set({ cart: updated });
+          set({ cart: newCart });
         } else {
-          set({
-            cart: [
-              ...currentCart,
-              {
-                producto: { ...producto, stock: maxStock },
-                cantidad: nuevaCantidad,
-              },
-            ],
-          });
+          newCart = [
+            ...currentCart,
+            {
+              producto: { ...producto, stock: maxStock },
+              cantidad: nuevaCantidad,
+            },
+          ];
+          set({ cart: newCart });
         }
+        trackMoqProgress(newCart);
 
         return {
           success: true,
@@ -183,12 +194,14 @@ export const useCartStore = create<CartState>()(
 
       removeFromCart: (productoId) => {
         const targetId = String(productoId).trim();
+        const newCart = get().cart.filter(
+          (item) => getProductCartKey(item.producto) !== targetId
+        );
         set({
-          cart: get().cart.filter(
-            (item) => getProductCartKey(item.producto) !== targetId
-          ),
+          cart: newCart,
           lastError: null,
         });
+        trackMoqProgress(newCart);
       },
 
       updateQuantity: (productoId, cantidad) => {
@@ -231,6 +244,7 @@ export const useCartStore = create<CartState>()(
           const updated = [...currentCart];
           updated[itemIndex] = { ...item, cantidad: maxStock };
           set({ cart: updated, lastError: warningMsg });
+          trackMoqProgress(updated);
           return { success: false, finalQuantity: maxStock, message: warningMsg };
         }
 
@@ -238,10 +252,14 @@ export const useCartStore = create<CartState>()(
         const updated = [...currentCart];
         updated[itemIndex] = { ...item, cantidad: finalQty };
         set({ cart: updated, lastError: null });
+        trackMoqProgress(updated);
         return { success: true, finalQuantity: finalQty };
       },
 
-      clearCart: () => set({ cart: [], lastError: null }),
+      clearCart: () => {
+        set({ cart: [], lastError: null });
+        trackMoqProgress([]);
+      },
 
       getTotalUnits: () => get().cart.reduce((sum, item) => sum + item.cantidad, 0),
 
@@ -256,6 +274,11 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: 'optihub-b2b-cart',
+      partialize: (state) => ({
+        cart: state.cart,
+        cartId: state.cartId,
+        lastSyncedAt: state.lastSyncedAt,
+      }),
     }
   )
 );

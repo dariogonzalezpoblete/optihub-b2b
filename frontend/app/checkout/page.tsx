@@ -158,31 +158,88 @@ export default function CheckoutPage() {
     );
   }
 
-  if (cart.length === 0 || !isValidMOQ()) {
+  if (cart.length === 0) {
     return (
       <div className="min-h-[80vh] bg-[#FAF9F6] text-[#0F0F0F] flex items-center justify-center px-4 py-16">
-        <div className="max-w-md w-full bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-8 sm:p-10 text-center shadow-sm">
-          <div className="w-16 h-16 bg-[#FAF9F6] text-[#9E8256] rounded-2xl flex items-center justify-center mx-auto mb-6 border border-[#E6E2DD]">
-            <AlertCircle className="w-8 h-8 stroke-[1.6]" />
+        <div className="max-w-md w-full bg-[#FFFFFF] border border-[#E6E2DD] p-8 sm:p-10 text-center shadow-xs">
+          <div className="w-14 h-14 bg-[#FAF9F6] text-[#9E8256] border border-[#E6E2DD] flex items-center justify-center mx-auto mb-6">
+            <Package className="w-7 h-7 stroke-[1.5]" />
           </div>
-          <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9E8256] mb-2">
-            Validación Mayorista B2B
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9E8256] mb-2 font-mono">
+            VALIDACIÓN MAYORISTA B2B
           </span>
-          <h2 className="font-editorial font-serif text-2xl sm:text-3xl font-semibold text-[#0F0F0F] mb-2">
-            Requisitos no cumplidos
+          <h2 className="font-serif text-2xl sm:text-3xl font-normal text-[#0F0F0F] mb-3">
+            Su carro mayorista está vacío
           </h2>
-          <p className="text-[#575551] text-xs sm:text-sm mb-8 leading-relaxed">
-            {cart.length === 0
-              ? 'Su carro mayorista se encuentra vacío actuellement.'
-              : 'El pedido mínimo mayorista (MOQ) requerido para emitir factura electrónica es de 10 unidades combinables.'}
+          <p className="text-[#5C5A55] text-xs sm:text-sm mb-8 leading-relaxed">
+            Debe seleccionar al menos 10 armazones combinables en el catálogo mayorista para procesar la orden comercial y emitir Factura Electrónica SII.
           </p>
           <Link
-            href="/carrito"
-            className="w-full inline-flex items-center justify-center gap-2 bg-[#0F0F0F] hover:bg-[#222222] text-[#FFFFFF] font-semibold py-3.5 px-6 rounded-xl transition text-xs uppercase tracking-widest"
+            href="/catalogo"
+            className="w-full inline-flex items-center justify-center gap-2 bg-[#0F0F0F] hover:bg-[#262626] text-[#FFFFFF] font-medium py-3.5 px-6 transition text-xs uppercase tracking-[0.18em] border border-[#0F0F0F]"
           >
-            <ArrowLeft className="w-4 h-4 text-[#9E8256]" />
-            Volver al Carro Mayorista
+            <span>Explorar Catálogo Mayorista</span>
+            <ArrowRight className="w-4 h-4 text-[#9E8256]" />
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const totalCurrentUnits = getTotalUnits();
+  const unidadesFaltantesMoq = Math.max(0, 10 - totalCurrentUnits);
+
+  if (!isValidMOQ()) {
+    return (
+      <div className="min-h-[80vh] bg-[#FAF9F6] text-[#0F0F0F] flex items-center justify-center px-4 py-16">
+        <div className="max-w-lg w-full bg-[#FFFFFF] border border-[#E6E2DD] p-8 sm:p-10 text-center shadow-xs space-y-6">
+          <div className="w-14 h-14 bg-[#FAF6ED] text-[#846C44] border border-[#E6D7B8] flex items-center justify-center mx-auto">
+            <AlertCircle className="w-7 h-7 stroke-[1.6]" />
+          </div>
+
+          <div>
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#846C44] mb-1 font-mono">
+              CONTROL DE COMPRA MÍNIMA (MOQ 10 U.)
+            </span>
+            <h2 className="font-serif text-2xl sm:text-3xl font-normal text-[#0F0F0F]">
+              Faltan {unidadesFaltantesMoq} {unidadesFaltantesMoq === 1 ? 'armazón' : 'armazones'} para habilitar el Checkout
+            </h2>
+            <p className="text-[#5C5A55] text-xs sm:text-sm mt-2 leading-relaxed">
+              Su pedido cuenta actualmente con <strong className="text-[#0F0F0F] font-mono">{totalCurrentUnits} de 10 armazones</strong> requeridos. Para acceder a precios de importación directa y Factura Electrónica SII en pesos chilenos, complete el mínimo combinable de 10 unidades.
+            </p>
+          </div>
+
+          <div className="space-y-1.5 p-4 bg-[#FAF9F6] border border-[#E6E2DD] text-left">
+            <div className="flex justify-between items-center text-xs font-mono">
+              <span className="text-[#5C5A55]">Progreso del lote:</span>
+              <span className="font-bold text-[#0F0F0F]">{totalCurrentUnits}/10 unidades ({Math.min(100, totalCurrentUnits * 10)}%)</span>
+            </div>
+            <div className="w-full h-2 bg-[#E6E2DD] overflow-hidden">
+              <div
+                className="h-full bg-[#9E8256] transition-all duration-500"
+                style={{ width: `${Math.min(100, totalCurrentUnits * 10)}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-[#787670] mt-1 font-mono">
+              * Recuerde que puede mezclar libremente modelos de Tom Ford, Burberry, Guess, Nike u otras firmas.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <Link
+              href="/catalogo"
+              className="flex-1 inline-flex items-center justify-center gap-2 bg-[#0F0F0F] hover:bg-[#262626] text-white py-3.5 px-6 transition text-xs uppercase tracking-[0.18em] border border-[#0F0F0F]"
+            >
+              <span>Seguir Eligiendo en Catálogo</span>
+              <ArrowRight className="w-4 h-4 text-[#9E8256]" />
+            </Link>
+            <Link
+              href="/carrito"
+              className="flex-1 inline-flex items-center justify-center gap-2 bg-transparent hover:bg-[#FAF9F6] text-[#0F0F0F] py-3.5 px-6 transition text-xs uppercase tracking-[0.18em] border border-[#D5D0C8]"
+            >
+              <span>Ver Carrito Actual</span>
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -763,39 +820,39 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* DESGLOSE FINANCIERO */}
+              {/* DESGLOSE FINANCIERO TRIBUTARIO CHILENO */}
               <div className="space-y-3 text-sm border-b border-[#E6E2DD] pb-5">
                 <div className="flex justify-between text-[#575551]">
-                  <span>Subtotal Neto Mayorista</span>
-                  <span className="font-mono text-[#0F0F0F] font-medium">
+                  <span>Subtotal Neto</span>
+                  <span className="font-mono text-[#0F0F0F] font-bold">
                     ${montoNeto.toLocaleString('es-CL')} CLP
                   </span>
                 </div>
                 <div className="flex justify-between text-[#575551]">
-                  <span>IVA (19% Factura Electrónica)</span>
-                  <span className="font-mono text-[#0F0F0F] font-medium">
+                  <span>IVA (19% Crédito Fiscal SII)</span>
+                  <span className="font-mono text-[#0F0F0F] font-semibold">
                     ${montoIva.toLocaleString('es-CL')} CLP
                   </span>
                 </div>
                 <div className="flex justify-between text-[#575551] text-xs pt-1">
-                  <span>Logística e Importación B2B</span>
-                  <span className="text-[#846C44] font-semibold">Consolidación Asegurada</span>
+                  <span>Logística e Internación USA-Chile</span>
+                  <span className="text-[#2D6A4F] font-semibold">Incluida (Modalidad DDP Puerta a Puerta)</span>
                 </div>
               </div>
 
-              {/* TOTAL A FACTURAR */}
+              {/* TOTAL FACTURA ELECTRÓNICA SII */}
               <div className="flex justify-between items-baseline">
                 <div>
                   <span className="text-sm font-bold text-[#0F0F0F] uppercase tracking-wider block">
-                    Total a Facturar
+                    Total Factura Electrónica SII
                   </span>
-                  <span className="text-[11px] text-[#82807A]">IVA 19% incluido • Moneda CLP</span>
+                  <span className="text-[11px] text-[#2D6A4F] font-semibold">100% IVA Crédito Fiscal Deducible</span>
                 </div>
                 <div className="text-right font-mono">
                   <span className="text-2xl sm:text-3xl font-bold text-[#0F0F0F] tracking-tight">
                     ${montoTotal.toLocaleString('es-CL')}
                   </span>
-                  <span className="block text-[10px] text-[#82807A] uppercase">Pesos Chilenos</span>
+                  <span className="block text-[10px] text-[#787670] uppercase font-semibold">Pesos Chilenos (CLP)</span>
                 </div>
               </div>
 

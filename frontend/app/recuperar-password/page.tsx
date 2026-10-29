@@ -4,7 +4,13 @@ import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { sanitizeRecoveryEmail, resolveSafeRedirectUrl } from '@/lib/auth/passwordRecovery';
-import { Glasses, Mail, ArrowRight, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Mail, ArrowRight, AlertCircle, CheckCircle, ArrowLeft, Lock, MessageCircle } from 'lucide-react';
+
+const WHATSAPP_B2B_SUPPORT_URL =
+  'https://wa.me/56989338537?text=' +
+  encodeURIComponent(
+    'Hola OptiHub, necesito asistencia B2B porque perdimos acceso al correo corporativo de nuestra óptica para restablecer la clave.'
+  );
 
 function RecuperarPasswordForm() {
   const { resetPasswordForEmail } = useAuth();
@@ -19,12 +25,12 @@ function RecuperarPasswordForm() {
 
     const sanitized = sanitizeRecoveryEmail(email);
     if (!sanitized.email) {
-      setErrorMsg('Por favor ingresa el correo electrónico de tu óptica.');
+      setErrorMsg('Por favor ingrese el correo corporativo de su óptica.');
       return;
     }
 
     if (!sanitized.valid) {
-      setErrorMsg('El formato del correo electrónico no es válido.');
+      setErrorMsg('El formato del correo electrónico ingresado no es válido.');
       return;
     }
 
@@ -35,71 +41,78 @@ function RecuperarPasswordForm() {
       const { error } = await resetPasswordForEmail(sanitized.email, targetRedirect);
 
       if (error) {
-        // Manejar errores de rate limiting sin exponer datos internos
-        if (error.message?.toLowerCase().includes('rate limit') || error.status === 429) {
-          setErrorMsg('Has superado el límite de solicitudes. Por favor espera unos minutos antes de reintentar.');
+        // Manejo controlado de limitación de tasa (rate limit)
+        if (error.message?.toLowerCase().includes('rate limit') || (error as any).status === 429) {
+          setErrorMsg('Ha superado el límite de solicitudes. Por favor espere unos minutos antes de reintentar.');
           setLoading(false);
           return;
         }
       }
 
-      // Neutralidad de respuesta: Siempre mostrar éxito para evitar enumeración de usuarios
+      // Principio de anti-enumeración de cuentas: respuesta uniforme garantizada
       setSubmitted(true);
     } catch (err: any) {
-      // Incluso en error inesperado, registrar en consola y presentar mensaje neutral o reintentable
       console.error('[RecuperarPassword] Error en solicitud:', err);
-      setErrorMsg('Ocurrió un error inesperado al procesar la solicitud. Por favor intenta más tarde.');
+      // Mantenemos neutralidad anti-enumeración ante errores inesperados
+      setSubmitted(true);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-[85vh] bg-slate-950 text-slate-100 flex items-center justify-center px-4 py-12">
+    <div className="min-h-[85vh] bg-[#FAF9F6] text-[#0F0F0F] flex items-center justify-center px-4 py-16">
       <div className="max-w-md w-full">
-        {/* Cabecera / Branding */}
+        {/* Cabecera Editorial */}
         <div className="text-center mb-8">
-          <div className="inline-flex p-3 bg-emerald-500 rounded-2xl text-slate-950 mb-4 shadow-lg shadow-emerald-500/20">
-            <Glasses className="w-8 h-8" />
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <span className="w-6 h-[1px] bg-[#9E8256]" />
+            <span className="text-[10px] uppercase tracking-[0.25em] text-[#9E8256] font-medium">
+              RECUPERACIÓN SEGURA · B2B
+            </span>
+            <span className="w-6 h-[1px] bg-[#9E8256]" />
           </div>
-          <h1 className="text-3xl font-black text-white uppercase tracking-tight">
+          <h1 className="font-serif text-3xl sm:text-4xl font-normal text-[#0F0F0F] tracking-tight">
             Recuperar Contraseña
           </h1>
-          <p className="text-slate-400 text-sm mt-2">
-            Ingresa el correo corporativo de tu óptica y te enviaremos las instrucciones para restablecer tu clave.
+          <p className="text-[#5C5A55] text-xs sm:text-sm mt-2.5 leading-relaxed max-w-sm mx-auto">
+            Ingrese el correo corporativo de su óptica para recibir un enlace seguro de restablecimiento de contraseña.
           </p>
         </div>
 
-        {/* Tarjeta de Formulario o Confirmación */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md">
+        {/* Tarjeta de Formulario Ejecutiva */}
+        <div className="bg-[#FFFFFF] border border-[#E6E2DD] p-8 sm:p-10 shadow-xs">
           {submitted ? (
+            /* Vista de Confirmación Anti-Enumeración */
             <div className="text-center space-y-6">
-              <div className="inline-flex p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-400 mb-2">
-                <CheckCircle className="w-10 h-10" />
+              <div className="inline-flex p-3 bg-[#F4F8F5] border border-[#C4D9C8] text-[#2D6A4F] mb-1">
+                <CheckCircle className="w-8 h-8" />
               </div>
 
               <div className="space-y-2">
-                <h2 className="text-xl font-bold text-white">
-                  Instrucciones Enviadas
+                <h2 className="font-serif text-2xl font-normal text-[#0F0F0F] tracking-tight">
+                  Solicitud Enviada
                 </h2>
-                <p className="text-sm text-slate-300 leading-relaxed">
-                  Si el correo <span className="text-emerald-400 font-semibold">{email}</span> corresponde a una óptica registrada en OptiHub, recibirás un enlace seguro para restablecer tu contraseña en los próximos minutos.
+                <p className="text-xs sm:text-sm text-[#5C5A55] leading-relaxed max-w-sm mx-auto">
+                  Si el correo está asociado a una óptica registrada en OPTIHUB, recibirás un enlace seguro para restablecer tu clave en los próximos minutos.
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400 text-left space-y-1.5">
-                <p className="font-semibold text-slate-300">¿No recibes el correo?</p>
-                <ul className="list-disc list-inside space-y-1 text-slate-400">
-                  <li>Revisa tu bandeja de spam o correo no deseado.</li>
-                  <li>Verifica que el correo esté escrito correctamente.</li>
-                  <li>El enlace de recuperación es válido por 1 hora.</li>
+              <div className="p-4 bg-[#FAF9F6] border border-[#E6E2DD] text-xs text-[#5C5A55] text-left space-y-1.5">
+                <p className="font-semibold text-[#0F0F0F] uppercase tracking-wider text-[10px]">
+                  Indicaciones de seguridad:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-[#787670] text-[11px]">
+                  <li>Revise su bandeja principal y correo no deseado (Spam).</li>
+                  <li>El enlace de recuperación es de un solo uso y caduca en 1 hora.</li>
+                  <li>Si no recibe el correo, compruebe que sea el correo oficial registrado.</li>
                 </ul>
               </div>
 
               <div className="pt-2 flex flex-col gap-3">
                 <Link
                   href="/login"
-                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3.5 px-6 rounded-xl transition duration-200 shadow-lg shadow-emerald-500/20 text-sm uppercase tracking-wider flex items-center justify-center gap-2"
+                  className="w-full bg-[#0F0F0F] hover:bg-[#262626] text-white font-medium py-3.5 px-6 transition duration-200 text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 border border-[#0F0F0F]"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>Volver a Iniciar Sesión</span>
@@ -112,28 +125,29 @@ function RecuperarPasswordForm() {
                     setEmail('');
                     setErrorMsg('');
                   }}
-                  className="text-xs font-semibold text-slate-400 hover:text-slate-200 transition uppercase tracking-wider py-2"
+                  className="text-[11px] uppercase tracking-[0.16em] text-[#787670] hover:text-[#0F0F0F] transition font-medium py-1 cursor-pointer"
                 >
-                  Intentar con otro correo
+                  Probar con otro correo
                 </button>
               </div>
             </div>
           ) : (
+            /* Vista de Formulario de Solicitud */
             <>
               {errorMsg && (
-                <div className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs sm:text-sm flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-rose-400" />
+                <div className="mb-6 p-4 bg-[#FAF4F4] border border-[#E6D0D0] text-[#9E3838] text-xs flex items-start gap-3">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#9E3838]" />
                   <span>{errorMsg}</span>
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                    Correo Electrónico de la Óptica
+                  <label className="block text-[10px] font-semibold text-[#5C5A55] uppercase tracking-[0.18em] mb-2">
+                    Correo Corporativo de la Óptica
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#787670]">
                       <Mail className="w-4 h-4" />
                     </div>
                     <input
@@ -142,8 +156,8 @@ function RecuperarPasswordForm() {
                       disabled={loading}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="contacto@tuoptica.cl"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 disabled:opacity-50 transition"
+                      placeholder="contacto@suoptica.cl"
+                      className="w-full bg-[#FFFFFF] border border-[#D5D0C8] pl-10 pr-4 py-3 text-xs text-[#0F0F0F] placeholder-[#787670] focus:outline-none focus:border-[#0F0F0F] focus:ring-0 rounded-none transition disabled:bg-[#F4F2ED] disabled:text-[#787670]"
                     />
                   </div>
                 </div>
@@ -151,27 +165,27 @@ function RecuperarPasswordForm() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-black py-3.5 px-6 rounded-xl transition duration-200 shadow-lg shadow-emerald-500/20 text-sm uppercase tracking-wider flex items-center justify-center gap-2 mt-2"
+                  className="w-full bg-[#0F0F0F] hover:bg-[#262626] disabled:bg-[#E6E2DD] disabled:text-[#787670] text-white font-medium py-4 px-6 transition duration-200 text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 border border-[#0F0F0F] cursor-pointer"
                 >
                   {loading ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                      <span>Enviando enlace...</span>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Enviando enlace seguro...</span>
                     </>
                   ) : (
                     <>
                       <span>Enviar Enlace de Recuperación</span>
-                      <ArrowRight className="w-4 h-4" />
+                      <ArrowRight className="w-4 h-4 text-[#9E8256]" />
                     </>
                   )}
                 </button>
               </form>
 
-              {/* Enlace de regreso al Login */}
-              <div className="mt-8 pt-6 border-t border-slate-800/80 text-center">
+              {/* Botón para volver a login */}
+              <div className="mt-6 pt-6 border-t border-[#E6E2DD] text-center">
                 <Link
                   href="/login"
-                  className="inline-flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-emerald-400 transition uppercase tracking-wider"
+                  className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#5C5A55] hover:text-[#0F0F0F] transition uppercase tracking-[0.16em]"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Volver a Iniciar Sesión</span>
@@ -179,12 +193,29 @@ function RecuperarPasswordForm() {
               </div>
             </>
           )}
+
+          {/* Asistencia WhatsApp B2B */}
+          <div className="mt-6 pt-6 border-t border-[#E6E2DD] text-center space-y-2">
+            <p className="text-xs text-[#5C5A55]">
+              ¿Su óptica ha perdido acceso a su correo electrónico corporativo?
+            </p>
+            <a
+              href={WHATSAPP_B2B_SUPPORT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 text-[11px] font-semibold text-[#25D366] hover:text-[#1EBE5D] transition uppercase tracking-[0.16em]"
+            >
+              <MessageCircle className="w-3.5 h-3.5 fill-[#25D366]" />
+              <span>Contactar Asistencia B2B por WhatsApp →</span>
+            </a>
+          </div>
         </div>
 
         {/* Garantía B2B */}
         <div className="mt-6 text-center">
-          <p className="text-[11px] text-slate-500">
-            OptiHub B2B — Plataforma Mayorista Exclusiva para Ópticas en Chile.
+          <p className="text-[10px] text-[#787670] uppercase tracking-wider flex items-center justify-center gap-1.5">
+            <Lock className="w-3 h-3 text-[#9E8256]" />
+            Plataforma exclusiva para ópticas y profesionales de la salud visual en Chile.
           </p>
         </div>
       </div>
@@ -194,7 +225,13 @@ function RecuperarPasswordForm() {
 
 export default function RecuperarPasswordPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">Cargando...</div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#FAF9F6] text-[#0F0F0F] flex items-center justify-center text-xs uppercase tracking-widest">
+          Cargando recuperación de contraseña...
+        </div>
+      }
+    >
       <RecuperarPasswordForm />
     </Suspense>
   );

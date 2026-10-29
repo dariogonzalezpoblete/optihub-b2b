@@ -9,3 +9,5 @@ _local_archive/
 frontend/lint.json
 frontend/lint.txt
 backend/scraper/chromium_test.zip
+auth_state.json
+backend/scraper/sync_report_latest.json

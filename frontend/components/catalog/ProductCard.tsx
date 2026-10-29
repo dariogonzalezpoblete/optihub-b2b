@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Lock, TrendingUp } from 'lucide-react';
+import { Lock, TrendingUp, ShoppingBag } from 'lucide-react';
 import type { EnrichedMarco, FacetOption } from '@/lib/catalog/types';
 import { getValidStock } from '@/store/useCartStore';
 import { calculateRetailProjection } from '@/lib/catalog/brandCategories';
@@ -14,9 +14,10 @@ interface ProductCardProps {
   idx: number;
   materialLabels: FacetOption[];
   onOpen?: (m: EnrichedMarco) => void;
+  onQuickAdd?: (variants: EnrichedMarco[]) => void;
 }
 
-export default function ProductCard({ variants, isLoggedIn, idx, materialLabels }: ProductCardProps) {
+export default function ProductCard({ variants, isLoggedIn, idx, materialLabels, onQuickAdd }: ProductCardProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   useEffect(() => {
@@ -26,17 +27,12 @@ export default function ProductCard({ variants, isLoggedIn, idx, materialLabels 
   const active = (variants && variants[selectedIndex]) || (variants && variants[0]) || ({} as EnrichedMarco);
   const activeStock = getValidStock(active?.stock);
   const materialLabel = materialLabels?.find((o) => o.key === active?._k?.material)?.label ?? active?.material;
+  const hasValidPrice = isLoggedIn && typeof active?.precio_neto_clp === 'number' && active.precio_neto_clp > 0;
   const retail = calculateRetailProjection(active?.precio_neto_clp, active?.marca);
 
   const mainImgSrc = active?.imagen_principal && active.imagen_principal.trim()
     ? active.imagen_principal.trim()
     : '/placeholder.png';
-
-  // Segunda foto alternativa para hover si hay más de una variante o si hay otra toma
-  const secondaryVariant = variants && variants.length > 1 ? variants.find((_, i) => i !== selectedIndex) : null;
-  const secondaryImgSrc = secondaryVariant?.imagen_principal && secondaryVariant.imagen_principal.trim()
-    ? secondaryVariant.imagen_principal.trim()
-    : null;
 
   const productHref = `/producto/${encodeURIComponent(active?.marca || '')}/${encodeURIComponent(active?.modelo || '')}${active?.id_ext ? `?sku=${encodeURIComponent(active.id_ext)}` : ''}`;
 
@@ -49,12 +45,11 @@ export default function ProductCard({ variants, isLoggedIn, idx, materialLabels 
       className="card-product group bg-[#FFFFFF] border border-[#E6E2DD] hover:border-[#0F0F0F] transition-all duration-300 flex flex-col justify-between rounded-none"
       style={{ animationDelay: `${Math.min(idx, 8) * 30}ms` }}
     >
-      {/* 1. ZONA DE IMAGEN (ASPECT-[4/3] SOBRE FONDO PIEDRA #F4F2ED CON MIX-BLEND-MULTIPLY) */}
+      {/* 1. ZONA DE IMAGEN */}
       <Link
         href={productHref}
-        className="relative aspect-[4/3] bg-[#F4F2ED] flex items-center justify-center p-6 overflow-hidden cursor-pointer block border-b border-[#E6E2DD]"
+        className="relative aspect-4/3 bg-[#F4F2ED] flex items-center justify-center p-6 overflow-hidden cursor-pointer block border-b border-[#E6E2DD]"
       >
-        {/* Encabezado Superior Sobre la Imagen */}
         <div className="absolute top-4 left-4 right-4 z-20 flex justify-between items-center pointer-events-none">
           <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-[#0F0F0F] bg-[#FFFFFF]/90 border border-[#E6E2DD] px-2.5 py-0.5">
             {active?.marca || 'Marca'}
@@ -67,55 +62,60 @@ export default function ProductCard({ variants, isLoggedIn, idx, materialLabels 
           )}
         </div>
 
-        {/* Imagen Principal */}
-        <div className="relative w-full h-full">
+        <div className="relative w-full h-full flex items-center justify-center">
           <Image
-            unoptimized
-            key={active?.id_ext || `prod-${idx}`}
             src={mainImgSrc}
-            alt={`${active?.marca || ''} ${active?.modelo || ''} ${active?.color || ''}`.trim() || 'Armazón'}
+            alt={`${active?.marca || ''} ${active?.modelo || ''}`}
             fill
-            priority={idx < 6}
-            sizes="(max-width: 768px) 100vw, 33vw"
-            className={`object-contain p-4 mix-blend-multiply transition-all duration-500 ease-out group-hover:scale-[1.03] ${
-              secondaryImgSrc ? 'group-hover:opacity-0' : ''
-            }`}
+            sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+            className="object-contain p-4 mix-blend-multiply group-hover:scale-105 transition-transform duration-500 ease-out"
+            priority={idx < 3}
           />
-
-          {/* Segunda Foto Opcional en Hover */}
-          {secondaryImgSrc && (
-            <Image
-              unoptimized
-              src={secondaryImgSrc}
-              alt={`${active?.marca || ''} ${active?.modelo || ''} alternate`}
-              fill
-              sizes="(max-width: 768px) 100vw, 33vw"
-              className="object-contain p-4 mix-blend-multiply transition-all duration-500 ease-out opacity-0 group-hover:opacity-100 group-hover:scale-[1.03]"
-            />
-          )}
         </div>
+
+        {/* Botón flotante para compra rápida por matriz si tiene variantes */}
+        {onQuickAdd && (
+          <div className="absolute bottom-3 right-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onQuickAdd(variants);
+              }}
+              className="bg-[#0F0F0F] hover:bg-[#262626] text-white p-2.5 shadow-md flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold border border-[#0F0F0F] cursor-pointer"
+              title="Abrir matriz rápida de compra"
+            >
+              <ShoppingBag className="w-3.5 h-3.5 text-[#9E8256]" />
+              <span className="hidden sm:inline">Matriz Rápida</span>
+            </button>
+          </div>
+        )}
       </Link>
 
-      {/* 2. ZONA DE INFORMACIÓN EDITORIAL */}
-      <div className="p-6 space-y-4 flex-1 flex flex-col justify-between bg-[#FFFFFF]">
+      {/* 2. ZONA DE INFORMACIÓN Y SELECCIÓN */}
+      <div className="p-5 flex flex-col justify-between flex-1 gap-4">
         <div>
-          {/* Nombre de Modelo en Serif Grande */}
           <div className="flex justify-between items-baseline gap-2">
             <Link
               href={productHref}
-              className="font-serif text-2xl font-normal text-[#0F0F0F] hover:text-[#9E8256] transition-colors line-clamp-1 tracking-tight"
+              className="font-serif text-lg text-[#0F0F0F] group-hover:text-[#9E8256] transition-colors truncate block"
+              title={active?.modelo}
             >
               {active?.modelo || 'Modelo'}
             </Link>
-            <span className="text-xs text-[#5C5A55] font-mono shrink-0 tabular-nums">
-              Col. {active?.codigo_color || 'N/A'}
+            <span className="text-[10px] font-mono text-[#787670] shrink-0 uppercase">
+              {active?.id_ext}
             </span>
           </div>
 
-          {/* Metadatos Técnicos (Ocultos en reposo, revelados al hover) */}
-          <div className="h-5 mt-1.5 flex justify-between items-center text-xs text-[#5C5A55] font-mono transition-opacity duration-300 opacity-0 group-hover:opacity-100">
-            <span className="text-[10px] text-[#787670]">
-              SKU: {active?.id_ext || '-'}
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-[#5C5A55] truncate">
+              {active?.color || active?.codigo_color || 'Estándar'}
+            </span>
+            <span className="text-[10px] text-[#D5D0C8]">/</span>
+            <span className="text-[10px] uppercase tracking-wider text-[#787670] font-mono">
+              COL {active?.codigo_color || 'N/A'}
             </span>
             {active?.material && (
               <span className="text-[10px] uppercase tracking-wider text-[#5C5A55]">
@@ -124,7 +124,7 @@ export default function ProductCard({ variants, isLoggedIn, idx, materialLabels 
             )}
           </div>
 
-          {/* SELECTOR RÁPIDO DE VARIANTES (SWATCHES RECTANGULARES MINIMALISTAS) */}
+          {/* SELECTOR RÁPIDO DE VARIANTES */}
           {variants && variants.length > 1 && (
             <div className="mt-3 pt-3 border-t border-[#E6E2DD]">
               <p className="text-[10px] text-[#787670] mb-2 font-medium tracking-[0.14em] uppercase">
@@ -167,8 +167,8 @@ export default function ProductCard({ variants, isLoggedIn, idx, materialLabels 
           )}
         </div>
 
-        {/* MARGEN RETAIL SUGERIDO PARA ÓPTICAS LOGUEADAS */}
-        {isLoggedIn && retail.pvpSugerido > 0 && (
+        {/* MARGEN RETAIL SUGERIDO PARA ÓPTICAS VERIFICADAS */}
+        {hasValidPrice && retail.pvpSugerido > 0 && (
           <div className="bg-[#FAF9F6] border border-[#E6E2DD] p-3 space-y-1 rounded-none text-xs">
             <div className="flex justify-between items-center text-[11px]">
               <span className="text-[#5C5A55]">PVP Sugerido en Óptica:</span>
@@ -190,7 +190,7 @@ export default function ProductCard({ variants, isLoggedIn, idx, materialLabels 
 
         {/* 3. PIE DE TARJETA ARQUITECTÓNICO (PRECIO NETO Y VER FICHA) */}
         <div className="pt-4 border-t border-[#E6E2DD] flex justify-between items-end">
-          {isLoggedIn ? (
+          {hasValidPrice ? (
             <div>
               <span className="text-[9px] text-[#787670] block uppercase font-medium tracking-[0.16em] mb-0.5">
                 PRECIO NETO B2B (+IVA)
@@ -208,7 +208,7 @@ export default function ProductCard({ variants, isLoggedIn, idx, materialLabels 
           )}
 
           <div className="flex flex-col items-end gap-1.5">
-            {isLoggedIn && (
+            {hasValidPrice && (
               <span className="text-[10px] font-mono text-[#5C5A55] bg-[#F4F2ED] border border-[#E6E2DD] px-2 py-0.5 tabular-nums rounded-none">
                 {activeStock >= 50 ? '50+ un.' : `${activeStock} un.`}
               </span>

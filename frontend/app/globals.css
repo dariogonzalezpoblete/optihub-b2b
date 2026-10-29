@@ -526,3 +526,20 @@ body {
 .brand-marquee-swiper .swiper-wrapper {
   transition-timing-function: linear !important;
 }
+
+/* ============================================================
+   ESTILOS DE IMPRESIÓN Y EXPORTACIÓN PDF DE COTIZACIÓN B2B
+   ============================================================ */
+@media print {
+  header, footer, nav, aside, .no-print {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  @page {
+    margin: 1.2cm;
+    size: letter portrait;
+  }
+}

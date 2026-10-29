@@ -10,7 +10,14 @@ import { MARCOS_FACET_PUBLIC_COLUMNS, MARCOS_PUBLIC_COLUMNS } from '@/lib/catalo
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const BASE_URL = process.env.SITE_URL || 'https://optihub-b2b.vercel.app';
+const BASE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  process.env.SITE_URL ||
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'https://frontend-gules-three-41.vercel.app');
 
 export const metadata: Metadata = {
   title: 'Catálogo Mayorista de Armazones y Gafas de Sol',
@@ -25,6 +32,21 @@ export const metadata: Metadata = {
     siteName: 'OptiHub B2B',
     locale: 'es_CL',
     type: 'website',
+    images: [
+      {
+        url: `${BASE_URL}/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: 'Catálogo Mayorista OptiHub B2B',
+        type: 'image/png',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Catálogo Mayorista de Armazones y Gafas de Sol | OptiHub',
+    description: 'Importación directa desde EE.UU. Precios netos en CLP y entrega en 10 a 15 días hábiles.',
+    images: [`${BASE_URL}/og-image.png`],
   },
 };
 
