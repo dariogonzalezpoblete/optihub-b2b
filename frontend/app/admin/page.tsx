@@ -26,7 +26,12 @@ import {
   Check,
   Copy,
   ChevronRight,
-  ArrowLeft
+  ArrowLeft,
+  Users,
+  UserCheck,
+  UserX,
+  Phone,
+  MessageCircle,
 } from 'lucide-react';
 import type { Order, OrderItem } from '@/lib/catalog/types';
 import {
@@ -56,9 +61,34 @@ const PAYMENT_STATUS_OPTIONS = [
   { value: 'refunded', label: 'Reembolsado' },
 ];
 
+export interface OpticaUser {
+  id: string;
+  email: string;
+  created_at: string;
+  last_sign_in_at: string | null;
+  email_confirmed: boolean;
+  razon_social: string;
+  nombre_optica: string;
+  rut_empresa: string;
+  giro_comercial: string;
+  nombre_contacto: string;
+  telefono: string;
+  region: string;
+  comuna: string;
+  direccion: string;
+  estado_verificacion: 'pendiente' | 'verificado' | 'rechazado';
+  verificado_b2b: boolean;
+  isAdmin: boolean;
+  fecha_solicitud: string;
+  fecha_aprobacion: string | null;
+}
+
 export default function AdminOrdersPage() {
   const { user, session, isLoggedIn } = useAuth();
   const router = useRouter();
+
+  // Tab State: 'orders' | 'opticas'
+  const [activeTab, setActiveTab] = useState<'orders' | 'opticas'>('orders');
 
   // Orders State
   const [orders, setOrders] = useState<Order[]>([]);
@@ -80,6 +110,24 @@ export default function AdminOrdersPage() {
   const [savingOrder, setSavingOrder] = useState(false);
   const [orderToast, setOrderToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [copiedTracking, setCopiedTracking] = useState(false);
+
+  // Ópticas / B2B Verification State
+  const [opticas, setOpticas] = useState<OpticaUser[]>([]);
+  const [loadingOpticas, setLoadingOpticas] = useState(true);
+  const [opticasSearchQuery, setOpticasSearchQuery] = useState('');
+  const [opticasFilter, setOpticasFilter] = useState<'all' | 'pendiente' | 'verificado' | 'rechazado'>('all');
+  const [processingUserId, setProcessingUserId] = useState<string | null>(null);
+  const [opticaToast, setOpticaToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Read URL query parameter ?tab=opticas
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.get('tab') === 'opticas') {
+        setActiveTab('opticas');
+      }
+    }
+  }, []);
 
   // 1. Fetch Orders from API
   const fetchOrders = useCallback(async () => {
@@ -103,12 +151,43 @@ export default function AdminOrdersPage() {
     }
   }, [session?.access_token]);
 
-  // Load orders on session ready
+  // 2. Fetch Ópticas from API
+  const fetchOpticas = useCallback(async () => {
+    if (!session?.access_token) return;
+    setLoadingOpticas(true);
+    try {
+      const res = await fetch('/api/admin/users', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.users) {
+        setOpticas(data.users);
+      }
+    } catch (err) {
+      console.error('Error fetching opticas:', err);
+    } finally {
+      setLoadingOpticas(false);
+    }
+  }, [session?.access_token]);
+
+  // Load orders and opticas on session ready
   useEffect(() => {
     if (session?.access_token) {
       fetchOrders();
+      fetchOpticas();
     }
-  }, [session?.access_token, fetchOrders]);
+  }, [session?.access_token, fetchOrders, fetchOpticas]);
+
+  // Refresh current view
+  const handleRefresh = () => {
+    if (activeTab === 'orders') {
+      fetchOrders();
+    } else {
+      fetchOpticas();
+    }
+  };
 
   // Open order editor modal
   const handleSelectOrderForEdit = async (ord: Order) => {
@@ -193,6 +272,64 @@ export default function AdminOrdersPage() {
     }
   };
 
+  // Approve / Reject Óptica
+  const handleUpdateOpticaStatus = async (
+    userId: string,
+    action: 'approve' | 'reject' | 'reset',
+    razonSocial: string
+  ) => {
+    if (!session?.access_token) return;
+    setProcessingUserId(userId);
+    setOpticaToast(null);
+
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Error al procesar la solicitud');
+      }
+
+      const actionText =
+        action === 'approve'
+          ? 'aprobada con éxito. Se envió el correo de bienvenida con acceso mayorista.'
+          : action === 'reject'
+          ? 'rechazada/suspendida.'
+          : 'restablecida a pendiente.';
+
+      setOpticaToast({
+        type: 'success',
+        message: `Óptica "${razonSocial}" ${actionText}`,
+      });
+
+      // Update local state
+      setOpticas((prev) =>
+        prev.map((opt) => {
+          if (opt.id !== userId) return opt;
+          return {
+            ...opt,
+            estado_verificacion:
+              action === 'approve' ? 'verificado' : action === 'reject' ? 'rechazado' : 'pendiente',
+            verificado_b2b: action === 'approve',
+          };
+        })
+      );
+
+      setTimeout(() => setOpticaToast(null), 5000);
+    } catch (err) {
+      setOpticaToast({ type: 'error', message: (err as Error).message });
+    } finally {
+      setProcessingUserId(null);
+    }
+  };
+
   // Copy tracking number to clipboard
   const handleCopyTracking = (num: string) => {
     navigator.clipboard.writeText(num);
@@ -216,12 +353,35 @@ export default function AdminOrdersPage() {
     );
   });
 
-  // Calculate stats
+  // Filtered opticas list
+  const filteredOpticas = opticas.filter((opt) => {
+    if (opticasFilter !== 'all' && opt.estado_verificacion !== opticasFilter) return false;
+    if (!opticasSearchQuery.trim()) return true;
+    const q = opticasSearchQuery.toLowerCase().trim();
+    return (
+      opt.razon_social.toLowerCase().includes(q) ||
+      opt.nombre_optica.toLowerCase().includes(q) ||
+      opt.rut_empresa.toLowerCase().includes(q) ||
+      opt.nombre_contacto.toLowerCase().includes(q) ||
+      opt.email.toLowerCase().includes(q) ||
+      opt.comuna.toLowerCase().includes(q) ||
+      opt.region.toLowerCase().includes(q) ||
+      opt.telefono.toLowerCase().includes(q)
+    );
+  });
+
+  // Calculate order stats
   const totalCount = orders.length;
   const paidCount = orders.filter((o) => o.status === 'paid' || o.payment_status === 'approved').length;
   const preparingCount = orders.filter((o) => o.status === 'preparing').length;
   const shippedCount = orders.filter((o) => o.status === 'shipped').length;
   const deliveredCount = orders.filter((o) => o.status === 'delivered').length;
+
+  // Calculate opticas stats
+  const totalOpticasCount = opticas.filter((o) => !o.isAdmin).length;
+  const pendingOpticasCount = opticas.filter((o) => o.estado_verificacion === 'pendiente' && !o.isAdmin).length;
+  const approvedOpticasCount = opticas.filter((o) => o.estado_verificacion === 'verificado' && !o.isAdmin).length;
+  const rejectedOpticasCount = opticas.filter((o) => o.estado_verificacion === 'rechazado' && !o.isAdmin).length;
 
   // Status badge styling helper
   const getStatusBadge = (status: string) => {
@@ -289,30 +449,36 @@ export default function AdminOrdersPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         
         {/* ENCABEZADO EDITORIAL */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-8 border-b border-[#E6E2DD]">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-[#E6E2DD]">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FAF6EF] border border-[#EADFC9] text-[#846C44] text-[11px] font-semibold uppercase tracking-[0.18em] mb-3">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Panel de Control Logístico</span>
+              <span>Panel Central de Administración B2B</span>
             </div>
 
             <h1 className="font-editorial font-serif text-3xl sm:text-4xl lg:text-5xl font-semibold text-[#0F0F0F] tracking-tight">
-              Gestión y Seguimiento de Pedidos
+              {activeTab === 'orders' ? 'Gestión y Seguimiento de Pedidos' : 'Verificación y Aprobación de Ópticas'}
             </h1>
 
             <p className="text-[#575551] text-sm sm:text-base mt-2 max-w-2xl leading-relaxed">
-              Informa a cada óptica y clínica el estado exacto de su importación: avance en Miami, aduana en Santiago, asignación de courier local y entrega final.
+              {activeTab === 'orders'
+                ? 'Informa a cada óptica y clínica el estado exacto de su importación: avance en Miami, aduana en Santiago, asignación de courier local y entrega final.'
+                : 'Revisa las solicitudes de registro, verifica el RUT de empresa ante el SII y aprueba con un clic el acceso al catálogo y precios mayoristas.'}
             </p>
           </div>
 
           <div className="flex items-center gap-3">
             <button
-              onClick={fetchOrders}
-              disabled={loadingOrders}
+              onClick={handleRefresh}
+              disabled={activeTab === 'orders' ? loadingOrders : loadingOpticas}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#FFFFFF] border border-[#E6E2DD] text-[#0F0F0F] text-xs font-medium hover:border-[#82807A] transition shadow-xs disabled:opacity-60"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-[#846C44] ${loadingOrders ? 'animate-spin' : ''}`} />
-              <span>Actualizar Lista</span>
+              <RefreshCw
+                className={`w-3.5 h-3.5 text-[#846C44] ${
+                  (activeTab === 'orders' ? loadingOrders : loadingOpticas) ? 'animate-spin' : ''
+                }`}
+              />
+              <span>Actualizar</span>
             </button>
             <Link
               href="/mis-pedidos"
@@ -324,306 +490,665 @@ export default function AdminOrdersPage() {
           </div>
         </div>
 
-        {/* MÉTRICAS RESUMEN */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
-          <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 text-center shadow-xs">
-            <span className="text-[11px] font-mono text-[#82807A] uppercase tracking-wider block">Total Pedidos</span>
-            <span className="text-2xl font-bold text-[#0F0F0F] mt-1 block">{totalCount}</span>
-          </div>
+        {/* PESTAÑAS DE NAVEGACIÓN SUPERIOR */}
+        <div className="flex items-center gap-4 border-b border-[#E6E2DD]">
+          <button
+            onClick={() => setActiveTab('orders')}
+            className={`pb-3 px-2 text-xs font-semibold uppercase tracking-wider flex items-center gap-2 border-b-2 transition ${
+              activeTab === 'orders'
+                ? 'border-[#0F0F0F] text-[#0F0F0F]'
+                : 'border-transparent text-[#82807A] hover:text-[#0F0F0F]'
+            }`}
+          >
+            <Package className="w-4 h-4 text-[#846C44]" />
+            <span>Gestión de Pedidos ({orders.length})</span>
+          </button>
 
-          <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 text-center shadow-xs">
-            <span className="text-[11px] font-mono text-emerald-700 uppercase tracking-wider block">Pagados / Aprobados</span>
-            <span className="text-2xl font-bold text-emerald-700 mt-1 block">{paidCount}</span>
-          </div>
-
-          <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 text-center shadow-xs">
-            <span className="text-[11px] font-mono text-indigo-700 uppercase tracking-wider block">En Preparación</span>
-            <span className="text-2xl font-bold text-indigo-700 mt-1 block">{preparingCount}</span>
-          </div>
-
-          <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 text-center shadow-xs">
-            <span className="text-[11px] font-mono text-purple-700 uppercase tracking-wider block">En Reparto Courier</span>
-            <span className="text-2xl font-bold text-purple-700 mt-1 block">{shippedCount}</span>
-          </div>
-
-          <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 text-center shadow-xs col-span-2 sm:col-span-1">
-            <span className="text-[11px] font-mono text-[#846C44] uppercase tracking-wider block">Entregados con Éxito</span>
-            <span className="text-2xl font-bold text-[#0F0F0F] mt-1 block">{deliveredCount}</span>
-          </div>
+          <button
+            onClick={() => setActiveTab('opticas')}
+            className={`pb-3 px-2 text-xs font-semibold uppercase tracking-wider flex items-center gap-2 border-b-2 transition relative ${
+              activeTab === 'opticas'
+                ? 'border-[#0F0F0F] text-[#0F0F0F]'
+                : 'border-transparent text-[#82807A] hover:text-[#0F0F0F]'
+            }`}
+          >
+            <Building2 className="w-4 h-4 text-[#846C44]" />
+            <span>Ópticas y Clientes B2B ({totalOpticasCount})</span>
+            {pendingOpticasCount > 0 && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white shadow-xs animate-pulse">
+                {pendingOpticasCount} pendiente{pendingOpticasCount > 1 ? 's' : ''}
+              </span>
+            )}
+          </button>
         </div>
 
-        {/* BARRA DE FILTRO Y BÚSQUEDA */}
-        <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 shadow-xs flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full md:w-96">
-            <Search className="w-4 h-4 text-[#82807A] absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Buscar por N° Pedido, Razón Social, RUT, Correo o Courier..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-xs bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl text-[#0F0F0F] placeholder-[#82807A] focus:outline-none focus:border-[#9E8256]"
-            />
+        {/* TOAST NOTIFICACIÓN GENERAL PARA ÓPTICAS */}
+        {opticaToast && (
+          <div
+            className={`p-4 rounded-xl border text-xs flex items-center justify-between shadow-xs transition-all ${
+              opticaToast.type === 'success'
+                ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                : 'bg-rose-50 text-rose-900 border-rose-200'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              {opticaToast.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+              )}
+              <span className="font-medium">{opticaToast.message}</span>
+            </div>
+            <button
+              onClick={() => setOpticaToast(null)}
+              className="text-stone-400 hover:text-stone-700 p-1"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
+        )}
 
-          <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-            <span className="text-xs font-semibold text-[#82807A] whitespace-nowrap hidden sm:inline">
-              Filtrar por:
-            </span>
-            {[
-              { id: 'all', label: 'Todos' },
-              { id: 'paid', label: 'Pagados' },
-              { id: 'preparing', label: 'En Preparación' },
-              { id: 'shipped', label: 'Enviados' },
-              { id: 'delivered', label: 'Entregados' },
-            ].map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setStatusFilter(f.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition ${
-                  statusFilter === f.id
-                    ? 'bg-[#0F0F0F] text-white shadow-xs'
-                    : 'bg-[#FAF9F6] text-[#575551] hover:text-[#0F0F0F] border border-[#E6E2DD]'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* ========================================================================= */}
+        {/* SECCIÓN 1: GESTIÓN DE PEDIDOS Y LOGÍSTICA                                 */}
+        {/* ========================================================================= */}
+        {activeTab === 'orders' && (
+          <>
+            {/* MÉTRICAS RESUMEN DE PEDIDOS */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
+              <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 text-center shadow-xs">
+                <span className="text-[11px] font-mono text-[#82807A] uppercase tracking-wider block">Total Pedidos</span>
+                <span className="text-2xl font-bold text-[#0F0F0F] mt-1 block">{totalCount}</span>
+              </div>
 
-        {/* TABLA PRINCIPAL DE PEDIDOS */}
-        <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl shadow-xs overflow-hidden">
-          <div className="p-4 border-b border-[#E6E2DD] flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#0F0F0F]">
-              Listado de Órdenes ({filteredOrders.length})
-            </span>
-            <span className="text-xs text-[#82807A]">
-              Haz clic en cualquier pedido para actualizar su tracking al cliente
-            </span>
-          </div>
+              <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 text-center shadow-xs">
+                <span className="text-[11px] font-mono text-emerald-700 uppercase tracking-wider block">Pagados / Aprobados</span>
+                <span className="text-2xl font-bold text-emerald-700 mt-1 block">{paidCount}</span>
+              </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#FAF9F6] text-[#82807A] font-mono uppercase tracking-wider border-b border-[#E6E2DD]">
-                <tr>
-                  <th className="py-3 px-4">Pedido / Fecha</th>
-                  <th className="py-3 px-4">Cliente / Óptica</th>
-                  <th className="py-3 px-4">Fase de Seguimiento</th>
-                  <th className="py-3 px-4">Courier / Guía</th>
-                  <th className="py-3 px-4 text-right">Total ($ CLP)</th>
-                  <th className="py-3 px-4 text-center">Estado Comercial</th>
-                  <th className="py-3 px-4 text-center">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E6E2DD]">
-                {loadingOrders ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-[#82807A]">
-                      <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-[#846C44]" />
-                      <span>Cargando pedidos de ópticas...</span>
-                    </td>
-                  </tr>
-                ) : filteredOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-[#82807A]">
-                      No se encontraron pedidos con los filtros aplicados.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredOrders.map((ord) => {
-                    const tracking = parseOrderTracking(ord);
-                    const shortId = ord.id.split('-')[0].toUpperCase();
-                    const createdDate = ord.created_at
-                      ? new Date(ord.created_at).toLocaleDateString('es-CL', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })
-                      : 'Reciente';
+              <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 text-center shadow-xs">
+                <span className="text-[11px] font-mono text-indigo-700 uppercase tracking-wider block">En Preparación</span>
+                <span className="text-2xl font-bold text-indigo-700 mt-1 block">{preparingCount}</span>
+              </div>
 
-                    return (
-                      <tr
-                        key={ord.id}
-                        onClick={() => handleSelectOrderForEdit(ord)}
-                        className={`cursor-pointer transition hover:bg-[#FAF9F6] ${
-                          selectedOrder?.id === ord.id ? 'bg-[#FAF6EF]/60' : ''
-                        }`}
-                      >
-                        <td className="py-3.5 px-4">
-                          <span className="font-mono font-bold text-[#0F0F0F] block">
-                            #{shortId}
-                          </span>
-                          <span className="text-[11px] text-[#82807A] block mt-0.5">
-                            {createdDate}
-                          </span>
-                        </td>
+              <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 text-center shadow-xs">
+                <span className="text-[11px] font-mono text-purple-700 uppercase tracking-wider block">En Reparto Courier</span>
+                <span className="text-2xl font-bold text-purple-700 mt-1 block">{shippedCount}</span>
+              </div>
 
-                        <td className="py-3.5 px-4">
-                          <span className="font-semibold text-[#0F0F0F] block">
-                            {ord.business_name || ord.customer_name || 'Óptica Mayorista'}
-                          </span>
-                          <span className="text-[11px] text-[#82807A] block">
-                            {ord.business_rut || ord.customer_email || 'Sin RUT'}
-                          </span>
-                        </td>
+              <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 text-center shadow-xs col-span-2 sm:col-span-1">
+                <span className="text-[11px] font-mono text-[#846C44] uppercase tracking-wider block">Entregados con Éxito</span>
+                <span className="text-2xl font-bold text-[#0F0F0F] mt-1 block">{deliveredCount}</span>
+              </div>
+            </div>
 
-                        <td className="py-3.5 px-4">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#FAF6EF] text-[#846C44] border border-[#EADFC9]">
-                            {tracking.currentStageKey === 'logistica_usa' && <Building2 className="w-3 h-3" />}
-                            {tracking.currentStageKey === 'viajando' && <Plane className="w-3 h-3" />}
-                            {tracking.currentStageKey === 'desaduanamiento' && <ShieldCheck className="w-3 h-3" />}
-                            {tracking.currentStageKey === 'reparto_chile' && <Truck className="w-3 h-3" />}
-                            {tracking.currentStageKey === 'entregado' && <CheckCircle2 className="w-3 h-3" />}
-                            <span>{tracking.stageInfo.label}</span>
-                          </span>
-                        </td>
+            {/* BARRA DE FILTRO Y BÚSQUEDA DE PEDIDOS */}
+            <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 shadow-xs flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="relative w-full md:w-96">
+                <Search className="w-4 h-4 text-[#82807A] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Buscar por N° Pedido, Razón Social, RUT, Correo o Courier..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-xs bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl text-[#0F0F0F] placeholder-[#82807A] focus:outline-none focus:border-[#9E8256]"
+                />
+              </div>
 
-                        <td className="py-3.5 px-4">
-                          {tracking.trackingNumber ? (
-                            <div>
-                              <span className="font-semibold text-[#0F0F0F] block text-[11px]">
-                                {tracking.courier || ord.shipping_provider || 'Courier'}
-                              </span>
-                              <span className="font-mono text-[11px] text-[#846C44] block">
-                                {tracking.trackingNumber}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-[11px] text-[#82807A] italic">
-                              Pendiente asignación
-                            </span>
-                          )}
-                        </td>
+              <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                <span className="text-xs font-semibold text-[#82807A] whitespace-nowrap hidden sm:inline">
+                  Filtrar por:
+                </span>
+                {[
+                  { id: 'all', label: 'Todos' },
+                  { id: 'paid', label: 'Pagados' },
+                  { id: 'preparing', label: 'En Preparación' },
+                  { id: 'shipped', label: 'Enviados' },
+                  { id: 'delivered', label: 'Entregados' },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setStatusFilter(f.id)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition ${
+                      statusFilter === f.id
+                        ? 'bg-[#0F0F0F] text-white shadow-xs'
+                        : 'bg-[#FAF9F6] text-[#575551] hover:text-[#0F0F0F] border border-[#E6E2DD]'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                        <td className="py-3.5 px-4 text-right font-mono font-semibold text-[#0F0F0F]">
-                          ${(ord.total_amount || 0).toLocaleString('es-CL')}
-                        </td>
+            {/* TABLA PRINCIPAL DE PEDIDOS */}
+            <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl shadow-xs overflow-hidden">
+              <div className="p-4 border-b border-[#E6E2DD] flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-[#0F0F0F]">
+                  Listado de Órdenes ({filteredOrders.length})
+                </span>
+                <span className="text-xs text-[#82807A]">
+                  Haz clic en cualquier pedido para actualizar su tracking al cliente
+                </span>
+              </div>
 
-                        <td className="py-3.5 px-4 text-center">
-                          <span
-                            className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold border ${getStatusBadge(
-                              ord.status
-                            )}`}
-                          >
-                            {getStatusText(ord.status)}
-                          </span>
-                        </td>
-
-                        <td className="py-3.5 px-4 text-center">
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#FAF9F6] border border-[#E6E2DD] text-[#0F0F0F] text-[11px] font-semibold hover:border-[#9E8256] hover:bg-[#FAF6EF] transition"
-                          >
-                            <span>Actualizar</span>
-                            <ChevronRight className="w-3 h-3 text-[#846C44]" />
-                          </button>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#FAF9F6] text-[#82807A] font-mono uppercase tracking-wider border-b border-[#E6E2DD]">
+                    <tr>
+                      <th className="py-3 px-4">Pedido / Fecha</th>
+                      <th className="py-3 px-4">Cliente / Óptica</th>
+                      <th className="py-3 px-4">Destino (Comuna)</th>
+                      <th className="py-3 px-4 text-center">Unidades</th>
+                      <th className="py-3 px-4 text-right">Total Facturado</th>
+                      <th className="py-3 px-4 text-center">Estado Pedido</th>
+                      <th className="py-3 px-4 text-center">Seguimiento / Courier</th>
+                      <th className="py-3 px-4 text-right">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E6E2DD]">
+                    {loadingOrders ? (
+                      <tr>
+                        <td colSpan={8} className="py-12 text-center text-[#82807A]">
+                          <div className="inline-flex items-center gap-2">
+                            <RefreshCw className="w-4 h-4 animate-spin text-[#846C44]" />
+                            <span>Cargando pedidos de ópticas...</span>
+                          </div>
                         </td>
                       </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                    ) : filteredOrders.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-12 text-center text-[#82807A]">
+                          No se encontraron pedidos con los filtros aplicados.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredOrders.map((ord) => {
+                        const parsedTracking = parseOrderTracking(ord);
+                        return (
+                          <tr
+                            key={ord.id}
+                            onClick={() => handleSelectOrderForEdit(ord)}
+                            className="hover:bg-[#FAF9F6] transition cursor-pointer group"
+                          >
+                            <td className="py-3 px-4">
+                              <span className="font-mono font-bold text-[#0F0F0F] group-hover:text-[#846C44] transition">
+                                #{ord.id.split('-')[0].toUpperCase()}
+                              </span>
+                              <span className="block text-[11px] text-[#82807A] mt-0.5">
+                                {new Date(ord.created_at).toLocaleDateString('es-CL', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
+                              </span>
+                            </td>
 
-        {/* MODAL / PANEL DE EDICIÓN DEL SEGUIMIENTO AL CLIENTE */}
+                            <td className="py-3 px-4">
+                              <span className="font-medium text-[#0F0F0F] block">
+                                {ord.business_name || ord.customer_name || 'Óptica Sin Razón Social'}
+                              </span>
+                              <span className="text-[11px] text-[#82807A] font-mono">
+                                RUT: {ord.business_rut || 'No informado'}
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-4 text-[#575551]">
+                              <div className="flex items-center gap-1.5">
+                                <MapPin className="w-3.5 h-3.5 text-[#846C44] flex-shrink-0" />
+                                <span>{ord.shipping_commune || 'Santiago'}</span>
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-4 text-center">
+                              <span className="font-mono font-bold text-[#0F0F0F] bg-[#FAF9F6] px-2 py-0.5 rounded-full border border-[#E6E2DD]">
+                                {(ord as any).total_units || 'N/A'} un.
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-4 text-right">
+                              <span className="font-mono font-bold text-[#0F0F0F]">
+                                ${(ord.total_amount || 0).toLocaleString('es-CL')}
+                              </span>
+                              <span className="block text-[10px] text-[#82807A] uppercase font-mono">
+                                CLP (Con IVA)
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-4 text-center">
+                              <span
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${getStatusBadge(
+                                  ord.status
+                                )}`}
+                              >
+                                {getStatusText(ord.status)}
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-4 text-center">
+                              {ord.tracking_number ? (
+                                <div className="inline-flex flex-col items-center">
+                                  <span className="text-[11px] font-mono font-bold text-[#0F0F0F]">
+                                    {ord.shipping_provider || 'Courier'}: {ord.tracking_number}
+                                  </span>
+                                  <span className="text-[10px] text-emerald-700 font-medium">
+                                    {parsedTracking.stageInfo.label}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-[#82807A] italic">Sin despacho local</span>
+                              )}
+                            </td>
+
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectOrderForEdit(ord);
+                                }}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#FAF9F6] border border-[#E6E2DD] text-[#0F0F0F] hover:bg-[#0F0F0F] hover:text-white transition group-hover:border-[#0F0F0F]"
+                              >
+                                <span>Gestionar</span>
+                                <ChevronRight className="w-3 h-3" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ========================================================================= */}
+        {/* SECCIÓN 2: VERIFICACIÓN Y APROBACIÓN DE ÓPTICAS B2B                       */}
+        {/* ========================================================================= */}
+        {activeTab === 'opticas' && (
+          <>
+            {/* MÉTRICAS RESUMEN DE ÓPTICAS */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+              <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 text-center shadow-xs">
+                <span className="text-[11px] font-mono text-[#82807A] uppercase tracking-wider block">Total Ópticas</span>
+                <span className="text-2xl font-bold text-[#0F0F0F] mt-1 block">{totalOpticasCount}</span>
+              </div>
+
+              <div className="bg-[#FFFFFF] border border-amber-200 rounded-2xl p-4 text-center shadow-xs bg-amber-50/30">
+                <span className="text-[11px] font-mono text-amber-700 uppercase tracking-wider block">Pendientes de Aprobación</span>
+                <span className="text-2xl font-bold text-amber-600 mt-1 block">{pendingOpticasCount}</span>
+              </div>
+
+              <div className="bg-[#FFFFFF] border border-emerald-200 rounded-2xl p-4 text-center shadow-xs bg-emerald-50/30">
+                <span className="text-[11px] font-mono text-emerald-700 uppercase tracking-wider block">Aprobadas / Mayoristas</span>
+                <span className="text-2xl font-bold text-emerald-700 mt-1 block">{approvedOpticasCount}</span>
+              </div>
+
+              <div className="bg-[#FFFFFF] border border-rose-200 rounded-2xl p-4 text-center shadow-xs bg-rose-50/30">
+                <span className="text-[11px] font-mono text-rose-700 uppercase tracking-wider block">Rechazadas / Suspendidas</span>
+                <span className="text-2xl font-bold text-rose-700 mt-1 block">{rejectedOpticasCount}</span>
+              </div>
+            </div>
+
+            {/* BARRA DE FILTRO Y BÚSQUEDA DE ÓPTICAS */}
+            <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 shadow-xs flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="relative w-full md:w-96">
+                <Search className="w-4 h-4 text-[#82807A] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Buscar por Razón Social, RUT, Contacto, Comuna o Email..."
+                  value={opticasSearchQuery}
+                  onChange={(e) => setOpticasSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-xs bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl text-[#0F0F0F] placeholder-[#82807A] focus:outline-none focus:border-[#9E8256]"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                <span className="text-xs font-semibold text-[#82807A] whitespace-nowrap hidden sm:inline">
+                  Filtrar por:
+                </span>
+                {[
+                  { id: 'all', label: 'Todas las Ópticas' },
+                  { id: 'pendiente', label: `Pendientes (${pendingOpticasCount})` },
+                  { id: 'verificado', label: 'Aprobadas' },
+                  { id: 'rechazado', label: 'Rechazadas' },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setOpticasFilter(f.id as any)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition ${
+                      opticasFilter === f.id
+                        ? 'bg-[#0F0F0F] text-white shadow-xs'
+                        : 'bg-[#FAF9F6] text-[#575551] hover:text-[#0F0F0F] border border-[#E6E2DD]'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* TABLA DE ÓPTICAS REGISTRADAS */}
+            <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl shadow-xs overflow-hidden">
+              <div className="p-4 border-b border-[#E6E2DD] flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-[#0F0F0F]">
+                  Listado de Ópticas y Cuentas B2B ({filteredOpticas.length})
+                </span>
+                <span className="text-xs text-[#82807A]">
+                  Aprueba cuentas para autorizar la visualización de precios netos y compras por mayor
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#FAF9F6] text-[#82807A] font-mono uppercase tracking-wider border-b border-[#E6E2DD]">
+                    <tr>
+                      <th className="py-3 px-4">Óptica / Razón Social</th>
+                      <th className="py-3 px-4">RUT & Giro Comercial</th>
+                      <th className="py-3 px-4">Contacto & Teléfono</th>
+                      <th className="py-3 px-4">Ubicación</th>
+                      <th className="py-3 px-4 text-center">Estado Verificación</th>
+                      <th className="py-3 px-4 text-center">Fecha Registro</th>
+                      <th className="py-3 px-4 text-right">Acciones de Aprobación</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E6E2DD]">
+                    {loadingOpticas ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-[#82807A]">
+                          <div className="inline-flex items-center gap-2">
+                            <RefreshCw className="w-4 h-4 animate-spin text-[#846C44]" />
+                            <span>Cargando directorio de ópticas...</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : filteredOpticas.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-[#82807A]">
+                          No se encontraron ópticas registradas con los filtros aplicados.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredOpticas.map((opt) => {
+                        const cleanPhone = (opt.telefono || '').replace(/\D/g, '');
+                        const waUrl =
+                          cleanPhone.length >= 8 ? `https://wa.me/56${cleanPhone.slice(-9)}` : null;
+                        const isProcessing = processingUserId === opt.id;
+
+                        return (
+                          <tr key={opt.id} className="hover:bg-[#FAF9F6] transition">
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <Building2 className="w-4 h-4 text-[#846C44] flex-shrink-0" />
+                                <div>
+                                  <span className="font-bold text-[#0F0F0F] block">
+                                    {opt.razon_social}
+                                  </span>
+                                  {opt.nombre_optica && opt.nombre_optica !== opt.razon_social && (
+                                    <span className="text-[11px] text-[#575551] block">
+                                      {opt.nombre_optica}
+                                    </span>
+                                  )}
+                                  {opt.isAdmin && (
+                                    <span className="inline-block mt-0.5 px-1.5 py-0.5 text-[9px] font-bold bg-[#0F0F0F] text-white rounded">
+                                      ADMIN
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-4">
+                              <span className="font-mono font-bold text-[#0F0F0F] block">
+                                {opt.rut_empresa}
+                              </span>
+                              <span className="text-[11px] text-[#82807A] line-clamp-1">
+                                {opt.giro_comercial}
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-4">
+                              <span className="font-medium text-[#0F0F0F] block">
+                                {opt.nombre_contacto}
+                              </span>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[11px] text-[#575551]">{opt.email}</span>
+                                {waUrl && (
+                                  <a
+                                    href={waUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 transition"
+                                  >
+                                    <Phone className="w-2.5 h-2.5" />
+                                    <span>WhatsApp</span>
+                                  </a>
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-4 text-[#575551]">
+                              <div className="flex items-center gap-1.5">
+                                <MapPin className="w-3.5 h-3.5 text-[#846C44] flex-shrink-0" />
+                                <span>
+                                  {opt.comuna ? `${opt.comuna}, ` : ''}
+                                  {opt.region || 'Chile'}
+                                </span>
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-4 text-center">
+                              {opt.estado_verificacion === 'verificado' ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>Aprobada</span>
+                                </span>
+                              ) : opt.estado_verificacion === 'rechazado' ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-800 border border-rose-200">
+                                  <AlertCircle className="w-3 h-3 text-rose-600" />
+                                  <span>Rechazada</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 animate-pulse">
+                                  <Clock className="w-3 h-3 text-amber-600" />
+                                  <span>Pendiente</span>
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="py-3 px-4 text-center text-[#82807A] text-[11px] font-mono">
+                              {new Date(opt.fecha_solicitud || opt.created_at).toLocaleDateString(
+                                'es-CL',
+                                {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                }
+                              )}
+                            </td>
+
+                            <td className="py-3 px-4 text-right">
+                              {opt.isAdmin ? (
+                                <span className="text-[11px] text-[#82807A] italic">Cuenta Administrador</span>
+                              ) : (
+                                <div className="inline-flex items-center gap-1.5 justify-end">
+                                  {opt.estado_verificacion !== 'verificado' && (
+                                    <button
+                                      disabled={isProcessing}
+                                      onClick={() =>
+                                        handleUpdateOpticaStatus(opt.id, 'approve', opt.razon_social)
+                                      }
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] transition shadow-xs disabled:opacity-60"
+                                      title="Aprobar óptica y habilitar precios mayoristas"
+                                    >
+                                      <Check className="w-3 h-3" />
+                                      <span>Aprobar</span>
+                                    </button>
+                                  )}
+
+                                  {opt.estado_verificacion !== 'rechazado' && (
+                                    <button
+                                      disabled={isProcessing}
+                                      onClick={() =>
+                                        handleUpdateOpticaStatus(opt.id, 'reject', opt.razon_social)
+                                      }
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-700 border border-stone-200 hover:border-rose-200 text-[11px] font-medium transition disabled:opacity-60"
+                                      title="Rechazar o suspender acceso comercial"
+                                    >
+                                      <X className="w-3 h-3" />
+                                      <span>{opt.estado_verificacion === 'verificado' ? 'Suspender' : 'Rechazar'}</span>
+                                    </button>
+                                  )}
+
+                                  {opt.estado_verificacion === 'rechazado' && (
+                                    <button
+                                      disabled={isProcessing}
+                                      onClick={() =>
+                                        handleUpdateOpticaStatus(opt.id, 'reset', opt.razon_social)
+                                      }
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-stone-50 hover:bg-stone-100 text-stone-600 text-[10px] font-medium transition disabled:opacity-60"
+                                    >
+                                      <span>Re-evaluar</span>
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ========================================================================= */}
+        {/* PANEL LATERAL DE EDICIÓN DE SEGUIMIENTO (DRAWER MODAL PARA PEDIDOS)        */}
+        {/* ========================================================================= */}
         {selectedOrder && (
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-3xl max-w-3xl w-full my-8 p-6 sm:p-8 shadow-2xl space-y-6 relative max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 z-50 bg-[#0F0F0F]/60 backdrop-blur-xs flex items-center justify-end animate-in fade-in duration-200">
+            <div className="w-full max-w-xl h-full bg-[#FFFFFF] shadow-2xl p-6 sm:p-8 flex flex-col justify-between overflow-y-auto">
               
-              {/* Header Modal */}
-              <div className="flex items-center justify-between border-b border-[#E6E2DD] pb-4">
+              {/* ENCABEZADO DEL MODAL */}
+              <div className="pb-6 border-b border-[#E6E2DD] flex items-center justify-between">
                 <div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FAF6EF] border border-[#EADFC9] text-[#846C44] text-[11px] font-semibold uppercase mb-1">
-                    <span>Pedido #{selectedOrder.id.split('-')[0].toUpperCase()}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-editorial font-serif text-2xl font-bold text-[#0F0F0F]">
+                      Pedido #{selectedOrder.id.split('-')[0].toUpperCase()}
+                    </span>
+                    <button
+                      onClick={() => handleCopyTracking(selectedOrder.id)}
+                      className="p-1 text-[#82807A] hover:text-[#0F0F0F] rounded transition"
+                      title="Copiar ID completo"
+                    >
+                      {copiedTracking ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
                   </div>
-                  <h2 className="font-editorial font-serif text-2xl font-bold text-[#0F0F0F]">
-                    Informar al Cliente sobre su Pedido
-                  </h2>
-                  <p className="text-xs text-[#575551] mt-0.5">
-                    {selectedOrder.business_name || selectedOrder.customer_name} • RUT: {selectedOrder.business_rut || 'Sin registrar'}
-                  </p>
+                  <span className="text-xs text-[#82807A] mt-1 block">
+                    {selectedOrder.business_name || selectedOrder.customer_name} • RUT: {selectedOrder.business_rut || 'N/A'}
+                  </span>
                 </div>
 
                 <button
                   onClick={() => setSelectedOrder(null)}
-                  className="w-8 h-8 rounded-full bg-[#FAF9F6] border border-[#E6E2DD] flex items-center justify-center text-[#575551] hover:text-[#0F0F0F] transition"
+                  className="w-8 h-8 rounded-full bg-[#FAF9F6] border border-[#E6E2DD] flex items-center justify-center text-[#82807A] hover:text-[#0F0F0F] transition"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Toast Feedback */}
+              {/* TOAST DENTRO DEL FORMULARIO */}
               {orderToast && (
                 <div
-                  className={`p-4 rounded-xl text-xs flex items-center gap-2.5 ${
+                  className={`mt-4 p-3 rounded-xl border text-xs flex items-center gap-2 ${
                     orderToast.type === 'success'
-                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                      : 'bg-rose-50 text-rose-800 border border-rose-200'
+                      ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                      : 'bg-rose-50 text-rose-900 border-rose-200'
                   }`}
                 >
                   {orderToast.type === 'success' ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                   ) : (
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
                   )}
                   <span>{orderToast.message}</span>
                 </div>
               )}
 
-              <form onSubmit={handleSaveOrderChanges} className="space-y-6">
+              {/* FORMULARIO DE GESTIÓN Y SEGUIMIENTO */}
+              <form onSubmit={handleSaveOrderChanges} className="py-6 space-y-6 flex-1">
                 
-                {/* 1. SELECCIÓN DE FASE LOGÍSTICA (LÍNEA DE TIEMPO DEL CLIENTE) */}
-                <div className="space-y-3">
-                  <label className="block text-xs font-semibold text-[#0F0F0F] uppercase tracking-wider">
-                    📍 1. Fase del Envío (Lo que el cliente ve en su línea de tiempo)
-                  </label>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5">
-                    {IMPORT_STAGES.map((st) => {
-                      const isCurrent = editStage === st.key;
-                      return (
-                        <button
-                          type="button"
-                          key={st.key}
-                          onClick={() => setEditStage(st.key)}
-                          className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between ${
-                            isCurrent
-                              ? 'bg-[#0F0F0F] border-[#0F0F0F] text-white shadow-md'
-                              : 'bg-[#FAF9F6] border-[#E6E2DD] text-[#575551] hover:border-[#82807A]'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between w-full mb-2">
-                            <span className="text-[10px] font-mono opacity-80">Paso {st.step}</span>
-                            {st.key === 'logistica_usa' && <Building2 className="w-3.5 h-3.5" />}
-                            {st.key === 'viajando' && <Plane className="w-3.5 h-3.5" />}
-                            {st.key === 'desaduanamiento' && <ShieldCheck className="w-3.5 h-3.5" />}
-                            {st.key === 'reparto_chile' && <Truck className="w-3.5 h-3.5" />}
-                            {st.key === 'entregado' && <CheckCircle2 className="w-3.5 h-3.5" />}
-                          </div>
-                          <div>
-                            <span className="font-semibold text-xs block leading-tight">{st.label}</span>
-                            <span className={`text-[10px] block mt-0.5 ${isCurrent ? 'text-[#9E8256]' : 'text-[#82807A]'}`}>
-                              {st.badge}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
+                {/* 1. ESTADO GENERAL & ESTADO DE PAGO */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-[#82807A] mb-1.5">
+                      Estado Operacional
+                    </label>
+                    <select
+                      value={editStatus}
+                      onChange={(e) => setEditStatus(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl text-[#0F0F0F] font-medium focus:outline-none focus:border-[#9E8256]"
+                    >
+                      {ORDER_STATUS_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-[#82807A] mb-1.5">
+                      Estado del Pago (MP)
+                    </label>
+                    <select
+                      value={editPaymentStatus}
+                      onChange={(e) => setEditPaymentStatus(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl text-[#0F0F0F] font-medium focus:outline-none focus:border-[#9E8256]"
+                    >
+                      {PAYMENT_STATUS_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
-                {/* 2. COURIER Y GUÍA DE TRANSPORTE */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                {/* 2. ETAPA DE IMPORTACIÓN USA -> CHILE */}
+                <div>
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#82807A] mb-1.5">
+                    Etapa de la Cadena de Suministro (Visible para la Óptica)
+                  </label>
+                  <select
+                    value={editStage}
+                    onChange={(e) => setEditStage(e.target.value as ImportStageKey)}
+                    className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl text-[#0F0F0F] font-medium focus:outline-none focus:border-[#9E8256]"
+                  >
+                    {IMPORT_STAGES.map((stg) => (
+                      <option key={stg.key} value={stg.key}>
+                        Paso {stg.step}: {stg.label} ({stg.location})
+                      </option>
+                    ))}
+                  </select>
+                  <span className="block text-[11px] text-[#82807A] mt-1">
+                    Esto actualiza la barra de progreso en tiempo real dentro del portal del cliente en /seguimiento.
+                  </span>
+                </div>
+
+                {/* 3. COURIER Y NÚMERO DE SEGUIMIENTO LOCAL */}
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-[#0F0F0F] uppercase tracking-wider mb-1.5">
-                      🚚 Empresa de Despacho (Courier)
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-[#82807A] mb-1.5">
+                      Courier Nacional
                     </label>
                     <select
                       value={editCourier}
                       onChange={(e) => setEditCourier(e.target.value)}
-                      className="w-full bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl px-3 py-2 text-xs text-[#0F0F0F] focus:outline-none focus:border-[#9E8256]"
+                      className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl text-[#0F0F0F] font-medium focus:outline-none focus:border-[#9E8256]"
                     >
                       {COURIER_OPTIONS.map((c) => (
                         <option key={c.id} value={c.name}>
@@ -634,99 +1159,70 @@ export default function AdminOrdersPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-[#0F0F0F] uppercase tracking-wider mb-1.5">
-                      🏷️ N° de Guía o Seguimiento
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-[#82807A] mb-1.5">
+                      N° de Orden / Flete
                     </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={editTrackingNumber}
-                        onChange={(e) => setEditTrackingNumber(e.target.value)}
-                        placeholder="Ej: 123456789 (Starken / Chilexpress)"
-                        className="w-full bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl pl-3 pr-10 py-2 text-xs text-[#0F0F0F] font-mono focus:outline-none focus:border-[#9E8256]"
-                      />
-                      {editTrackingNumber && (
-                        <button
-                          type="button"
-                          onClick={() => handleCopyTracking(editTrackingNumber)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-[#82807A] hover:text-[#0F0F0F]"
-                          title="Copiar guía"
-                        >
-                          {copiedTracking ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
-                      )}
-                    </div>
+                    <input
+                      type="text"
+                      placeholder="Ej: 9948271049"
+                      value={editTrackingNumber}
+                      onChange={(e) => setEditTrackingNumber(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl text-[#0F0F0F] font-mono focus:outline-none focus:border-[#9E8256]"
+                    />
                   </div>
                 </div>
 
-                {/* 3. MENSAJE DIRECTO AL CLIENTE */}
+                {/* Vista previa link de tracking si existe número */}
+                {editTrackingNumber && (
+                  <div className="p-3 bg-[#FAF6EF] border border-[#EADFC9] rounded-xl flex items-center justify-between text-xs">
+                    <span className="text-[#846C44] font-medium">
+                      Enlace de seguimiento oficial de {editCourier}:
+                    </span>
+                    <a
+                      href={getCourierTrackingUrl(editCourier, editTrackingNumber) || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#0F0F0F] font-bold underline inline-flex items-center gap-1"
+                    >
+                      <span>Probar Enlace</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
+
+                {/* 4. NOTA O MENSAJE PERSONALIZADO */}
                 <div>
-                  <label className="block text-xs font-semibold text-[#0F0F0F] uppercase tracking-wider mb-1.5">
-                    💬 Mensaje o Nota Visible para la Óptica
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#82807A] mb-1.5">
+                    Nota Logística para el Cliente (Opcional)
                   </label>
                   <textarea
                     rows={2}
+                    placeholder="Ej: Pedido arribó a aduana en Santiago el día 28. Liberación estimada en 48 horas."
                     value={editCustomNote}
                     onChange={(e) => setEditCustomNote(e.target.value)}
-                    placeholder="Ej: 'Tu pedido arribó hoy a Santiago y fue entregado a Starken para despacho a tu sucursal. Llegada estimada en 24-48 horas.'"
-                    className="w-full bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl p-3 text-xs text-[#0F0F0F] focus:outline-none focus:border-[#9E8256]"
+                    className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl text-[#0F0F0F] focus:outline-none focus:border-[#9E8256]"
                   />
-                  <span className="text-[11px] text-[#82807A] mt-1 block">
-                    Este mensaje aparece destacado en la pantalla de seguimiento del cliente (`/seguimiento`).
-                  </span>
                 </div>
 
-                {/* 4. ESTADO COMERCIAL & PAGO */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#E6E2DD]">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#0F0F0F] uppercase tracking-wider mb-1.5">
-                      Estado General del Pedido
-                    </label>
-                    <select
-                      value={editStatus}
-                      onChange={(e) => setEditStatus(e.target.value)}
-                      className="w-full bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl px-3 py-2 text-xs text-[#0F0F0F] focus:outline-none focus:border-[#9E8256]"
-                    >
-                      {ORDER_STATUS_OPTIONS.map((st) => (
-                        <option key={st.value} value={st.value}>
-                          {st.label}
-                        </option>
-                      ))}
-                    </select>
+                {/* 5. RESUMEN DE MODELOS / SKUS DE LA ORDEN (PARA COMPRA EN USA) */}
+                <div className="pt-4 border-t border-[#E6E2DD]">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-semibold text-[#0F0F0F] uppercase tracking-wider">
+                      Modelos Adquiridos ({orderItems.length})
+                    </span>
+                    <span className="text-[11px] font-mono text-[#82807A]">
+                      SKUs para consolidación con proveedor NYWD
+                    </span>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-[#0F0F0F] uppercase tracking-wider mb-1.5">
-                      Estado de Pago
-                    </label>
-                    <select
-                      value={editPaymentStatus}
-                      onChange={(e) => setEditPaymentStatus(e.target.value)}
-                      className="w-full bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl px-3 py-2 text-xs text-[#0F0F0F] focus:outline-none focus:border-[#9E8256]"
-                    >
-                      {PAYMENT_STATUS_OPTIONS.map((ps) => (
-                        <option key={ps.value} value={ps.value}>
-                          {ps.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* 5. ARMAZONES DEL PEDIDO (DETALLE DE MODELOS A DESPACHAR) */}
-                <div className="pt-2 border-t border-[#E6E2DD]">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-[#0F0F0F] block mb-2">
-                    👓 Armazones del Pedido ({orderItems.length} modelos)
-                  </span>
-                  
-                  <div className="bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl overflow-hidden max-h-40 overflow-y-auto">
+                  <div className="border border-[#E6E2DD] rounded-xl overflow-hidden bg-[#FAF9F6] max-h-48 overflow-y-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-[#FFFFFF] text-[#82807A] font-mono uppercase border-b border-[#E6E2DD]">
+                      <thead className="bg-[#FFFFFF] text-[#82807A] font-mono text-[10px] uppercase border-b border-[#E6E2DD]">
                         <tr>
-                          <th className="py-2 px-3">SKU / Modelo</th>
-                          <th className="py-2 px-3">Marca</th>
+                          <th className="py-2 px-3">SKU</th>
+                          <th className="py-2 px-3">Marca / Modelo</th>
                           <th className="py-2 px-3 text-center">Cant.</th>
-                          <th className="py-2 px-3 text-right">Precio Neto</th>
+                          <th className="py-2 px-3 text-right">Neto Unit.</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#E6E2DD]">

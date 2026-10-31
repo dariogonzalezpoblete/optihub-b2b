@@ -211,6 +211,23 @@ function RegisterForm() {
           comuna: formData.comuna,
           giro_type: formData.giro_comercial,
         });
+
+        // Notificación inmediata al Administrador por correo
+        try {
+          fetch('/api/auth/register-notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: formData.email.trim(),
+              ...metadata,
+            }),
+          }).catch((err) => {
+            console.warn('[Registro] No se pudo enviar notificación de correo al admin:', err);
+          });
+        } catch {
+          // No bloquea la UX de éxito del cliente
+        }
+
         setSuccessData(metadata);
       }
     } catch {

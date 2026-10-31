@@ -309,3 +309,278 @@ export async function sendOrderConfirmationEmails(
     return { success: false, error: errorMsg };
   }
 }
+
+// ---------------------------------------------------------------------------
+// NOTIFICACIÓN DE NUEVA ÓPTICA REGISTRADA (ALERTA INMEDIATA AL ADMINISTRADOR)
+// ---------------------------------------------------------------------------
+
+export interface NewRegistrationEmailPayload {
+  email: string;
+  razon_social: string;
+  nombre_optica?: string;
+  rut_empresa: string;
+  giro_comercial?: string;
+  nombre_contacto: string;
+  telefono: string;
+  comuna?: string;
+  region?: string;
+  fecha_solicitud?: string;
+  adminUrl?: string;
+}
+
+function generateAdminNewRegistrationEmailHtml(data: NewRegistrationEmailPayload): string {
+  const {
+    email,
+    razon_social,
+    nombre_optica,
+    rut_empresa,
+    giro_comercial,
+    nombre_contacto,
+    telefono,
+    comuna,
+    region,
+    fecha_solicitud,
+    adminUrl,
+  } = data;
+
+  const targetAdminUrl =
+    adminUrl ||
+    (process.env.NEXT_PUBLIC_SITE_URL
+      ? `${process.env.NEXT_PUBLIC_SITE_URL}/admin?tab=opticas`
+      : 'https://frontend-gules-three-41.vercel.app/admin?tab=opticas');
+
+  const cleanPhone = telefono.replace(/\D/g, '');
+  const waUrl = cleanPhone.length >= 8 ? `https://wa.me/56${cleanPhone.slice(-9)}` : null;
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Nueva Solicitud de Registro B2B</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; margin: 0; padding: 24px; color: #f8fafc;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: #1e293b; border: 1px solid #334155; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #1e293b, #0f172a); border-bottom: 3px solid #f59e0b; padding: 28px 24px; text-align: center;">
+          <span style="display: inline-block; background-color: #fef3c7; color: #92400e; font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; padding: 4px 12px; border-radius: 9999px; margin-bottom: 10px;">
+            🔔 Nueva Solicitud B2B
+          </span>
+          <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">
+            ¡Nueva Óptica Registrada en OptiHub!
+          </h1>
+          <p style="color: #94a3b8; font-size: 13px; margin: 6px 0 0 0;">
+            Requiere tu revisión y aprobación para acceder a precios mayoristas.
+          </p>
+        </div>
+
+        <div style="padding: 24px;">
+          <!-- Card Resumen -->
+          <div style="background-color: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 18px; margin-bottom: 20px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <tr style="border-bottom: 1px solid #1e293b;">
+                <td style="padding: 8px 0; color: #94a3b8; width: 35%;">Razón Social:</td>
+                <td style="padding: 8px 0; color: #ffffff; font-weight: bold;">${razon_social}</td>
+              </tr>
+              ${
+                nombre_optica && nombre_optica !== razon_social
+                  ? `
+              <tr style="border-bottom: 1px solid #1e293b;">
+                <td style="padding: 8px 0; color: #94a3b8;">Nombre Fantasía:</td>
+                <td style="padding: 8px 0; color: #e2e8f0;">${nombre_optica}</td>
+              </tr>`
+                  : ''
+              }
+              <tr style="border-bottom: 1px solid #1e293b;">
+                <td style="padding: 8px 0; color: #94a3b8;">RUT Empresa:</td>
+                <td style="padding: 8px 0; color: #38bdf8; font-weight: bold; font-family: monospace;">${rut_empresa}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #1e293b;">
+                <td style="padding: 8px 0; color: #94a3b8;">Giro Comercial:</td>
+                <td style="padding: 8px 0; color: #e2e8f0;">${giro_comercial || 'No especificado'}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #1e293b;">
+                <td style="padding: 8px 0; color: #94a3b8;">Contacto:</td>
+                <td style="padding: 8px 0; color: #ffffff; font-weight: 600;">${nombre_contacto}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #1e293b;">
+                <td style="padding: 8px 0; color: #94a3b8;">Email:</td>
+                <td style="padding: 8px 0; color: #38bdf8;"><a href="mailto:${email}" style="color: #38bdf8; text-decoration: none;">${email}</a></td>
+              </tr>
+              <tr style="border-bottom: 1px solid #1e293b;">
+                <td style="padding: 8px 0; color: #94a3b8;">Teléfono:</td>
+                <td style="padding: 8px 0; color: #ffffff;">
+                  ${telefono} 
+                  ${
+                    waUrl
+                      ? `<a href="${waUrl}" target="_blank" style="display: inline-block; margin-left: 8px; background-color: #22c55e; color: #ffffff; font-size: 11px; padding: 2px 8px; border-radius: 4px; text-decoration: none; font-weight: bold;">WhatsApp</a>`
+                      : ''
+                  }
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #94a3b8;">Ubicación:</td>
+                <td style="padding: 8px 0; color: #e2e8f0;">${comuna || 'N/A'}, ${region || 'N/A'}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Botón de Acción Principal -->
+          <div style="text-align: center; margin: 28px 0 16px 0;">
+            <a href="${targetAdminUrl}" target="_blank" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 28px; border-radius: 8px; letter-spacing: 0.02em; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);">
+              ⚡ Revisar y Aprobar Óptica en el Panel
+            </a>
+          </div>
+
+          <div style="text-align: center; font-size: 12px; color: #64748b; margin-top: 24px; border-top: 1px solid #334155; padding-top: 16px;">
+            OptiHub B2B Sistema de Seguridad y Verificación • ${fecha_solicitud ? new Date(fecha_solicitud).toLocaleString('es-CL') : 'Ahora'}
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+export async function sendAdminNewRegistrationEmail(data: NewRegistrationEmailPayload) {
+  const adminEmail = process.env.ADMIN_EMAIL || 'contacto@optihub.cl';
+  const fromEmail = process.env.EMAIL_FROM || 'OptiHub B2B <onboarding@resend.dev>';
+  const isSimulationMode = process.env.EMAIL_SIMULATION_MODE === 'true';
+
+  console.log(`📧 Preparando notificación de nueva óptica (${data.razon_social}) para el Administrador...`);
+
+  if (!resend || isSimulationMode) {
+    console.log(`ℹ Simulación de notificación de registro a Admin (${adminEmail}):`, data);
+    return { success: true, simulated: true };
+  }
+
+  try {
+    const res = await resend.emails.send({
+      from: fromEmail,
+      to: adminEmail,
+      subject: `🔔 [NUEVA ÓPTICA REGISTRADA] ${data.razon_social || data.nombre_optica} (${data.rut_empresa})`,
+      html: generateAdminNewRegistrationEmailHtml(data),
+    });
+
+    if (res.error) {
+      console.error('Error reportado por Resend al notificar registro:', res.error);
+      return { success: false, error: res.error.message };
+    }
+
+    console.log('✓ Notificación de nueva óptica enviada exitosamente al admin:', res);
+    return { success: true, res };
+  } catch (err: any) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('Excepción enviando notificación de registro:', msg);
+    return { success: false, error: msg };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// CONFIRMACIÓN DE CUENTA APROBADA (ENVIADA A LA ÓPTICA)
+// ---------------------------------------------------------------------------
+
+export interface OpticaApprovedEmailPayload {
+  email: string;
+  nombre_contacto: string;
+  razon_social: string;
+  loginUrl?: string;
+}
+
+function generateOpticaApprovedEmailHtml(data: OpticaApprovedEmailPayload): string {
+  const targetLoginUrl =
+    data.loginUrl ||
+    (process.env.NEXT_PUBLIC_SITE_URL
+      ? `${process.env.NEXT_PUBLIC_SITE_URL}/login`
+      : 'https://frontend-gules-three-41.vercel.app/login');
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Cuenta Mayorista Aprobada</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0b0f19; margin: 0; padding: 24px; color: #f8fafc;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: #111827; border: 1px solid #1f2937; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #059669, #0d9488); padding: 32px 24px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 900; letter-spacing: 1px;">OPTIHUB B2B WHOLESALE</h1>
+          <p style="color: #e6fffa; margin: 8px 0 0 0; font-size: 14px;">Plataforma Mayorista para Ópticas de Chile</p>
+        </div>
+
+        <div style="padding: 32px 24px;">
+          <div style="display: inline-block; background-color: #064e3b; border: 1px solid #059669; color: #34d399; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px;">
+            ✓ Cuenta Verificada y Habilitada
+          </div>
+
+          <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 12px 0;">
+            ¡Bienvenido/a a OptiHub, ${data.nombre_contacto}!
+          </h2>
+
+          <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+            Nos complace informarte que la cuenta de <strong style="color: #f1f5f9;">${data.razon_social}</strong> ha sido verificada y activada exitosamente por nuestro equipo comercial.
+          </p>
+
+          <div style="background-color: #1e293b; border-left: 4px solid #10b981; padding: 16px; border-radius: 8px; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: #ffffff; font-weight: bold;">
+              Tus beneficios comerciales ya están activos:
+            </p>
+            <ul style="margin: 0; padding-left: 20px; color: #94a3b8; font-size: 13px; line-height: 1.6;">
+              <li>Visualización de <strong style="color: #34d399;">precios netos mayoristas</strong> en todo el catálogo.</li>
+              <li>Acceso a más de 700 armazones de marcas de prestigio (Ray-Ban, Carrera, Lacoste, Tommy Hilfiger, Tom Ford y más).</li>
+              <li>Consolidación e importación garantizada directo a tu óptica con factura electrónica.</li>
+            </ul>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0 20px 0;">
+            <a href="${targetLoginUrl}" target="_blank" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 32px; border-radius: 8px; letter-spacing: 0.02em;">
+              Acceder al Catálogo Mayorista →
+            </a>
+          </div>
+
+          <div style="text-align: center; font-size: 12px; color: #64748b; margin-top: 32px; border-top: 1px solid #1f2937; padding-top: 16px;">
+            OptiHub Chile • Importación y Distribución Mayorista para Ópticas
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+export async function sendOpticaApprovedEmail(data: OpticaApprovedEmailPayload) {
+  const fromEmail = process.env.EMAIL_FROM || 'OptiHub B2B <onboarding@resend.dev>';
+  const isSimulationMode = process.env.EMAIL_SIMULATION_MODE === 'true';
+
+  console.log(`📧 Preparando correo de aprobación para la óptica (${data.email})...`);
+
+  if (!resend || isSimulationMode) {
+    console.log(`ℹ Simulación de correo de aprobación a: ${data.email}`, data);
+    return { success: true, simulated: true };
+  }
+
+  try {
+    const res = await resend.emails.send({
+      from: fromEmail,
+      to: data.email,
+      subject: `🎉 ¡Cuenta Aprobada! Ya puedes acceder a Precios Mayoristas | OptiHub B2B`,
+      html: generateOpticaApprovedEmailHtml(data),
+    });
+
+    if (res.error) {
+      console.error('Error reportado por Resend al enviar bienvenida aprobada:', res.error);
+      return { success: false, error: res.error.message };
+    }
+
+    console.log('✓ Correo de bienvenida y aprobación enviado exitosamente a la óptica:', res);
+    return { success: true, res };
+  } catch (err: any) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('Excepción enviando correo de aprobación a óptica:', msg);
+    return { success: false, error: msg };
+  }
+}
+
