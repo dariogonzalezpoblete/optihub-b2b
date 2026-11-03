@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Lock, TrendingUp, ShoppingBag } from 'lucide-react';
 import type { EnrichedMarco, FacetOption } from '@/lib/catalog/types';
 import { getValidStock } from '@/store/useCartStore';
 import { calculateRetailProjection } from '@/lib/catalog/brandCategories';
+import ProductImage from '@/components/ui/ProductImage';
 
 interface ProductCardProps {
   variants: EnrichedMarco[];
@@ -30,19 +30,9 @@ export default function ProductCard({ variants, isLoggedIn, idx, materialLabels,
   const hasValidPrice = isLoggedIn && typeof active?.precio_neto_clp === 'number' && active.precio_neto_clp > 0;
   const retail = calculateRetailProjection(active?.precio_neto_clp, active?.marca);
 
-  const mainImgSrc = active?.imagen_principal && active.imagen_principal.trim()
-    ? active.imagen_principal.trim()
-    : '/placeholder.png';
-
-  const [imgSrc, setImgSrc] = useState<string>(mainImgSrc);
-
-  useEffect(() => {
-    setImgSrc(
-      active?.imagen_principal && active.imagen_principal.trim()
-        ? active.imagen_principal.trim()
-        : '/placeholder.png'
-    );
-  }, [active?.imagen_principal, selectedIndex]);
+  const secondaryImgSrc = Array.isArray(active?.imagenes_secundarias) && active.imagenes_secundarias.length > 0
+    ? active.imagenes_secundarias[0]
+    : null;
 
   const productHref = `/producto/${encodeURIComponent(active?.marca || '')}/${encodeURIComponent(active?.modelo || '')}${active?.id_ext ? `?sku=${encodeURIComponent(active.id_ext)}` : ''}`;
 
@@ -73,21 +63,18 @@ export default function ProductCard({ variants, isLoggedIn, idx, materialLabels,
         </div>
 
         <div className="relative w-full h-full flex items-center justify-center">
-          <Image
-            unoptimized
-            src={imgSrc}
+          <ProductImage
+            src={active?.imagen_principal}
+            secondarySrc={secondaryImgSrc}
             alt={`${active?.marca || ''} ${active?.modelo || ''}`}
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
-            className="object-contain p-4 mix-blend-multiply group-hover:scale-105 transition-transform duration-500 ease-out"
-            priority={idx < 3}
-            onError={() => setImgSrc('/placeholder.png')}
+            loading={idx < 6 ? 'eager' : 'lazy'}
+            className="w-full h-full object-contain p-2 mix-blend-multiply group-hover:scale-105 transition-transform duration-500 ease-out"
           />
         </div>
 
         {/* Botón flotante para compra rápida por matriz si tiene variantes */}
         {onQuickAdd && (
-          <div className="absolute bottom-3 right-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <div className="absolute bottom-3 right-3 z-20 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
             <button
               type="button"
               onClick={(e) => {
@@ -95,7 +82,7 @@ export default function ProductCard({ variants, isLoggedIn, idx, materialLabels,
                 e.stopPropagation();
                 onQuickAdd(variants);
               }}
-              className="bg-[#0F0F0F] hover:bg-[#262626] text-white p-2.5 shadow-md flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold border border-[#0F0F0F] cursor-pointer"
+              className="bg-[#0F0F0F] hover:bg-[#262626] text-white p-2 sm:p-2.5 shadow-md flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold border border-[#0F0F0F] cursor-pointer"
               title="Abrir matriz rápida de compra"
             >
               <ShoppingBag className="w-3.5 h-3.5 text-[#9E8256]" />
@@ -144,7 +131,9 @@ export default function ProductCard({ variants, isLoggedIn, idx, materialLabels,
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {variants.map((v, i) => {
-                  const swatchSrc = v?.imagen_principal && v.imagen_principal.trim() ? v.imagen_principal.trim() : '/placeholder.png';
+                  const vSecondary = Array.isArray(v?.imagenes_secundarias) && v.imagenes_secundarias.length > 0
+                    ? v.imagenes_secundarias[0]
+                    : null;
                   return (
                     <button
                       key={v?.id_ext || `swatch-${i}`}
@@ -161,15 +150,13 @@ export default function ProductCard({ variants, isLoggedIn, idx, materialLabels,
                       }`}
                       title={`${v?.color || v?.codigo_color || 'Variante'} (SKU: ${v?.id_ext})`}
                     >
-                      <img
-                        src={swatchSrc}
+                      <ProductImage
+                        src={v?.imagen_principal}
+                        secondarySrc={vSecondary}
                         alt={v?.codigo_color || v?.color || 'Color'}
-                        loading="eager"
-                        decoding="async"
+                        loading="lazy"
+                        showSpinner={false}
                         className="w-full h-full object-contain p-0.5 mix-blend-multiply"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
-                        }}
                       />
                     </button>
                   );

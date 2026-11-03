@@ -190,7 +190,15 @@ export const STATIC_FACETS = {
 
 export function getFacets(list: EnrichedMarco[], state: FilterState): Facets {
   const tokens = queryTokens(state.q);
-  const base = tokens.length ? list.filter((m) => matchesQuery(m, tokens)) : list;
+  const base = list.filter((m) => {
+    if (tokens.length && !matchesQuery(m, tokens)) return false;
+    if (state.tipo === 'optico' || state.tipo === 'oftalmico') {
+      if (!isOpticalProduct(m)) return false;
+    } else if (state.tipo === 'sol' || state.tipo === 'solares') {
+      if (!isSunProduct(m)) return false;
+    }
+    return true;
+  });
 
   const result = {} as Facets;
 
@@ -202,7 +210,7 @@ export function getFacets(list: EnrichedMarco[], state: FilterState): Facets {
     for (const m of list) {
       const key = m._k[f];
       if (!key || key === 'select' || key === 'none' || labels.has(key)) continue;
-      labels.set(key, labelFor(f, f === 'calibre' ? key : String(m[f as keyof Marco] ?? '')));
+      labels.set(key, labelFor(f, f === 'calibre' || f === 'color' ? key : String(m[f as keyof Marco] ?? '')));
       counts.set(key, 0);
     }
 

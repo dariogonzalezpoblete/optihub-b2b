@@ -227,11 +227,11 @@ export default function PoliticasImportacionYGarantiaPage() {
                 PILAR IV
               </span>
               <h2 className="font-serif text-xl sm:text-2xl text-[#0F0F0F] font-normal">
-                Protocolo Técnico de Garantía y Política Estricta de Venta Firme B2B
+                Protocolo Técnico de Garantía, Reclamación Local y Política de Venta Firme B2B
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-[#5C5A55] leading-relaxed">
-              Bajo nuestro modelo de abastecimiento mayorista, cada lote es importado de forma consolidada desde Estados Unidos e internado bajo régimen DDP en Chile. En virtud de los elevados costos aduaneros y fletes aéreos internacionales no recuperables, <strong className="text-[#0F0F0F]">es inviable efectuar devoluciones físicas o despachos de retorno hacia origen</strong>. Por ello, todas las transacciones operan bajo la modalidad comercial de <strong className="text-[#0F0F0F]">VENTA FIRME</strong>, regida por los siguientes principios imperativos:
+              Bajo nuestro modelo de abastecimiento mayorista, cada lote es importado de forma consolidada desde Estados Unidos e internado bajo régimen DDP en Chile. Debido a la estructura logística internacional, no se habilita logística inversa hacia EE. UU. para devoluciones discrecionales, operando las transacciones bajo modalidad de <strong className="text-[#0F0F0F]">VENTA FIRME</strong>. Al mismo tiempo, <strong className="text-[#0F0F0F]">OPTIHUB jamás exigirá a la óptica cliente enviar productos a Estados Unidos como procedimiento ordinario de posventa o garantía</strong>; toda evaluación y resolución procedente se ejecuta localmente en Chile conforme a las siguientes reglas:
             </p>
 
             <div className="space-y-4 pt-2">
@@ -240,41 +240,41 @@ export default function PoliticasImportacionYGarantiaPage() {
                   1. Riguroso Control de Calidad Unitario en Chile Previo al Despacho
                 </span>
                 <p className="text-xs text-[#5C5A55] leading-relaxed">
-                  Para brindar total certeza a las ópticas adquirentes, <strong className="text-[#0F0F0F]">el 100% de los armazones es sometido a un control de calidad técnico individual en Chile antes de su entrega al courier nacional</strong>. En este proceso se verifica la perfecta simetría de frentes y varillas, la calibración de bisagras o sistemas flex, la inexistencia de vicios superficiales o rayas y la presencia de su packaging oficial completo (estuche rígido, microfibra serigrafiada y folletería de fábrica).
+                  Para brindar total certeza a las ópticas adquirentes, <strong className="text-[#0F0F0F]">el 100% de los armazones es sometido a un control de calidad técnico individual en Chile antes de su entrega al courier nacional</strong>. En este proceso se verifica la simetría de frentes y varillas, la calibración de bisagras o sistemas flex, la ausencia de vicios superficiales o rayas y la presencia de su packaging oficial completo (estuche rígido, microfibra serigrafiada y folletería de fábrica).
                 </p>
               </div>
 
               <div className="p-4 border border-[#E6E2DD] bg-[#FAF4F4]/50 space-y-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#9E3838] block">
-                  2. Exclusiones Absolutas de Cambio o Devolución (Inaplicabilidad SERNAC B2B)
+                  2. Exclusión de Retracto y de Cambios Voluntarios por Gusto o Rotación
                 </span>
                 <p className="text-xs text-[#5C5A55] leading-relaxed">
-                  Conforme a la normativa chilena para actos de comercio entre empresas (donde no aplican las normas de retracto de la Ley del Consumidor / SERNAC aplicables a consumidores finales), la política de Venta Firme establece que:
+                  Conforme a la normativa mercantil chilena para compraventas mayoristas destinadas a la reventa (Código de Comercio) y a la exclusión expresa del derecho a retracto informada conforme al artículo 3 bis letra b) de la Ley N° 19.496, OPTIHUB no ofrece cambios voluntarios ni tickets de cambio por:
                 </p>
                 <ul className="list-disc pl-5 text-xs text-[#5C5A55] space-y-1">
                   <li><strong className="text-[#0F0F0F]">NO hay cambios por rotación de inventario:</strong> La óptica asume el riesgo comercial de venta en sus locales.</li>
-                  <li><strong className="text-[#0F0F0F]">NO hay cambios por cambio de opinión o arrepentimiento:</strong> Una vez procesada la orden y emitida la Factura Electrónica, la venta es irrevocable.</li>
-                  <li><strong className="text-[#0F0F0F]">NO hay cambios por errores de elección de la óptica:</strong> Siendo el pedido 100% combinable y seleccionado autónomamente en la plataforma, las equivocaciones en marca, modelo, calibre o color son de exclusiva responsabilidad del comprador.</li>
+                  <li><strong className="text-[#0F0F0F]">NO hay cambios por gusto, preferencia o arrepentimiento:</strong> No se admiten devoluciones ni cambios voluntarios por preferencia estética, color, forma o modelo una vez confirmada la orden.</li>
+                  <li><strong className="text-[#0F0F0F]">NO hay cambios por errores de selección de la óptica:</strong> Siendo el pedido 100% combinable y seleccionado autónomamente en la plataforma, la conformación de marcas, modelos, calibres o colores es de responsabilidad del comprador.</li>
                 </ul>
               </div>
 
               <div className="p-4 border border-[#E6E2DD] bg-[#FFFFFF] space-y-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#0F0F0F] block">
-                  3. Únicas Causales Aceptadas y Plazo Fatal de Notificación (5 Días Hábiles)
+                  3. Procedimiento Local de Reclamación por Daño de Transporte, Error de Despacho o Defecto de Fábrica
                 </span>
                 <p className="text-xs text-[#5C5A55] leading-relaxed">
-                  Solo se aceptan reportes derivados de <strong className="text-[#0F0F0F]">daños evidentes ocurridos durante el transporte nacional</strong> o <strong className="text-[#0F0F0F]">defectos estructurales de fábrica</strong>. Para que el reporte sea admisible, debe cumplirse obligatoriamente con:
+                  Procederá la evaluación técnica y comercial en Chile ante reportes derivados de <strong className="text-[#0F0F0F]">daños ocurridos durante el transporte nacional</strong>, <strong className="text-[#0F0F0F]">errores de despacho (discrepancia de SKU o cantidad)</strong> o <strong className="text-[#0F0F0F]">defectos estructurales de fabricación</strong> no imputables a manipulación en taller óptico o montaje de cristales:
                 </p>
                 <div className="mt-2 p-3.5 bg-[#FAF6ED] border border-[#E6D7B8] space-y-2">
                   <ul className="list-disc pl-5 text-xs text-[#5C5A55] space-y-1.5">
                     <li>
-                      <strong className="text-[#0F0F0F]">Plazo Fatal Improrrogable:</strong> Debe ser informado dentro de los primeros <strong className="text-[#0F0F0F]">cinco (5) días hábiles</strong> contados exactamente desde la recepción física del pedido consignada por el transportista.
+                      <strong className="text-[#0F0F0F]">Inspección Operativa de Recepción (5 Días Hábiles):</strong> Al recibir el pedido, la óptica deberá revisar el estado exterior del bulto, cantidades y referencias entregadas, informando cualquier daño de transporte o discrepancia de despacho dentro de los primeros <strong className="text-[#0F0F0F]">cinco (5) días hábiles</strong> desde la recepción física consignada por el transportista.
                     </li>
                     <li>
-                      <strong className="text-[#0F0F0F]">Canal Exclusivo:</strong> Notificación vía WhatsApp B2B oficial (<strong className="text-[#0F0F0F]">+56 9 8933 8537</strong>) o correo <a href="mailto:contacto@optihub.cl" className="text-[#9E8256] underline font-medium">contacto@optihub.cl</a>.
+                      <strong className="text-[#0F0F0F]">Canal Oficial en Chile:</strong> Notificación vía WhatsApp B2B oficial (<strong className="text-[#0F0F0F]">+56 9 8933 8537</strong>) o correo <a href="mailto:contacto@optihub.cl" className="text-[#9E8256] underline font-medium">contacto@optihub.cl</a>.
                     </li>
                     <li>
-                      <strong className="text-[#0F0F0F]">Respaldo Audiovisual Obligatorio:</strong> Envío de registro fotográfico nítido y/o video continuo del desempaque y del daño o defecto, adjuntando la Factura Electrónica emitida por OPTICA MULTIFOCUS LIMITADA y el código de SKU de la pieza.
+                      <strong className="text-[#0F0F0F]">Antecedentes de Evaluación:</strong> Envío de registro fotográfico nítido y/o video de la pieza y su empaque, indicando el número de pedido o Factura Electrónica emitida por OPTICA MULTIFOCUS LIMITADA, el código de SKU y el lote correspondiente.
                     </li>
                   </ul>
                 </div>
@@ -282,13 +282,13 @@ export default function PoliticasImportacionYGarantiaPage() {
 
               <div className="p-4 border border-[#E6E2DD] bg-[#FAF9F6] space-y-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#0F0F0F] block">
-                  4. Firmeza Definitiva y Resolución de Casos Válidos
+                  4. Mecanismos de Resolución en Chile y Salvaguarda de Derechos Legales Irrenunciables
                 </span>
                 <p className="text-xs text-[#5C5A55] leading-relaxed">
-                  Vencido el plazo fatal de cinco (5) días hábiles, o verificado que la unidad egresó conforme de nuestro control unitario de calidad en Chile, <strong className="text-[#0F0F0F]">la venta es definitivamente firme y no existen devoluciones ni reembolsos de dinero bajo ningún concepto</strong>.
+                  En los casos procedentes validados técnicamente por nuestro equipo en Chile, se resolverá localmente mediante la <strong className="text-[#0F0F0F]">reposición prioritaria de la unidad</strong>, la emisión de una <strong className="text-[#0F0F0F]">Nota de Crédito Electrónica SII en CLP</strong> o el <strong className="text-[#0F0F0F]">reembolso correspondiente</strong>, coordinando en territorio chileno la recepción de la pieza afectada cuando proceda y sin exigir jamás al cliente su envío internacional a Estados Unidos.
                 </p>
                 <p className="text-xs text-[#5C5A55] leading-relaxed">
-                  En los casos que cumplan con todos los requisitos y resulten validados técnicamente por nuestro equipo, la óptica podrá optar por la <strong className="text-[#0F0F0F]">reposición prioritaria de la unidad en el siguiente embarque</strong> o la emisión de una <strong className="text-[#0F0F0F]">Nota de Crédito Electrónica SII en CLP</strong>.
+                  El transcurso del plazo operativo de cinco (5) días hábiles acredita la recepción conforme en cuanto al estado exterior del embalaje y las unidades entregadas, <strong className="text-[#0F0F0F]">pero no extingue automáticamente los derechos o acciones legales por defectos de fabricación que pudieren corresponder conforme a la legislación chilena</strong>. Sin perjuicio de la naturaleza mercantil mayorista de las operaciones celebradas para reventa (regidas por el Código de Comercio), <strong className="text-[#0F0F0F]">nada de lo dispuesto en esta política se interpretará como una eliminación, renuncia o limitación de la garantía legal o de los derechos irrenunciables que pudieren corresponder por mandato legal imperativo</strong> (incluyendo aquellos supuestos en que resultaren aplicables disposiciones de la Ley N° 19.496 o de la Ley N° 20.416).
                 </p>
               </div>
             </div>

@@ -341,7 +341,12 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
             {/* Curaduría de Marcas: Pestañas Rápidas por Segmento */}
             <QuickSegmentPills
               selectedBrands={filters.marca}
-              onSelectSegment={(brands) => setFacet('marca', brands.map(normalizeText))}
+              onSelectSegment={(brands) => {
+                const availableKeys = new Set(facets.marca.map((o) => o.key));
+                const normalized = brands.map(normalizeText);
+                const activeSegmentBrands = normalized.filter((k) => availableKeys.has(k));
+                setFacet('marca', activeSegmentBrands.length > 0 ? activeSegmentBrands : normalized);
+              }}
               onClear={() => setFacet('marca', [])}
             />
 

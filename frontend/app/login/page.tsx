@@ -206,7 +206,7 @@ function LoginForm() {
                   href="/recuperar-password"
                   className="text-[10px] uppercase tracking-[0.14em] text-[#9E8256] hover:text-[#0F0F0F] transition font-medium"
                 >
-                  ¿OLVIDÓ SU CLAVE?
+                  ¿Olvidaste tu contraseña?
                 </Link>
               </div>
               <div className="relative">

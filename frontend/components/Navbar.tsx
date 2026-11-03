@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ShoppingBag, LogOut, ShieldCheck } from 'lucide-react';
+import { ShoppingBag, LogOut, ShieldCheck, Menu, X, User, Package } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
 import { useAuth } from '@/context/AuthContext';
 
 export default function Navbar() {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const cartUnits = useCartStore((state) =>
     state.cart.reduce((sum, item) => sum + (item.cantidad || 0), 0)
@@ -21,32 +22,42 @@ export default function Navbar() {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
   const totalUnits = mounted ? cartUnits : 0;
   const nombreMostrar = opticaData?.nombre_optica || user?.email?.split('@')[0] || 'Mi Cuenta';
 
   const isInicio = pathname === '/';
   const isCatalogo = pathname.startsWith('/catalogo');
+  const isAdmin =
+    mounted &&
+    isLoggedIn &&
+    user?.email &&
+    ['multifocuslimitada@gmail.com', 'dario.joda.2007@gmail.com', 'admin@optihub.cl', 'contacto@optihub.cl'].includes(
+      user.email.toLowerCase().trim()
+    );
 
   return (
     <header className="sticky top-0 z-50 bg-[#FAF9F6]/95 backdrop-blur-md border-b border-[#E6E2DD] transition-all">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-6">
         
         {/* LOGOTIPO TIPOGRÁFICO PURO (MAISON EDITORIAL) */}
         <Link href="/" className="flex flex-col group flex-shrink-0">
-          <span className="font-serif text-2xl tracking-[0.22em] uppercase text-[#0F0F0F] font-normal group-hover:text-[#9E8256] transition-colors leading-tight">
+          <span className="font-serif text-xl sm:text-2xl tracking-[0.2em] sm:tracking-[0.22em] uppercase text-[#0F0F0F] font-normal group-hover:text-[#9E8256] transition-colors leading-tight">
             OPTIHUB
           </span>
-          <span className="text-[9px] tracking-[0.25em] text-[#5C5A55] uppercase font-sans mt-0.5">
+          <span className="text-[8px] sm:text-[9px] tracking-[0.2em] sm:tracking-[0.25em] text-[#5C5A55] uppercase font-sans mt-0.5">
             MAYORISTA ÓPTICO · USA
           </span>
         </Link>
 
-        {/* NAVEGACIÓN CENTRAL Y ÁREA DE USUARIO */}
-        <nav className="flex items-center gap-6 sm:gap-8">
-          {/* Enlaces de Texto Plano con Hairline Inferior */}
+        {/* NAVEGACIÓN DESKTOP / TABLET */}
+        <nav className="flex items-center gap-3 sm:gap-6 lg:gap-8">
           <Link
             href="/"
-            className={`relative py-1 text-[11px] uppercase tracking-[0.18em] transition-colors ${
+            className={`hidden md:inline-block relative py-1 text-[11px] uppercase tracking-[0.18em] transition-colors ${
               isInicio ? 'text-[#0F0F0F] font-medium' : 'text-[#5C5A55] hover:text-[#0F0F0F]'
             }`}
           >
@@ -60,7 +71,7 @@ export default function Navbar() {
 
           <Link
             href="/catalogo"
-            className={`relative py-1 text-[11px] uppercase tracking-[0.18em] transition-colors ${
+            className={`relative py-1 text-[10px] sm:text-[11px] uppercase tracking-[0.15em] sm:tracking-[0.18em] transition-colors ${
               isCatalogo ? 'text-[#0F0F0F] font-medium' : 'text-[#5C5A55] hover:text-[#0F0F0F]'
             }`}
           >
@@ -72,37 +83,41 @@ export default function Navbar() {
             />
           </Link>
 
-          {/* ÁREA DE USUARIO B2B Y ADMIN */}
+          {/* ÁREA DE USUARIO B2B Y ADMIN (DESKTOP) */}
           {mounted && (
-            <div className="flex items-center gap-4">
+            <div className="hidden md:flex items-center gap-4">
               {isLoggedIn ? (
                 <div className="flex items-center gap-3">
-                  {/* Badge Admin Sobrio de Bordes Rectos */}
-                  {user?.email &&
-                    ['multifocuslimitada@gmail.com', 'dario.joda.2007@gmail.com', 'admin@optihub.cl', 'contacto@optihub.cl'].includes(
-                      user.email.toLowerCase().trim()
-                    ) && (
-                      <Link
-                        href="/admin"
-                        className="inline-flex items-center gap-1.5 border border-[#9E8256] text-[#9E8256] text-[10px] uppercase tracking-[0.15em] px-2.5 py-1 rounded-none hover:bg-[#9E8256]/10 transition-colors"
-                        title="Panel de Administración"
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5 text-[#9E8256]" />
-                        <span>Admin</span>
-                      </Link>
-                    )}
+                  {isAdmin && (
+                    <Link
+                      href="/admin"
+                      className="inline-flex items-center gap-1.5 border border-[#9E8256] text-[#9E8256] text-[10px] uppercase tracking-[0.15em] px-2.5 py-1 rounded-none hover:bg-[#9E8256]/10 transition-colors"
+                      title="Panel de Administración"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#9E8256]" />
+                      <span>Admin</span>
+                    </Link>
+                  )}
 
-                  {/* Óptica logueada y divisor vertical */}
                   <div className="flex items-center gap-3">
                     <Link
                       href="/mis-pedidos"
-                      className="text-[11px] uppercase tracking-[0.16em] text-[#0F0F0F] hover:text-[#9E8256] transition-colors max-w-[120px] sm:max-w-[180px] truncate font-medium"
+                      className="text-[11px] uppercase tracking-[0.16em] text-[#0F0F0F] hover:text-[#9E8256] transition-colors max-w-[140px] lg:max-w-[180px] truncate font-medium"
                       title={nombreMostrar}
                     >
                       {nombreMostrar}
                     </Link>
 
-                    {/* Divisor vertical arquitectónico */}
+                    <span className="h-4 w-[1px] bg-[#E6E2DD]" aria-hidden="true" />
+
+                    <Link
+                      href="/perfil"
+                      className="text-[10px] uppercase tracking-[0.16em] text-[#5C5A55] hover:text-[#0F0F0F] transition-colors"
+                      title="Mi Perfil de Facturación B2B"
+                    >
+                      Perfil
+                    </Link>
+
                     <span className="h-4 w-[1px] bg-[#E6E2DD]" aria-hidden="true" />
 
                     <button
@@ -111,7 +126,7 @@ export default function Navbar() {
                       className="text-[10px] uppercase tracking-[0.16em] text-[#5C5A55] hover:text-[#0F0F0F] transition-colors flex items-center gap-1 cursor-pointer"
                     >
                       <LogOut className="w-3 h-3 text-[#5C5A55]" />
-                      <span className="hidden sm:inline">Salir</span>
+                      <span>Salir</span>
                     </button>
                   </div>
                 </div>
@@ -129,17 +144,101 @@ export default function Navbar() {
           {/* BOTÓN DE PEDIDO / CARRO ARQUITECTÓNICO */}
           <Link
             href="/carrito"
-            className="bg-[#0F0F0F] text-white px-4 py-2.5 text-[11px] uppercase tracking-[0.16em] rounded-none hover:bg-[#262626] transition-colors flex items-center gap-2 shrink-0 border border-[#0F0F0F]"
+            className="bg-[#0F0F0F] text-white px-3 sm:px-4 py-2 sm:py-2.5 text-[10px] sm:text-[11px] uppercase tracking-[0.14em] sm:tracking-[0.16em] rounded-none hover:bg-[#262626] transition-colors flex items-center gap-1.5 sm:gap-2 shrink-0 border border-[#0F0F0F]"
             title="Ver Pedido Mayorista"
           >
-            <ShoppingBag className="w-3.5 h-3.5 text-[#9E8256]" />
-            <span>
-              {totalUnits > 0 ? `PEDIDO B2B (${totalUnits})` : 'PEDIDO B2B'}
+            <ShoppingBag className="w-3.5 h-3.5 text-[#9E8256] shrink-0" />
+            <span className="whitespace-nowrap">
+              {totalUnits > 0 ? `PEDIDO (${totalUnits})` : 'PEDIDO B2B'}
             </span>
           </Link>
-        </nav>
 
+          {/* BOTÓN MENÚ MÓVIL (< 768px) */}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+            aria-label={mobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'}
+            aria-expanded={mobileMenuOpen}
+            className="md:hidden w-9 h-9 border border-[#E6E2DD] bg-[#FFFFFF] text-[#0F0F0F] flex items-center justify-center shrink-0 cursor-pointer"
+          >
+            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+          </button>
+        </nav>
       </div>
+
+      {/* PANEL DESPLEGABLE MÓVIL (< 768px) */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-t border-[#E6E2DD] bg-[#FFFFFF] px-4 py-5 space-y-4 shadow-lg">
+          <div className="flex flex-col space-y-2.5 text-xs uppercase tracking-[0.16em]">
+            <Link
+              href="/"
+              className={`py-2 border-b border-[#E6E2DD]/60 ${
+                isInicio ? 'text-[#0F0F0F] font-semibold' : 'text-[#5C5A55]'
+              }`}
+            >
+              Inicio
+            </Link>
+            <Link
+              href="/catalogo"
+              className={`py-2 border-b border-[#E6E2DD]/60 ${
+                isCatalogo ? 'text-[#0F0F0F] font-semibold' : 'text-[#5C5A55]'
+              }`}
+            >
+              Catálogo Mayorista
+            </Link>
+            {mounted && isLoggedIn ? (
+              <>
+                <Link
+                  href="/mis-pedidos"
+                  className="py-2 border-b border-[#E6E2DD]/60 text-[#0F0F0F] flex items-center gap-2"
+                >
+                  <Package className="w-3.5 h-3.5 text-[#9E8256]" />
+                  <span>Mis Pedidos ({nombreMostrar})</span>
+                </Link>
+                <Link
+                  href="/perfil"
+                  className="py-2 border-b border-[#E6E2DD]/60 text-[#0F0F0F] flex items-center gap-2"
+                >
+                  <User className="w-3.5 h-3.5 text-[#9E8256]" />
+                  <span>Mi Perfil de Facturación B2B</span>
+                </Link>
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    className="py-2 border-b border-[#E6E2DD]/60 text-[#9E8256] font-semibold flex items-center gap-2"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#9E8256]" />
+                    <span>Panel de Administración</span>
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={() => logout()}
+                  className="py-2 text-left text-[#9E3838] uppercase tracking-[0.16em] flex items-center gap-2 cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Cerrar Sesión</span>
+                </button>
+              </>
+            ) : (
+              <div className="pt-2 grid grid-cols-2 gap-3">
+                <Link
+                  href="/login"
+                  className="bg-[#0F0F0F] text-white py-3 text-center text-[10px] uppercase tracking-[0.18em] font-medium border border-[#0F0F0F]"
+                >
+                  Acceso Ópticas
+                </Link>
+                <Link
+                  href="/registro"
+                  className="bg-[#FAF9F6] text-[#0F0F0F] py-3 text-center text-[10px] uppercase tracking-[0.18em] font-medium border border-[#0F0F0F]"
+                >
+                  Registrar Óptica
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }

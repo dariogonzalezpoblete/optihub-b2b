@@ -4,11 +4,7 @@ import React, { useState } from 'react';
 import { 
   Package, 
   Plane, 
-  CheckCircle2, 
   Search, 
-  MapPin, 
-  Building2, 
-  Truck, 
   ChevronRight,
   ShieldCheck,
   AlertCircle,
@@ -38,7 +34,7 @@ export default function SeguimientoPage() {
     if (!orderNumber.trim()) return;
     
     if (!isLoggedIn) {
-      setError("Debes iniciar sesión para rastrear tu pedido por seguridad.");
+      setError("Debe iniciar sesión con su cuenta de óptica para rastrear su pedido por seguridad.");
       return;
     }
 
@@ -55,96 +51,90 @@ export default function SeguimientoPage() {
         .single();
 
       if (sbError || !data) {
-        setError("Pedido no encontrado. Verifica el ID o asegúrate de haber iniciado sesión con la cuenta correcta.");
+        setError("Pedido no encontrado. Verifique el ID de orden o asegúrese de haber iniciado sesión con la cuenta titular.");
       } else {
         setTrackedOrder(data);
       }
-    } catch (err) {
-      setError("Ocurrió un error al buscar el pedido.");
+    } catch {
+      setError("Ocurrió un error al consultar el estado del pedido.");
     } finally {
       setIsSearching(false);
     }
   };
 
-  // Mapear estado real de B2B a Fase de Tracker
-  const getCurrentStage = (status: string, payment_status: string) => {
-    if (status === 'delivered') return 5;
-    if (status === 'shipped') return 4;
-    if (status === 'preparing') return 2;
-    if (payment_status === 'approved') return 1;
-    return 0; // Pendiente de pago / Cancelado
-  };
-
   return (
-    <main className="min-h-screen pt-24 pb-20 bg-slate-950">
+    <main className="min-h-screen bg-[#FAF9F6] text-[#0F0F0F] pb-24">
       {/* Header Tracker */}
-      <div className="bg-slate-900 border-b border-slate-800 pb-16 pt-8 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-32 opacity-10 pointer-events-none">
-          <Plane className="w-96 h-96 text-emerald-500 -rotate-12" />
+      <div className="bg-[#FFFFFF] border-b border-[#E6E2DD] pb-14 pt-12 relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-16 opacity-[0.04] pointer-events-none">
+          <Plane className="w-80 h-80 text-[#0F0F0F] -rotate-12" />
         </div>
         
         <div className="max-w-3xl mx-auto px-4 relative z-10 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-bold tracking-wide mb-6">
-            <ShieldCheck className="w-4 h-4" />
-            Tracker B2B Exclusivo
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#F7F3EB] border border-[#9E8256]/30 text-[#846C44] text-[10px] font-mono uppercase tracking-[0.2em] mb-4">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#9E8256]" />
+            Seguimiento Logístico Mayorista B2B
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-white mb-6 tracking-tight">
-            Rastrea tu Importación
+          <h1 className="font-serif text-3xl sm:text-5xl font-normal text-[#0F0F0F] mb-4 tracking-tight">
+            Rastreo de Importación USA–Chile
           </h1>
-          <p className="text-lg text-slate-400 mb-8 max-w-xl mx-auto">
-            Ingresa el UUID de tu orden para conocer el estado exacto en tiempo real.
+          <p className="text-xs sm:text-sm text-[#5C5A55] mb-8 max-w-xl mx-auto leading-relaxed">
+            Ingrese el código identificador (UUID) de su orden mayorista para consultar la etapa logística en tiempo real.
           </p>
 
-          <form onSubmit={handleSearch} className="relative max-w-xl mx-auto">
-            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-              <Search className="w-6 h-6 text-slate-500" />
+          <form onSubmit={handleSearch} className="max-w-xl mx-auto flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-[#787670] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Ej: 123e4567-e89b-12d3-a456-426614174000"
+                value={orderNumber}
+                onChange={(e) => setOrderNumber(e.target.value)}
+                className="w-full bg-[#FAF9F6] border border-[#E6E2DD] focus:bg-[#FFFFFF] focus:border-[#0F0F0F] py-3.5 pl-11 pr-4 text-xs sm:text-sm font-mono text-[#0F0F0F] placeholder-[#787670] outline-none transition"
+                required
+              />
             </div>
-            <input
-              type="text"
-              placeholder="Ej: 123e4567-e89b-12d3-a456-426614174000"
-              value={orderNumber}
-              onChange={(e) => setOrderNumber(e.target.value)}
-              className="w-full bg-slate-950 border-2 border-slate-800 focus:border-emerald-500 rounded-2xl py-5 pl-14 pr-36 text-lg text-white placeholder-slate-600 outline-none transition-all"
-              required
-            />
             <button
               type="submit"
               disabled={isSearching}
-              className="absolute inset-y-2 right-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-6 rounded-xl transition-all flex items-center gap-2 disabled:opacity-50"
+              className="bg-[#0F0F0F] hover:bg-[#262626] text-white text-[11px] uppercase tracking-[0.18em] font-medium px-6 py-3.5 transition flex items-center justify-center gap-2 disabled:opacity-50 border border-[#0F0F0F] cursor-pointer shrink-0"
             >
-              {isSearching ? 'Buscando...' : 'Rastrear'}
-              {!isSearching && <ArrowRight className="w-5 h-5" />}
+              {isSearching ? 'Consultando...' : 'Rastrear'}
+              {!isSearching && <ArrowRight className="w-4 h-4 text-[#9E8256]" />}
             </button>
           </form>
+
           {error && (
-            <div className="mt-6 flex items-center justify-center gap-2 text-rose-400 bg-rose-500/10 py-3 px-6 rounded-xl max-w-xl mx-auto border border-rose-500/20">
-              <AlertCircle className="w-5 h-5" />
-              <p className="font-semibold text-sm">{error}</p>
+            <div className="mt-6 flex items-center justify-center gap-2 text-[#9E3838] bg-[#FAF4F4] py-3 px-5 max-w-xl mx-auto border border-[#E6D0D0] text-xs">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <p className="font-medium">{error}</p>
             </div>
           )}
         </div>
       </div>
 
       {/* Resultados del Tracker */}
-      <div className="max-w-4xl mx-auto px-4 mt-12">
+      <div className="max-w-4xl mx-auto px-4 mt-10">
         {trackedOrder && (
           <div className="space-y-8 animate-fade-in">
             {/* Info Tarjeta */}
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div className="bg-[#FFFFFF] border border-[#E6E2DD] p-6 sm:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div>
-                <p className="text-sm font-bold text-emerald-400 mb-1 uppercase tracking-wider">Orden Encontrada</p>
-                <h2 className="text-2xl font-black text-white font-mono">
+                <p className="text-[10px] font-mono font-semibold text-[#9E8256] mb-1 uppercase tracking-[0.2em]">
+                  Orden Mayorista Localizada
+                </p>
+                <h2 className="font-serif text-2xl sm:text-3xl font-normal text-[#0F0F0F] font-mono">
                   #{trackedOrder.id.split('-')[0].toUpperCase()}
                 </h2>
-                <p className="text-slate-400 mt-2 flex items-center gap-2">
-                  <Package className="w-4 h-4" />
-                  Estado Interno: <span className="text-white font-bold uppercase">{trackedOrder.status}</span>
+                <p className="text-xs text-[#5C5A55] mt-2 flex items-center gap-2">
+                  <Package className="w-4 h-4 text-[#9E8256]" />
+                  Estado Operativo: <span className="text-[#0F0F0F] font-semibold uppercase font-mono">{trackedOrder.status}</span>
                 </p>
               </div>
               
-              <div className="text-left md:text-right">
-                <p className="text-sm text-slate-500 font-semibold mb-1">Fecha de Solicitud</p>
-                <p className="text-lg font-bold text-white">
+              <div className="text-left md:text-right border-t md:border-t-0 border-[#E6E2DD] pt-4 md:pt-0 w-full md:w-auto">
+                <p className="text-[10px] text-[#787670] uppercase tracking-wider font-medium mb-1">Fecha de Emisión</p>
+                <p className="text-sm font-semibold text-[#0F0F0F] font-mono">
                   {new Date(trackedOrder.created_at).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}
                 </p>
               </div>
@@ -156,9 +146,13 @@ export default function SeguimientoPage() {
               onOrderUpdated={(updated) => setTrackedOrder(updated)}
             />
             
-            <div className="text-center pt-4">
-              <Link href={`/mis-pedidos/${trackedOrder.id}`} className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 font-bold transition">
-                Ver detalle de productos y facturación <ChevronRight className="w-4 h-4" />
+            <div className="text-center pt-2">
+              <Link
+                href={`/mis-pedidos/${trackedOrder.id}`}
+                className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] font-medium text-[#0F0F0F] hover:text-[#9E8256] border border-[#0F0F0F] px-6 py-3 transition"
+              >
+                <span>Ver detalle de productos y facturación</span>
+                <ChevronRight className="w-4 h-4 text-[#9E8256]" />
               </Link>
             </div>
           </div>

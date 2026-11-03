@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { authenticateServerRequest } from '@/lib/auth/serverAuth';
+import { sendOrderTrackingUpdateEmail } from '@/lib/email';
 
 function getAdminSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -161,6 +162,34 @@ export async function PATCH(
     if (error) {
       console.error('[OrderDetail] Error updating order:', error.message || error);
       return Response.json({ error: 'Error al actualizar el pedido: ' + error.message }, { status: 500 });
+    }
+
+    if (
+      updatedOrder?.contacto_email &&
+      (body.stage !== undefined || body.tracking_number !== undefined || body.status === 'shipped' || body.status === 'delivered')
+    ) {
+      try {
+        const effectiveStage =
+          body.stage ||
+          (body.status === 'delivered' ? 'entregado' : body.status === 'shipped' ? 'reparto_chile' : 'logistica_usa');
+        await sendOrderTrackingUpdateEmail(
+          {
+            email: updatedOrder.contacto_email,
+            contacto_nombre: updatedOrder.contacto_nombre || updatedOrder.razon_social || 'Cliente Mayorista',
+            razon_social: updatedOrder.razon_social || 'Óptica',
+            externalReference: updatedOrder.external_reference || updatedOrder.id,
+            stage: effectiveStage,
+            shipping_provider: updatedOrder.shipping_provider,
+            tracking_number: updatedOrder.tracking_number,
+            customNote: body.customNote ? String(body.customNote).trim() : null,
+          },
+          {
+            idempotencyKey: `tracking_${updatedOrder.id}_${effectiveStage}_${updatedOrder.tracking_number || 'notrack'}`,
+          }
+        );
+      } catch (emailErr) {
+        console.warn('[OrderDetail] Error no fatal enviando correo de seguimiento:', emailErr);
+      }
     }
 
     return Response.json({ success: true, order: updatedOrder });

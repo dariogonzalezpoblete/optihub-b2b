@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import ProductImage from '@/components/ui/ProductImage';
 
 export interface SpotlightItem {
   id_ext: string;
@@ -220,16 +220,13 @@ export default function HeroSpotlight({ className = '' }: HeroSpotlightProps) {
           {/* Keyed image container para cross-fade sutil al rotar */}
           <div
             key={currentItem.id_ext}
-            className="relative w-full h-full transition-opacity duration-500 animate-fade-in"
+            className="relative w-full h-full transition-opacity duration-500 animate-fade-in flex items-center justify-center"
           >
-            <Image
-              unoptimized
+            <ProductImage
               src={currentItem.imagen_principal}
               alt={`Armazón ${currentItem.marca} ${currentItem.modelo}`}
-              fill
-              priority
-              className="object-contain mix-blend-multiply filter contrast-[1.05] group-hover/card:scale-105 transition-transform duration-500 ease-out"
-              sizes="(max-width: 1024px) 100vw, 35vw"
+              loading="eager"
+              className="w-full h-full object-contain mix-blend-multiply filter contrast-[1.05] group-hover/card:scale-105 transition-transform duration-500 ease-out"
             />
           </div>
         </div>

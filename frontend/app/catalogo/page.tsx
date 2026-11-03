@@ -3,16 +3,18 @@ import type { Metadata } from 'next';
 import { unstable_cache } from 'next/cache';
 import { supabase } from '@/lib/supabaseClient';
 import CatalogoClient from '@/components/catalog/CatalogoClient';
-import { normalizeText } from '@/lib/catalog/normalize';
-import { isFillerBrand } from '@/lib/catalog/brandCategories';
+import { calibreRangeKey, extractColorGroup, normalizeText, parseTamano } from '@/lib/catalog/normalize';
+import { isOpticalProduct, isSunProduct } from '@/lib/catalog/filterEngine';
 import { MARCOS_FACET_PUBLIC_COLUMNS, MARCOS_PUBLIC_COLUMNS } from '@/lib/catalog/types';
 
 interface CachedCatalogFacets {
   facetList: any[];
   allDbBrands: string[];
+  allDbColores: string[];
   allDbGeneros: string[];
   allDbMateriales: string[];
   allDbFormas: string[];
+  allDbTamanos: string[];
 }
 
 /**
@@ -52,19 +54,23 @@ export const getCachedCatalogFacets = unstable_cache(
       (item) => item.marca && item.marca.toLowerCase() !== 'select'
     );
     const allDbBrands = Array.from(new Set(facetList.map((r) => r.marca).filter((b: string) => b && b.toLowerCase() !== 'select')));
+    const allDbColores = Array.from(new Set(facetList.map((r) => r.color).filter((c: string) => Boolean(c))));
     const allDbGeneros = Array.from(new Set(facetList.map((r) => r.genero).filter((g: string) => g && g.toLowerCase() !== 'select')));
     const allDbMateriales = Array.from(new Set(facetList.map((r) => r.material).filter((m: string) => m && m.toLowerCase() !== 'select')));
     const allDbFormas = Array.from(new Set(facetList.map((r) => r.forma).filter((f: string) => f && f.toLowerCase() !== 'select')));
+    const allDbTamanos = Array.from(new Set(facetList.map((r) => r.tamano).filter((t: string) => Boolean(t))));
 
     return {
       facetList,
       allDbBrands,
+      allDbColores,
       allDbGeneros,
       allDbMateriales,
       allDbFormas,
+      allDbTamanos,
     };
   },
-  ['catalog-global-facets-v1'],
+  ['catalog-global-facets-v2'],
   {
     revalidate: 3600, // 1 hora de revalidación
     tags: ['catalog-facets'],
@@ -154,9 +160,11 @@ export default async function CatalogoPage({
   const {
     facetList,
     allDbBrands,
+    allDbColores,
     allDbGeneros,
     allDbMateriales,
     allDbFormas,
+    allDbTamanos,
   } = await getCachedCatalogFacets();
 
   // 3. Construcción de Query a Supabase (solo columnas públicas no sensibles; RLS filtra stock > 0 para anon)
@@ -165,91 +173,79 @@ export default async function CatalogoPage({
   // 4. Búsqueda por texto libre
   if (q) {
     const cleanQ = q.trim();
-    query = query.or(`modelo.ilike.%${cleanQ}%,marca.ilike.%${cleanQ}%,id_ext.ilike.%${cleanQ}%`);
-  }
-
-  // 4.1 Filtro por Categoría / Tipo (Monturas Ópticas vs Gafas de Sol)
-  if (tipo === 'optico') {
-    query = query.or('color.ilike.%demo%,color.ilike.%clear%');
-  } else if (tipo === 'sol') {
-    query = query.or('color.ilike.%smoke%,color.ilike.%gradient%,color.ilike.%mirror%,color.ilike.%polarized%,color.ilike.%tint%,color.ilike.%brown%');
+    query = query.or(`modelo.ilike.%${cleanQ}%,marca.ilike.%${cleanQ}%,id_ext.ilike.%${cleanQ}%,color.ilike.%${cleanQ}%`);
   }
 
   const parseList = (str: string | string[] | undefined) => {
     if (!str) return [];
-    if (Array.isArray(str)) return str;
-    return str.split(',').filter(Boolean);
+    if (Array.isArray(str)) return str.map(normalizeText).filter(Boolean);
+    return str.split(',').map(normalizeText).filter(Boolean);
   };
 
-  // 5. Filtros con resolución insensible a mayúsculas, tildes y espacios
+  // 5. Filtros sincronizados 1:1 con filterEngine.ts (insensibles a mayúsculas, tildes y símbolos)
   const marcas = parseList(params.marca);
   if (marcas.length > 0) {
     const matched = allDbBrands.filter((dbBrand) =>
-      marcas.some((m) => normalizeText(m) === normalizeText(dbBrand))
+      marcas.includes(normalizeText(dbBrand))
     );
-    if (matched.length > 0) {
-      query = query.in('marca', matched);
-    } else {
-      // Fallback si la marca no tuvo match exacto normalizado
-      const brandFilters = marcas.map((m) => `marca.ilike.%${m.replace(/[^a-zA-Z0-9]/g, '')}%`).join(',');
-      query = query.or(brandFilters);
-    }
+    query = query.in('marca', matched.length > 0 ? matched : ['__NO_MATCH__']);
   }
 
   const colores = parseList(params.color);
-  if (colores.length > 0) {
-    const colorFilters = colores.map((c) => {
-      if (c === 'negro') return 'color.ilike.%black%,color.ilike.%negro%';
-      if (c === 'carey') return 'color.ilike.%havana%,color.ilike.%tortoise%,color.ilike.%carey%';
-      if (c === 'dorado') return 'color.ilike.%gold%,color.ilike.%dorad%';
-      if (c === 'plateado') return 'color.ilike.%silver%,color.ilike.%gunmetal%,color.ilike.%platead%';
-      if (c === 'azul') return 'color.ilike.%blue%,color.ilike.%azul%,color.ilike.%navy%';
-      if (c === 'marron') return 'color.ilike.%brown%,color.ilike.%marron%,color.ilike.%cafe%';
-      if (c === 'gris') return 'color.ilike.%grey%,color.ilike.%gray%,color.ilike.%gris%';
-      if (c === 'rosa') return 'color.ilike.%pink%,color.ilike.%rose%,color.ilike.%red%,color.ilike.%rojo%,color.ilike.%violet%';
-      if (c === 'blanco') return 'color.ilike.%white%,color.ilike.%blanco%,color.ilike.%ivory%,color.ilike.%beige%';
-      if (c === 'cristal') return 'color.ilike.%crystal%,color.ilike.%clear%,color.ilike.%transparent%';
-      return `color.ilike.%${c}%`;
-    }).join(',');
-    if (colorFilters) {
-      query = query.or(colorFilters);
-    }
+  if (colores.length > 0 || tipo === 'optico' || tipo === 'sol') {
+    const matchedColores = allDbColores.filter((dbc) => {
+      if (colores.length > 0 && !colores.includes(extractColorGroup(dbc))) {
+        return false;
+      }
+      if (tipo === 'optico' && !isOpticalProduct({ color: dbc })) {
+        return false;
+      }
+      if (tipo === 'sol' && !isSunProduct({ color: dbc })) {
+        return false;
+      }
+      return true;
+    });
+    query = query.in('color', matchedColores.length > 0 ? matchedColores : ['__NO_MATCH__']);
   }
 
   const generos = parseList(params.genero);
   if (generos.length > 0) {
     const matched = allDbGeneros.filter((dbg) =>
-      generos.some((g) => normalizeText(g) === normalizeText(dbg))
+      generos.includes(normalizeText(dbg))
     );
-    if (matched.length > 0) {
-      query = query.in('genero', matched);
-    }
+    query = query.in('genero', matched.length > 0 ? matched : ['__NO_MATCH__']);
   }
 
   const materiales = parseList(params.material);
   if (materiales.length > 0) {
     const matched = allDbMateriales.filter((dbm) =>
-      materiales.some((m) => normalizeText(m) === normalizeText(dbm))
+      materiales.includes(normalizeText(dbm))
     );
-    if (matched.length > 0) {
-      query = query.in('material', matched);
-    }
+    query = query.in('material', matched.length > 0 ? matched : ['__NO_MATCH__']);
   }
 
   const formas = parseList(params.forma);
   if (formas.length > 0) {
     const matched = allDbFormas.filter((dbf) =>
-      formas.some((f) => normalizeText(f) === normalizeText(dbf))
+      formas.includes(normalizeText(dbf))
     );
-    if (matched.length > 0) {
-      query = query.in('forma', matched);
-    }
+    query = query.in('forma', matched.length > 0 ? matched : ['__NO_MATCH__']);
+  }
+
+  const calibres = parseList(params.calibre);
+  if (calibres.length > 0) {
+    const matchedTamanos = allDbTamanos.filter((dbt) => {
+      const dims = parseTamano(dbt);
+      if (!dims) return false;
+      return calibres.includes(calibreRangeKey(dims.calibre));
+    });
+    query = query.in('tamano', matchedTamanos.length > 0 ? matchedTamanos : ['__NO_MATCH__']);
   }
 
   // 6. Ordenamiento en SSR (anon): solo por columnas públicas autorizadas
   switch (sort) {
     case 'modelo':
-      query = query.order('modelo', { ascending: true });
+      query = query.order('marca', { ascending: true }).order('modelo', { ascending: true });
       break;
     default:
       query = query.order('id_ext', { ascending: true });

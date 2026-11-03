@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { useCartStore, getValidStock, getProductCartKey } from '@/store/useCartStore';
 import type { EnrichedMarco } from '@/lib/catalog/types';
 import { X, Lock, ShoppingBag, Ruler, AlertCircle, TrendingUp, ShieldCheck, Truck, Check, Plus, Minus } from 'lucide-react';
 import { getRotationBadge, calculateRetailProjection } from '@/lib/catalog/brandCategories';
+import ProductImage, { normalizeProductImageUrl } from '@/components/ui/ProductImage';
 
 interface Props {
   variants: EnrichedMarco[];
@@ -66,20 +66,32 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
   const currentImages = useMemo(() => {
     if (!activeVariant) return [];
     const list: string[] = [];
-    if (activeVariant.imagen_principal && activeVariant.imagen_principal.trim()) {
-      list.push(activeVariant.imagen_principal.trim());
+    if (activeVariant.imagen_principal) {
+      const norm = normalizeProductImageUrl(activeVariant.imagen_principal);
+      if (norm !== '/placeholder.svg') list.push(norm);
     }
-    if (activeVariant.imagenes_secundarias && activeVariant.imagenes_secundarias.trim()) {
-      const parts = activeVariant.imagenes_secundarias
+    const rawSec = activeVariant.imagenes_secundarias as unknown;
+    if (Array.isArray(rawSec)) {
+      rawSec.forEach((s) => {
+        if (typeof s === 'string') {
+          const norm = normalizeProductImageUrl(s);
+          if (norm !== '/placeholder.svg') list.push(norm);
+        }
+      });
+    } else if (typeof rawSec === 'string' && rawSec.trim()) {
+      rawSec
         .split(/[,;]/)
-        .map(s => s.trim())
-        .filter(s => s && s.startsWith('http'));
-      list.push(...parts);
+        .map((s) => s.trim())
+        .filter((s) => s && s.startsWith('http'))
+        .forEach((s) => {
+          const norm = normalizeProductImageUrl(s);
+          if (norm !== '/placeholder.svg') list.push(norm);
+        });
     }
     return Array.from(new Set(list));
   }, [activeVariant]);
 
-  const currentImageUrl = currentImages[activeImageIndex] || currentImages[0] || (activeVariant?.imagen_principal && activeVariant.imagen_principal.trim()) || "/placeholder.png";
+  const currentImageUrl = currentImages[activeImageIndex] || currentImages[0] || activeVariant?.imagen_principal || '/placeholder.svg';
 
   const retail = useMemo(() => {
     return activeVariant?.precio_neto_clp ? calculateRetailProjection(activeVariant.precio_neto_clp, activeVariant?.marca) : null;
@@ -180,17 +192,12 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
         <div className="w-full md:w-5/12 bg-[#FAF9F6] p-6 flex flex-col justify-between border-b md:border-b-0 md:border-r border-[#E6E2DD] overflow-y-auto">
           <div className="flex flex-col items-center w-full">
             {/* Imagen Principal con Transición Suave */}
-            <div className="aspect-[4/3] w-full flex items-center justify-center mb-4 relative group bg-[#FFFFFF] rounded-2xl border border-[#E6E2DD] p-4 overflow-hidden shadow-2xs">
-              <Image 
-                unoptimized 
-                key={`${activeVariant.id_ext}-${activeImageIndex}-${currentImageUrl}`}
+            <div className="aspect-[4/3] w-full flex items-center justify-center mb-4 relative group bg-[#F4F2ED] rounded-2xl border border-[#E6E2DD] p-4 overflow-hidden shadow-2xs">
+              <ProductImage 
                 src={currentImageUrl} 
                 alt={`${activeVariant.marca || ''} ${activeVariant.modelo || ''} ${activeVariant.color || ''}`.trim() || 'Foto de armazón'} 
-                fill
-                priority
                 loading="eager"
-                sizes="(max-width: 768px) 100vw, 40vw"
-                className="object-contain p-4 transition-all duration-300 group-hover:scale-105"
+                className="w-full h-full object-contain p-2 mix-blend-multiply transition-all duration-300 group-hover:scale-105"
               />
 
               {/* Badge flotante de Color en la foto */}
@@ -199,7 +206,7 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
               </div>
             </div>
 
-            {/* Selector de Miniaturas de Ángulos / Vistas (Eager Loading para carga instantánea) */}
+            {/* Selector de Miniaturas de Ángulos / Vistas */}
             {currentImages.length > 1 && (
               <div className="flex gap-2 mb-3 overflow-x-auto max-w-full pb-1 scrollbar-thin">
                 {currentImages.map((img, idx) => (
@@ -207,22 +214,19 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                     key={`${activeVariant.id_ext}-view-${idx}`}
                     type="button"
                     onClick={() => setActiveImageIndex(idx)}
-                    className={`relative w-14 h-14 rounded-xl border overflow-hidden flex-shrink-0 transition-all bg-[#FFFFFF] flex items-center justify-center ${
+                    className={`relative w-14 h-14 rounded-xl border overflow-hidden flex-shrink-0 transition-all bg-[#F4F2ED] flex items-center justify-center ${
                       idx === activeImageIndex 
                         ? 'border-[#9E8256] ring-2 ring-[#9E8256]/30 shadow-xs scale-102' 
                         : 'border-[#E6E2DD] opacity-70 hover:opacity-100 hover:border-[#82807A]'
                     }`}
                     title={`Vista ${idx + 1}`}
                   >
-                    <img 
+                    <ProductImage 
                       src={img} 
                       alt={`Vista ${idx + 1}`} 
-                      loading="eager"
-                      decoding="async"
-                      className="w-full h-full object-contain p-1"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
-                      }}
+                      loading="lazy"
+                      showSpinner={false}
+                      className="w-full h-full object-contain p-1 mix-blend-multiply"
                     />
                   </button>
                 ))}
@@ -317,7 +321,6 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                 <div className="flex flex-wrap gap-2">
                   {variants.map((v, i) => {
                     const isSelected = v.id_ext === activeVariant.id_ext;
-                    const swatchSrc = v.imagen_principal && v.imagen_principal.trim() ? v.imagen_principal.trim() : '/placeholder.png';
                     return (
                       <button
                         key={`swatch-${v.id_ext || i}`}
@@ -330,19 +333,16 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                         }`}
                         title={`${v.color || v.codigo_color || 'Variante'} (SKU: ${v.id_ext})`}
                       >
-                        {/* Miniatura del color con carga prioritaria */}
-                        <div className={`relative w-8 h-8 rounded-lg overflow-hidden bg-[#FFFFFF] border flex-shrink-0 flex items-center justify-center ${
+                        {/* Miniatura del color */}
+                        <div className={`relative w-8 h-8 rounded-lg overflow-hidden bg-[#F4F2ED] border flex-shrink-0 flex items-center justify-center ${
                           isSelected ? 'border-[#9E8256]' : 'border-[#E6E2DD]'
                         }`}>
-                          <img 
-                            src={swatchSrc} 
+                          <ProductImage 
+                            src={v.imagen_principal} 
                             alt={v.color || v.codigo_color || 'Variante'} 
-                            loading="eager"
-                            decoding="async"
-                            className="w-full h-full object-contain p-0.5"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
-                            }}
+                            loading="lazy"
+                            showSpinner={false}
+                            className="w-full h-full object-contain p-0.5 mix-blend-multiply"
                           />
                         </div>
 
@@ -386,7 +386,6 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                     const isOut = maxStock <= 0;
                     const isMaxInCart = !isOut && remainingStock <= 0;
                     const isSelected = v.id_ext === activeVariant.id_ext;
-                    const rowImgSrc = v.imagen_principal && v.imagen_principal.trim() ? v.imagen_principal.trim() : '/placeholder.png';
 
                     return (
                       <div 
@@ -404,18 +403,15 @@ export default function QuickViewModal({ variants, isOpen, onClose, initialVaria
                       >
                         {/* Miniatura de la variante y textos */}
                         <div className="flex items-center gap-3 flex-1 min-w-0 pr-2">
-                          <div className={`relative w-10 h-10 rounded-lg overflow-hidden bg-[#FFFFFF] border flex-shrink-0 flex items-center justify-center ${
+                          <div className={`relative w-10 h-10 rounded-lg overflow-hidden bg-[#F4F2ED] border flex-shrink-0 flex items-center justify-center ${
                             isSelected ? 'border-[#9E8256]' : 'border-[#E6E2DD]'
                           }`}>
-                            <img 
-                              src={rowImgSrc} 
+                            <ProductImage 
+                              src={v.imagen_principal} 
                               alt={v.color || v.codigo_color || 'Variante'} 
-                              loading="eager"
-                              decoding="async"
-                              className="w-full h-full object-contain p-0.5"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
-                              }}
+                              loading="lazy"
+                              showSpinner={false}
+                              className="w-full h-full object-contain p-0.5 mix-blend-multiply"
                             />
                           </div>
 

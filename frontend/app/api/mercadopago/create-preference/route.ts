@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { isValidRUT } from '@/lib/utils/rut';
+import { isUserB2BApproved } from '@/lib/auth/serverAuth';
 import {
   classifyCheckoutLeaseError,
   classifyCheckoutRpcFailureForRecovery,
@@ -2059,6 +2060,12 @@ export async function handleCreatePreference(
     
     if (authError || !user) {
       return NextResponse.json({ error: 'No autorizado: Token inválido o expirado.' }, { status: 401 });
+    }
+    if (!isUserB2BApproved(user)) {
+      return NextResponse.json(
+        { error: 'Su cuenta de óptica se encuentra pendiente de validación comercial SII.' },
+        { status: 403 }
+      );
     }
     verifiedUserId = user.id;
 

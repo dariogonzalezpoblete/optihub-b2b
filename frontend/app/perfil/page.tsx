@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { formatRUT, isValidRUT } from '@/lib/utils/rut';
 import { REGIONES_CHILE, getCommunesForRegion } from '@/lib/data/chileRegions';
-import { Building2, User, Phone, MapPin, Save, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Building2, User, Phone, MapPin, Save, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react';
 import type { Profile } from '@/lib/catalog/types';
 
 export default function PerfilPage() {
@@ -37,7 +38,7 @@ export default function PerfilPage() {
     const loadProfile = async () => {
       if (!user) return;
       try {
-        const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
         if (data) {
           setProfile(data);
         }
@@ -84,7 +85,6 @@ export default function PerfilPage() {
 
     setSaving(true);
     try {
-      // Upsert: Actualiza o inserta el perfil
       const { error } = await supabase.from('profiles').upsert({
         id: user!.id,
         first_name: profile.first_name,
@@ -101,7 +101,7 @@ export default function PerfilPage() {
 
       if (error) throw error;
       
-      setMsg({ type: 'success', text: 'Perfil actualizado exitosamente. (Las órdenes históricas no cambiarán).' });
+      setMsg({ type: 'success', text: 'Perfil comercial actualizado exitosamente. (Las órdenes históricas no cambiarán).' });
     } catch (error: any) {
       setMsg({ type: 'error', text: error.message || 'Error al guardar el perfil.' });
     } finally {
@@ -112,94 +112,164 @@ export default function PerfilPage() {
   if (!mounted || authLoading) return null;
 
   return (
-    <main className="min-h-screen pt-24 pb-20 bg-slate-950">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6">
-        <div className="mb-8 border-b border-slate-800 pb-8">
-          <h1 className="text-3xl font-black text-white flex items-center gap-3 tracking-tight">
-            Mi Perfil B2B
-          </h1>
-          <p className="text-slate-400 mt-2">
-            Gestiona tu identidad y datos de facturación para agilizar el checkout.
-          </p>
+    <main className="min-h-screen bg-[#FAF9F6] text-[#0F0F0F] pb-24">
+      <div className="border-b border-[#E6E2DD] bg-[#FFFFFF] py-10 px-4 sm:px-6 lg:px-8 mb-8">
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9E8256] block mb-1 font-mono">
+              CUENTA CORPORATIVA ÓPTICA
+            </span>
+            <h1 className="font-serif text-3xl sm:text-4xl font-normal text-[#0F0F0F] tracking-tight">
+              Mi Perfil B2B y Facturación SII
+            </h1>
+            <p className="text-[#5C5A55] text-xs sm:text-sm mt-2">
+              Gestione los datos tributarios y dirección de recepción de su óptica para agilizar sus pedidos mayoristas.
+            </p>
+          </div>
+          <Link
+            href="/mis-pedidos"
+            className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] font-medium text-[#0F0F0F] hover:text-[#9E8256] border border-[#E6E2DD] bg-[#FAF9F6] px-4 py-2.5 transition self-start sm:self-auto"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-[#9E8256]" />
+            <span>Mis Pedidos</span>
+          </Link>
         </div>
+      </div>
 
+      <div className="max-w-4xl mx-auto px-4 sm:px-6">
         {msg.text && (
-          <div className={`mb-8 p-4 rounded-xl flex items-start gap-3 border ${
-            msg.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+          <div className={`mb-8 p-4 flex items-start gap-3 border text-xs ${
+            msg.type === 'success'
+              ? 'bg-[#F4F8F5] border-[#C4D9C8] text-[#2D6A4F]'
+              : 'bg-[#FAF4F4] border-[#E6D0D0] text-[#9E3838]'
           }`}>
-            {msg.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" /> : <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />}
-            <p className="font-semibold">{msg.text}</p>
+            {msg.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-[#2D6A4F]" />
+            ) : (
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-[#9E3838]" />
+            )}
+            <p className="font-medium">{msg.text}</p>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-8">
           
           {/* Datos Personales */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8">
-            <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-              <User className="w-5 h-5 text-emerald-400" />
-              Contacto Principal
+          <div className="bg-[#FFFFFF] border border-[#E6E2DD] p-6 md:p-8">
+            <h2 className="font-serif text-xl font-normal text-[#0F0F0F] mb-6 pb-3 border-b border-[#E6E2DD] flex items-center gap-2.5">
+              <User className="w-4 h-4 text-[#9E8256]" />
+              Contacto Principal en Óptica
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-400">Nombres</label>
-                <input type="text" name="first_name" value={profile.first_name || ''} onChange={handleChange} className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition" />
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5A55] block">Nombres</label>
+                <input
+                  type="text"
+                  name="first_name"
+                  value={profile.first_name || ''}
+                  onChange={handleChange}
+                  className="w-full bg-[#FAF9F6] border border-[#E6E2DD] focus:bg-[#FFFFFF] focus:border-[#0F0F0F] px-4 py-3 text-sm text-[#0F0F0F] outline-none transition"
+                />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-400">Apellidos</label>
-                <input type="text" name="last_name" value={profile.last_name || ''} onChange={handleChange} className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition" />
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5A55] block">Apellidos</label>
+                <input
+                  type="text"
+                  name="last_name"
+                  value={profile.last_name || ''}
+                  onChange={handleChange}
+                  className="w-full bg-[#FAF9F6] border border-[#E6E2DD] focus:bg-[#FFFFFF] focus:border-[#0F0F0F] px-4 py-3 text-sm text-[#0F0F0F] outline-none transition"
+                />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-400 flex items-center gap-2"><Phone className="w-3 h-3"/> Teléfono</label>
-                <input type="tel" name="phone" value={profile.phone || ''} onChange={handleChange} className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition" />
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5A55] flex items-center gap-1.5">
+                  <Phone className="w-3 h-3 text-[#9E8256]" /> Teléfono Directo / WhatsApp
+                </label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={profile.phone || ''}
+                  onChange={handleChange}
+                  className="w-full bg-[#FAF9F6] border border-[#E6E2DD] focus:bg-[#FFFFFF] focus:border-[#0F0F0F] px-4 py-3 text-sm font-mono text-[#0F0F0F] outline-none transition"
+                />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-400">Email (Sesión)</label>
-                <input type="email" value={user?.email || ''} disabled className="w-full bg-slate-950 border border-slate-800/50 rounded-xl px-4 py-3 text-slate-500 outline-none cursor-not-allowed" />
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5A55] block">Correo Corporativo (Sesión)</label>
+                <input
+                  type="email"
+                  value={user?.email || ''}
+                  disabled
+                  className="w-full bg-[#F4F2ED] border border-[#E6E2DD] px-4 py-3 text-sm text-[#787670] outline-none cursor-not-allowed"
+                />
               </div>
             </div>
           </div>
 
           {/* Datos Empresa */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8">
-            <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-emerald-400" />
-              Datos de Facturación B2B
+          <div className="bg-[#FFFFFF] border border-[#E6E2DD] p-6 md:p-8">
+            <h2 className="font-serif text-xl font-normal text-[#0F0F0F] mb-6 pb-3 border-b border-[#E6E2DD] flex items-center gap-2.5">
+              <Building2 className="w-4 h-4 text-[#9E8256]" />
+              Datos Tributarios de Facturación Electrónica SII
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-400">RUT Empresa</label>
-                <input type="text" name="rut" placeholder="Ej: 76.123.456-K" value={profile.rut || ''} onChange={handleChange} className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition" />
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5A55] block">RUT Empresa / Óptica</label>
+                <input
+                  type="text"
+                  name="rut"
+                  placeholder="Ej: 76.123.456-K"
+                  value={profile.rut || ''}
+                  onChange={handleChange}
+                  className="w-full bg-[#FAF9F6] border border-[#E6E2DD] focus:bg-[#FFFFFF] focus:border-[#0F0F0F] px-4 py-3 text-sm font-mono text-[#0F0F0F] outline-none transition"
+                />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-400">Razón Social</label>
-                <input type="text" name="business_name" value={profile.business_name || ''} onChange={handleChange} className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition" />
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5A55] block">Razón Social</label>
+                <input
+                  type="text"
+                  name="business_name"
+                  value={profile.business_name || ''}
+                  onChange={handleChange}
+                  className="w-full bg-[#FAF9F6] border border-[#E6E2DD] focus:bg-[#FFFFFF] focus:border-[#0F0F0F] px-4 py-3 text-sm text-[#0F0F0F] outline-none transition"
+                />
               </div>
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-bold text-slate-400">Giro Comercial</label>
-                <input type="text" name="business_giro" value={profile.business_giro || ''} onChange={handleChange} className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition" />
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5A55] block">Giro Comercial SII</label>
+                <input
+                  type="text"
+                  name="business_giro"
+                  value={profile.business_giro || ''}
+                  onChange={handleChange}
+                  className="w-full bg-[#FAF9F6] border border-[#E6E2DD] focus:bg-[#FFFFFF] focus:border-[#0F0F0F] px-4 py-3 text-sm text-[#0F0F0F] outline-none transition"
+                />
               </div>
             </div>
           </div>
 
           {/* Despacho predeterminado */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8">
-            <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-emerald-400" />
-              Dirección de Despacho
+          <div className="bg-[#FFFFFF] border border-[#E6E2DD] p-6 md:p-8">
+            <h2 className="font-serif text-xl font-normal text-[#0F0F0F] mb-6 pb-3 border-b border-[#E6E2DD] flex items-center gap-2.5">
+              <MapPin className="w-4 h-4 text-[#9E8256]" />
+              Dirección de Recepción en Sucursal o Bodega
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-bold text-slate-400">Dirección Exacta</label>
-                <input type="text" name="billing_address" value={profile.billing_address || ''} onChange={handleChange} className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition" />
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5A55] block">Dirección Exacta</label>
+                <input
+                  type="text"
+                  name="billing_address"
+                  value={profile.billing_address || ''}
+                  onChange={handleChange}
+                  className="w-full bg-[#FAF9F6] border border-[#E6E2DD] focus:bg-[#FFFFFF] focus:border-[#0F0F0F] px-4 py-3 text-sm text-[#0F0F0F] outline-none transition"
+                />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-400">Región</label>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5A55] block">Región</label>
                 <select
                   name="region"
                   value={profile.region || ''}
                   onChange={handleChange}
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-white outline-none transition"
+                  className="w-full bg-[#FAF9F6] border border-[#E6E2DD] focus:bg-[#FFFFFF] focus:border-[#0F0F0F] px-4 py-3 text-sm text-[#0F0F0F] outline-none transition"
                 >
                   <option value="">Seleccione una región...</option>
                   {REGIONES_CHILE.map((r) => (
@@ -209,14 +279,14 @@ export default function PerfilPage() {
                   ))}
                 </select>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-400">Comuna</label>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5A55] block">Comuna</label>
                 <select
                   name="commune"
                   value={profile.commune || ''}
                   onChange={handleChange}
                   disabled={!profile.region}
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 disabled:bg-slate-900 disabled:text-slate-600 disabled:cursor-not-allowed rounded-xl px-4 py-3 text-white outline-none transition"
+                  className="w-full bg-[#FAF9F6] border border-[#E6E2DD] focus:bg-[#FFFFFF] focus:border-[#0F0F0F] disabled:bg-[#F4F2ED] disabled:text-[#787670] disabled:cursor-not-allowed px-4 py-3 text-sm text-[#0F0F0F] outline-none transition"
                 >
                   <option value="">
                     {profile.region ? 'Seleccione una comuna...' : 'Primero seleccione región'}
@@ -231,13 +301,13 @@ export default function PerfilPage() {
             </div>
           </div>
 
-          <div className="flex justify-end pt-4">
+          <div className="flex justify-end pt-2">
             <button
               type="submit"
               disabled={saving}
-              className="bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 text-slate-950 font-black py-4 px-8 rounded-xl transition-all flex items-center gap-2"
+              className="bg-[#0F0F0F] hover:bg-[#262626] disabled:bg-[#E6E2DD] disabled:text-[#787670] text-white text-[11px] uppercase tracking-[0.2em] font-medium py-4 px-8 transition flex items-center gap-2 border border-[#0F0F0F] cursor-pointer"
             >
-              {saving ? 'Guardando...' : <><Save className="w-5 h-5" /> Guardar Perfil B2B</>}
+              {saving ? 'Guardando...' : <><Save className="w-4 h-4 text-[#9E8256]" /> Guardar Perfil B2B</>}
             </button>
           </div>
 

@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRecentStore } from '@/store/useRecentStore';
 import { Clock, ArrowRight } from 'lucide-react';
+import ProductImage from '@/components/ui/ProductImage';
 
 export default function RecentlyViewed() {
   const { recentItems } = useRecentStore();
@@ -40,18 +40,12 @@ export default function RecentlyViewed() {
             className="group bg-[#FFFFFF] border border-[#E6E2DD] hover:border-[#0F0F0F] p-4 transition-all duration-300 flex flex-col justify-between"
           >
             <div className="aspect-[4/3] bg-[#F4F2ED] mb-3 p-2 flex items-center justify-center relative border border-[#E6E2DD] overflow-hidden">
-              {item.imagen_principal ? (
-                <Image
-                  unoptimized
-                  src={item.imagen_principal}
-                  alt={item.modelo}
-                  fill
-                  sizes="(max-width: 768px) 50vw, 20vw"
-                  className="object-contain p-2 mix-blend-multiply group-hover:scale-105 transition-transform duration-500"
-                />
-              ) : (
-                <span className="text-[10px] text-[#787670] uppercase">Sin imagen</span>
-              )}
+              <ProductImage
+                src={item.imagen_principal}
+                alt={`${item.marca} ${item.modelo}`}
+                loading="lazy"
+                className="w-full h-full object-contain p-1 mix-blend-multiply group-hover:scale-105 transition-transform duration-500"
+              />
             </div>
             <div className="mt-auto">
               <span className="text-[10px] font-semibold text-[#0F0F0F] uppercase tracking-[0.18em] block">

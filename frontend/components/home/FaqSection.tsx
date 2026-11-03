@@ -42,9 +42,9 @@ const FAQS: FaqItem[] = [
     linkHref: '/registro',
   },
   {
-    question: '¿Cómo opera la garantía y devoluciones ante defectos de fábrica o transporte?',
+    question: '¿Cómo opera la garantía y reclamaciones ante defectos de fábrica o errores de despacho?',
     answer:
-      'Operamos bajo una política estricta de venta firme B2B: cada armazón atraviesa un riguroso control de calidad unitario en Chile antes de su despacho, y debido a la logística internacional no existen cambios por rotación de stock, cambio de opinión ni retracto. Únicamente se aceptan reportes por daños evidentes de transporte o defectos de fábrica informados obligatoriamente dentro de los primeros 5 días hábiles desde la recepción física, respaldados por fotos o video a nuestro WhatsApp B2B (+56 9 8933 8537), procediendo a reposición prioritaria o Nota de Crédito Electrónica SII.',
+      'Operamos bajo modalidad de venta firme B2B con control de calidad unitario en Chile previo al despacho: se excluye el derecho a retracto y no se ofrecen cambios voluntarios por rotación de stock, gusto o error de selección de la óptica. Ante daños de transporte, discrepancias de despacho o defectos estructurales de fabricación, contamos con un protocolo de reclamación 100% local en Chile (con inspección de recepción dentro de 5 días hábiles y respaldo fotográfico vía WhatsApp B2B al +56 9 8933 8537 o contacto@optihub.cl), resolviendo en Chile mediante reposición, Nota de Crédito Electrónica SII o reembolso según corresponda, sin exigir devoluciones internacionales a EE. UU. y respetando siempre los derechos legales irrenunciables.',
     linkText: 'Ver políticas de venta firme y garantías B2B',
     linkHref: '/politicas-importacion-y-garantia',
   },

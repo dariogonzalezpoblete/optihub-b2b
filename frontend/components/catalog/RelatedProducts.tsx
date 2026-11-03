@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { ArrowRight, Eye } from 'lucide-react';
+import ProductImage from '@/components/ui/ProductImage';
 
 interface RelatedItem {
   id_ext: string;
@@ -18,7 +18,7 @@ interface Props {
   items: RelatedItem[];
 }
 
-export default function RelatedProducts({ brand, currentModel, items }: Props) {
+export default function RelatedProducts({ brand, items }: Props) {
   if (!items || items.length === 0) return null;
 
   return (
@@ -46,19 +46,17 @@ export default function RelatedProducts({ brand, currentModel, items }: Props) {
           <Link
             key={item.id_ext}
             href={`/producto/${encodeURIComponent(item.marca)}/${encodeURIComponent(item.modelo)}`}
-            className="group bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl overflow-hidden hover:border-[#9E8256] hover:shadow-lg transition-all duration-300 flex flex-col"
+            className="group bg-[#FFFFFF] border border-[#E6E2DD] rounded-none overflow-hidden hover:border-[#0F0F0F] transition-all duration-300 flex flex-col"
           >
-            <div className="relative aspect-[4/3] bg-[#FFFFFF] p-6 flex items-center justify-center border-b border-[#E6E2DD]/60">
-              <span className="absolute top-3 left-3 z-10 text-[10px] font-semibold uppercase tracking-wider text-[#888888] bg-[#FAF9F6] px-2 py-0.5 rounded border border-[#E6E2DD]">
+            <div className="relative aspect-[4/3] bg-[#F4F2ED] p-6 flex items-center justify-center border-b border-[#E6E2DD]">
+              <span className="absolute top-3 left-3 z-10 text-[10px] font-semibold uppercase tracking-wider text-[#0F0F0F] bg-[#FFFFFF]/90 px-2 py-0.5 border border-[#E6E2DD]">
                 {item.marca}
               </span>
-              <Image
-                unoptimized
-                src={item.imagen_principal || '/placeholder.png'}
+              <ProductImage
+                src={item.imagen_principal}
                 alt={`${item.marca} ${item.modelo}`}
-                fill
-                sizes="(max-width: 640px) 50vw, 25vw"
-                className="object-contain p-4 group-hover:scale-105 transition-transform duration-300"
+                loading="lazy"
+                className="w-full h-full object-contain p-2 mix-blend-multiply group-hover:scale-105 transition-transform duration-300"
               />
             </div>
 

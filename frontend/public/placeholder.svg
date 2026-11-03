@@ -1,20 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
-  <rect width="100%" height="100%" fill="#020617"/>
-  <rect x="20" y="20" width="360" height="260" rx="16" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
-  <g transform="translate(100, 90)" stroke="#334155" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Marco de lentes ópticos elegante -->
-    <path d="M 15 50 Q 45 10 75 50 Q 65 85 45 85 Q 15 85 15 50 Z" />
-    <path d="M 125 50 Q 155 10 185 50 Q 175 85 155 85 Q 125 85 125 50 Z" />
-    <!-- Puente nasal -->
-    <path d="M 75 42 Q 100 34 125 42" stroke-width="5" />
-    <!-- Patillas -->
-    <path d="M 15 48 L 0 40" stroke-width="5" />
-    <path d="M 185 48 L 200 40" stroke-width="5" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
+  <rect width="800" height="600" fill="#F4F2ED"/>
+  <!-- Architectural Grid Accent -->
+  <line x1="120" y1="300" x2="680" y2="300" stroke="#E5E2DC" stroke-width="1" stroke-dasharray="4 4"/>
+  <line x1="400" y1="160" x2="400" y2="440" stroke="#E5E2DC" stroke-width="1" stroke-dasharray="4 4"/>
+  <!-- Optical Frame Wireframe -->
+  <g stroke="#9E8256" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.65">
+    <!-- Left Rim -->
+    <rect x="200" y="235" width="160" height="115" rx="28" fill="#FAF9F6" fill-opacity="0.6"/>
+    <!-- Right Rim -->
+    <rect x="440" y="235" width="160" height="115" rx="28" fill="#FAF9F6" fill-opacity="0.6"/>
+    <!-- Bridge -->
+    <path d="M360 268 C380 252, 420 252, 440 268" stroke-width="2.5"/>
+    <!-- Top Browline Accent -->
+    <path d="M182 252 L205 245 M618 252 L595 245" stroke="#0F0F0F" stroke-width="2.5" opacity="0.45"/>
+    <!-- Endpieces / Hinges -->
+    <rect x="176" y="256" width="24" height="10" rx="2" fill="#9E8256" fill-opacity="0.25"/>
+    <rect x="600" y="256" width="24" height="10" rx="2" fill="#9E8256" fill-opacity="0.25"/>
   </g>
-  <text x="200" y="215" text-anchor="middle" fill="#64748b" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" letter-spacing="1">
-    FOTO NO DISPONIBLE
-  </text>
-  <text x="200" y="235" text-anchor="middle" fill="#475569" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="500">
-    OptiHub B2B Catalog
-  </text>
+  <text x="400" y="415" text-anchor="middle" fill="#8C8982" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" letter-spacing="4">OPTIHUB CHILE · ARMAZÓN ÓPTICO</text>
 </svg>

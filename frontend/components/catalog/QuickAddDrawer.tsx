@@ -2,12 +2,11 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { useCartStore, getValidStock, getProductCartKey } from '@/store/useCartStore';
 import type { EnrichedMarco } from '@/lib/catalog/types';
-import { X, Lock, ShoppingBag, Check, AlertCircle, ArrowRight, ShieldCheck, Sparkles, Plus, Minus } from 'lucide-react';
-import { calculateRetailProjection } from '@/lib/catalog/brandCategories';
+import { X, Lock, ShoppingBag, Check, AlertCircle, ArrowRight, Sparkles, Plus, Minus } from 'lucide-react';
+import ProductImage from '@/components/ui/ProductImage';
 
 interface QuickAddDrawerProps {
   isOpen: boolean;
@@ -253,17 +252,11 @@ export default function QuickAddDrawer({
         {activeVariant && (
           <div className="px-5 sm:px-6 py-3 bg-[#FFFFFF] border-b border-[#E6E2DD] flex items-center gap-4">
             <div className="relative w-16 h-14 bg-[#F4F2ED] border border-[#E6E2DD] shrink-0 flex items-center justify-center p-1">
-              <img
-                src={
-                  activeVariant.imagen_principal && activeVariant.imagen_principal.trim()
-                    ? activeVariant.imagen_principal.trim()
-                    : '/placeholder.png'
-                }
+              <ProductImage
+                src={activeVariant.imagen_principal}
                 alt={activeVariant.color || activeVariant.codigo_color || 'Variante'}
+                loading="eager"
                 className="w-full h-full object-contain mix-blend-multiply"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
-                }}
               />
             </div>
             <div className="min-w-0 flex-1">
@@ -332,10 +325,6 @@ export default function QuickAddDrawer({
                 const isMaxInCart = !isOutOfStock && remainingStock <= 0;
                 const isSelected = v.id_ext === activeVariant?.id_ext;
                 const qtySelected = quantities[v.id_ext] || 0;
-                const rowImgSrc =
-                  v.imagen_principal && v.imagen_principal.trim()
-                    ? v.imagen_principal.trim()
-                    : '/placeholder.png';
 
                 return (
                   <div
@@ -359,13 +348,12 @@ export default function QuickAddDrawer({
                             isSelected ? 'border-[#0F0F0F]' : 'border-[#E6E2DD]'
                           }`}
                         >
-                          <img
-                            src={rowImgSrc}
+                          <ProductImage
+                            src={v.imagen_principal}
                             alt={v.color || v.codigo_color || 'Color'}
+                            loading="lazy"
+                            showSpinner={false}
                             className="w-full h-full object-contain mix-blend-multiply"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
-                            }}
                           />
                         </div>
 

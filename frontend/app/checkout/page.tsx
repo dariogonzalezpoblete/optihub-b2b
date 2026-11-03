@@ -30,6 +30,7 @@ import {
   X,
   UserCheck,
 } from 'lucide-react';
+import ProductImage from '@/components/ui/ProductImage';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -44,7 +45,7 @@ export default function CheckoutPage() {
   const mpPublicKey = getMercadoPagoPublicKey();
   const isSandboxFrontend = isMercadoPagoSandboxMode(undefined, mpPublicKey);
 
-  const { user, isLoggedIn, loading: authLoading } = useAuth();
+  const { user, isLoggedIn, isB2BApproved, loading: authLoading } = useAuth();
   const cart = useCartStore((state) => state.cart);
   const setCart = useCartStore((state) => state.setCart);
   const cartId = useCartStore((state) => state.cartId);
@@ -79,6 +80,10 @@ export default function CheckoutPage() {
     if (mounted && !authLoading) {
       if (!isLoggedIn) {
         router.push('/login?redirect=/checkout');
+        return;
+      }
+      if (!isB2BApproved) {
+        router.push('/catalogo');
         return;
       }
 
@@ -788,15 +793,13 @@ export default function CheckoutPage() {
                     return (
                       <div key={key} className="pt-2.5 first:pt-0 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-11 h-11 rounded-lg bg-[#FFFFFF] border border-[#E6E2DD] p-1 flex items-center justify-center shrink-0">
-                            <img
-                              src={item.producto.imagen_principal || '/placeholder.png'}
+                          <div className="relative w-11 h-11 rounded-lg bg-[#F4F2ED] border border-[#E6E2DD] p-1 flex items-center justify-center shrink-0 overflow-hidden">
+                            <ProductImage
+                              src={item.producto.imagen_principal}
                               alt={item.producto.modelo}
-                              className="max-h-full max-w-full object-contain"
-                              onError={(e) => {
-                                e.currentTarget.onerror = null;
-                                e.currentTarget.src = '/placeholder.png';
-                              }}
+                              loading="lazy"
+                              showSpinner={false}
+                              className="max-h-full max-w-full object-contain mix-blend-multiply"
                             />
                           </div>
                           <div className="min-w-0">

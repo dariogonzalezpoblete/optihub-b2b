@@ -15,6 +15,10 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
+import { supabase } from '@/lib/supabaseClient';
+
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Términos y Condiciones Mayoristas B2B | OPTIHUB Chile',
   description:
@@ -24,7 +28,19 @@ export const metadata: Metadata = {
   },
 };
 
-export default function TerminosYCondicionesPage() {
+export default async function TerminosYCondicionesPage() {
+  let catalogCountLabel = 'más de 1.900';
+  try {
+    const { count } = await supabase
+      .from('marcos')
+      .select('id_ext', { count: 'exact', head: true });
+    if (typeof count === 'number' && count > 0) {
+      catalogCountLabel = `más de ${(Math.floor(count / 100) * 100).toLocaleString('es-CL')}`;
+    }
+  } catch {
+    // Fallback a más de 1.900
+  }
+
   return (
     <div className="min-h-screen bg-[#FAF9F6] text-[#0F0F0F]">
       {/* HEADER EDITORIAL */}
@@ -119,7 +135,7 @@ export default function TerminosYCondicionesPage() {
                 <strong className="text-[#0F0F0F]">No se comercializan productos a consumidores finales (B2C):</strong> Queda estrictamente excluida la venta a personas naturales que adquieran productos para uso o consumo particular.
               </li>
               <li>
-                <strong className="text-[#0F0F0F]">Inaplicabilidad de Normativa SERNAC / Retracto:</strong> Por tratarse de contratos de compraventa mercantil entre personas jurídicas o comerciantes para su reventa o inserción productiva, <strong className="text-[#0F0F0F]">no aplican las disposiciones sobre derecho a retracto unilateral de la Ley N° 19.496 sobre Protección de los Derechos de los Consumidores</strong>, rigiéndose íntegramente por el Código de Comercio de Chile.
+                <strong className="text-[#0F0F0F]">Exclusión Expresa del Derecho a Retracto:</strong> Por tratarse de contratos de compraventa mercantil mayorista entre personas jurídicas o comerciantes destinados a la reventa o giro comercial, regidos por el Código de Comercio de Chile, y conforme asimismo a la facultad de exclusión prevista en el artículo 3 bis letra b) de la Ley N° 19.496 para contratos celebrados por medios electrónicos, <strong className="text-[#0F0F0F]">se informa expresamente antes de contratar que el comprador no podrá poner término unilateralmente al contrato ni ejercer derecho a retracto</strong>.
               </li>
               <li>
                 <strong className="text-[#0F0F0F]">Validación KYC (Know Your Customer) Óptico:</strong> Para habilitar la visualización de valores netos mayoristas y procesar órdenes de compra, la entidad solicitante debe acreditar un RUT de persona jurídica o natural con inicio de actividades vigente ante el Servicio de Impuestos Internos (SII) en giros afines (venta minorista de artículos ópticos, consultas oftalmológicas, centros médicos, talleres de biselado o distribución afín).
@@ -143,14 +159,14 @@ export default function TerminosYCondicionesPage() {
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-[#5C5A55] leading-relaxed">
-              Con el propósito de garantizar economías de escala en el flete aéreo internacional y brindar tarifas directas de origen:
+              Con el propósito de garantizar economías de escala en el flete aéreo internacional y brindar tarifas directas de origen en un catálogo activo de <strong className="text-[#0F0F0F]">{catalogCountLabel} armazones originales</strong>:
             </p>
             <div className="bg-[#FAF9F6] border-l-2 border-[#9E8256] p-4 text-xs sm:text-sm text-[#0F0F0F] space-y-2">
               <p className="font-semibold">
                 Cantidad Mínima de Pedido (MOQ): 10 Unidades Combinables por Orden.
               </p>
               <p className="text-[#5C5A55]">
-                La óptica cliente <strong className="text-[#0F0F0F]">no está obligada</strong> a adquirir 10 armazones del mismo modelo o marca. El carro de compras mayorista permite combinar libremente marcas (ej. Tom Ford, Burberry, Ferragamo, Guess, Nike, etc.), modelos oftálmicos, solares, materiales y calibres hasta alcanzar o superar el umbral mínimo de diez (10) piezas.
+                La óptica cliente <strong className="text-[#0F0F0F]">no está obligada</strong> a adquirir 10 armazones del mismo modelo o marca. El carro de compras mayorista permite combinar libremente marcas (ej. Tom Ford, Burberry, Ferragamo, Chopard, Montblanc, Guess, Nike, etc.), modelos oftálmicos, solares, materiales y calibres hasta alcanzar o superar el umbral mínimo de diez (10) piezas.
               </p>
             </div>
             <p className="text-xs sm:text-sm text-[#5C5A55] leading-relaxed">
@@ -250,19 +266,19 @@ export default function TerminosYCondicionesPage() {
                 CLÁUSULA SEXTA
               </span>
               <h2 className="font-serif text-xl sm:text-2xl text-[#0F0F0F] font-normal">
-                Política Estricta de Venta Firme, Control de Calidad y Régimen de Garantías
+                Política de Venta Firme, Control de Calidad, Reclamaciones Locales y Régimen de Garantías
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-[#5C5A55] leading-relaxed">
-              Las adquisiciones realizadas en OPTIHUB constituyen contratos de compraventa mercantil entre partes comerciales regulados por el Código de Comercio de la República de Chile (artículos 130, 144, 158 y siguientes). Conforme a la legislación chilena y a las características técnicas y logísticas de la importación internacional consolidada, las partes estipulan expresamente las siguientes condiciones esenciales:
+              Las adquisiciones realizadas en OPTIHUB constituyen contratos de compraventa mercantil entre partes comerciales regulados por el Código de Comercio de la República de Chile (artículos 130, 144, 158 y siguientes). Conforme a la legislación chilena y a las características técnicas y logísticas de la importación internacional consolidada, las partes estipulan expresamente las siguientes condiciones:
             </p>
 
             <div className="bg-[#FAF9F6] border-l-2 border-[#9E8256] p-4 text-xs sm:text-sm text-[#0F0F0F] space-y-2">
               <p className="font-semibold uppercase tracking-wider text-[11px] text-[#846C44]">
-                1. Naturaleza Jurídica de Venta Firme (Firm Sale) e Inviabilidad de Retorno a Origen
+                1. Naturaleza de Venta Firme (Firm Sale) y Gestión Posventa 100% Local en Chile
               </p>
               <p className="text-[#5C5A55] leading-relaxed">
-                Toda orden confirmada y facturada opera bajo el principio comercial vinculante de <strong className="text-[#0F0F0F]">VENTA FIRME</strong>. Debido a los elevados costos de flete aéreo internacional, aranceles aduaneros de internación en Chile (DDP) y la complejidad logística de reexportación internacional hacia Estados Unidos, <strong className="text-[#0F0F0F]">es absolutamente inviable realizar devoluciones de mercadería o despachos de retorno hacia origen</strong>.
+                Toda orden confirmada y facturada opera bajo la modalidad comercial de <strong className="text-[#0F0F0F]">VENTA FIRME</strong>. Debido a la estructura de importación consolidada desde Estados Unidos bajo régimen DDP en Chile, no se habilita logística inversa internacional para devoluciones discrecionales. Al mismo tiempo, <strong className="text-[#0F0F0F]">OPTIHUB jamás exigirá a la óptica cliente que exporte o envíe un producto de regreso a Estados Unidos como procedimiento ordinario de reclamo o garantía</strong>; toda evaluación y solución procedente se gestiona íntegramente en Chile.
               </p>
             </div>
 
@@ -277,49 +293,49 @@ export default function TerminosYCondicionesPage() {
                 <ul className="list-disc pl-5 space-y-1">
                   <li>Alineación estructural de aros, puente, varillas y plaquetas.</li>
                   <li>Tensión, fijación y recorrido mecánico de bisagras rígidas y sistemas flex.</li>
-                  <li>Ausencia absoluta de rayas, fisuras, porosidades o astilladuras en frentes y terminales.</li>
+                  <li>Ausencia de rayas, fisuras, porosidades o astilladuras en frentes y terminales.</li>
                   <li>Inclusión íntegra del empaque oficial de vitrina por unidad: estuche rígido original de la marca, paño de microfibra oficial y folletería técnica de fábrica.</li>
                 </ul>
               </div>
 
               <div className="p-4 border border-[#E6E2DD] bg-[#FAF4F4]/40 space-y-2">
                 <strong className="text-[#9E3838] block uppercase tracking-wider text-[11px]">
-                  3. Exclusiones Absolutas de Cambio o Devolución (Inaplicabilidad de Retracto SERNAC)
+                  3. Exclusión de Retracto y de Cambios Voluntarios por Gusto o Rotación
                 </strong>
                 <p>
-                  En conformidad con la legislación mercantil chilena —en la cual la Ley N° 19.496 sobre Protección de los Derechos de los Consumidores y las facultades de retracto unilateral del SERNAC <strong className="text-[#0F0F0F]">no aplican a transacciones entre empresas (B2B)</strong> para la reventa o integración en actividades comerciales—, <strong className="text-[#0F0F0F]">queda estrictamente prohibido y no procederá cambio ni devolución alguna fundado en</strong>:
+                  En conformidad con la normativa mercantil aplicable a compraventas mayoristas para reventa y con la exclusión expresa del derecho a retracto informada conforme al artículo 3 bis letra b) de la Ley N° 19.496, <strong className="text-[#0F0F0F]">OPTIHUB no ofrece tickets de cambio voluntarios ni admite devoluciones discrecionales fundadas en</strong>:
                 </p>
                 <ul className="list-disc pl-5 space-y-1 text-[#5C5A55]">
-                  <li><strong className="text-[#0F0F0F]">Baja rotación de inventario:</strong> La óptica adquirente asume íntegramente el riesgo comercial de rotación y venta en sus locales.</li>
-                  <li><strong className="text-[#0F0F0F]">Cambio de opinión o arrepentimiento:</strong> No se admiten cancelaciones ni retractos una vez emitida la Factura Electrónica.</li>
-                  <li><strong className="text-[#0F0F0F]">Errores de elección atribuibles a la óptica:</strong> Siendo el catálogo mayorista 100% combinable y configurable por la óptica (marcas, modelos, calibres, colores), cualquier error al conformar el lote es de responsabilidad exclusiva del comprador.</li>
+                  <li><strong className="text-[#0F0F0F]">Baja rotación de inventario:</strong> La óptica adquirente asume el riesgo comercial de rotación y comercialización en sus locales.</li>
+                  <li><strong className="text-[#0F0F0F]">Cambio de gusto, preferencia o arrepentimiento:</strong> No se admiten cambios voluntarios por preferencia estética, color, forma o modelo una vez confirmada la orden.</li>
+                  <li><strong className="text-[#0F0F0F]">Errores de selección atribuibles a la óptica:</strong> Siendo el catálogo mayorista 100% combinable y seleccionado autónomamente por el comprador (marcas, modelos, calibres, colores), la elección del surtido es de responsabilidad del cliente.</li>
                 </ul>
               </div>
 
               <div className="p-4 border border-[#E6E2DD] bg-[#FFFFFF] space-y-2">
                 <strong className="text-[#0F0F0F] block uppercase tracking-wider text-[11px]">
-                  4. Únicas Causales Admitidas: Daño Evidente de Transporte o Defecto de Fábrica
+                  4. Procedimiento Local de Reclamación por Defectos de Fábrica, Transporte o Error de Despacho
                 </strong>
                 <p>
-                  Únicamente serán admitidos reportes comerciales por:
+                  Procederá la evaluación comercial y técnica local en Chile ante reportes por:
                 </p>
                 <ul className="list-disc pl-5 space-y-1">
-                  <li><strong className="text-[#0F0F0F]">Daño evidente originado en el transporte nacional:</strong> Deformación, quiebre o aplastamiento derivado del traslado.</li>
-                  <li><strong className="text-[#0F0F0F]">Vicio o defecto estructural de fabricación:</strong> Fallas no imputables a manipulación en taller óptico, forzamiento de bisagras o biselado de cristales.</li>
+                  <li><strong className="text-[#0F0F0F]">Daño originado en el transporte nacional o discrepancia de despacho:</strong> Deformación, rotura en tránsito o diferencia entre el SKU facturado y el recibido.</li>
+                  <li><strong className="text-[#0F0F0F]">Defecto estructural de fabricación:</strong> Fallas de origen en materiales, soldaduras o mecanismos flex no imputables a manipulación en taller óptico, exposición térmica indebida o montaje/biselado de cristales.</li>
                 </ul>
                 <div className="mt-3 p-3.5 bg-[#FAF6ED] border border-[#E6D7B8] space-y-2">
                   <p className="font-semibold text-[#846C44] uppercase tracking-wider text-[10px]">
-                    Requisitos Formales y Plazo Fatal para la Notificación:
+                    Protocolo de Recepción e Inspección Operativa:
                   </p>
                   <ul className="list-disc pl-5 space-y-1.5 text-xs text-[#5C5A55]">
                     <li>
-                      <strong className="text-[#0F0F0F]">Plazo Fatal Improrrogable:</strong> Máximo de <strong className="text-[#0F0F0F]">cinco (5) días hábiles</strong> contados exactamente desde la recepción física del bulto según la guía del transportista.
+                      <strong className="text-[#0F0F0F]">Inspección a la Recepción (5 días hábiles):</strong> Al recibir el bulto, la óptica deberá verificar el estado exterior del empaque, las cantidades y la correspondencia de SKUs, reportando cualquier daño de transporte o discrepancia de despacho dentro de los <strong className="text-[#0F0F0F]">cinco (5) días hábiles</strong> siguientes a la entrega registrada por el courier (conforme a las reglas de recepción mercantil del Código de Comercio).
                     </li>
                     <li>
-                      <strong className="text-[#0F0F0F]">Canal Obligatorio:</strong> Comunicación remitida formalmente vía WhatsApp B2B corporativo al <strong className="text-[#0F0F0F]">+56 9 8933 8537</strong> o al correo <a href="mailto:contacto@optihub.cl" className="text-[#9E8256] underline font-medium">contacto@optihub.cl</a>.
+                      <strong className="text-[#0F0F0F]">Canal Oficial en Chile:</strong> Comunicación remitida vía WhatsApp B2B corporativo al <strong className="text-[#0F0F0F]">+56 9 8933 8537</strong> o al correo <a href="mailto:contacto@optihub.cl" className="text-[#9E8256] underline font-medium">contacto@optihub.cl</a>.
                     </li>
                     <li>
-                      <strong className="text-[#0F0F0F]">Respaldo Audiovisual Indispensable:</strong> Registro fotográfico en alta resolución y/o video continuo del desempaque y del daño/defecto, individualizando el SKU y adjuntando la Factura Electrónica emitida por OPTICA MULTIFOCUS LIMITADA.
+                      <strong className="text-[#0F0F0F]">Antecedentes Requeridos:</strong> Fotografías nítidas y/o video del producto y su empaque, indicando el número de pedido o Factura Electrónica SII, el código de SKU y lote correspondiente para su evaluación técnica local.
                     </li>
                   </ul>
                 </div>
@@ -327,10 +343,13 @@ export default function TerminosYCondicionesPage() {
 
               <div className="p-4 border border-[#E6E2DD] bg-[#FAF9F6] space-y-2">
                 <strong className="text-[#0F0F0F] block uppercase tracking-wider text-[11px]">
-                  5. Firmeza Definitiva y Caducidad
+                  5. Mecanismos de Resolución en Chile y Salvaguarda de Derechos Legales Irrenunciables
                 </strong>
                 <p className="leading-relaxed">
-                  Vencido el plazo fatal de cinco (5) días hábiles sin recepción de reclamo formal respaldado, o verificado en nuestros registros que la pieza egresó en perfectas condiciones del control de calidad unitario en Chile, <strong className="text-[#0F0F0F]">la venta es jurídicamente firme y definitiva, extinguiéndose toda acción ulterior y no existiendo bajo ningún concepto devoluciones de piezas ni reembolsos de dinero</strong>.
+                  Una vez evaluados los antecedentes y verificada la procedencia del reclamo en Chile, OPTIHUB resolverá localmente la incidencia mediante la <strong className="text-[#0F0F0F]">reposición de la pieza, la emisión de una Nota de Crédito Electrónica SII en CLP o el reembolso correspondiente</strong>, coordinando en Chile la recepción de la pieza defectuosa cuando sea necesario sin costos ni envíos internacionales hacia Estados Unidos para la óptica.
+                </p>
+                <p className="leading-relaxed">
+                  El vencimiento del plazo operativo de cinco (5) días hábiles acredita la recepción conforme del despacho en cuanto a bultos, empaque exterior y referencias entregadas, <strong className="text-[#0F0F0F]">pero no extingue por sí solo los derechos o acciones legales por vicios o defectos de fabricación que pudieren corresponder conforme a la ley chilena</strong>. Sin perjuicio de la naturaleza mercantil mayorista de las operaciones celebradas para reventa (regidas por el Código de Comercio), <strong className="text-[#0F0F0F]">nada de lo dispuesto en estos Términos se interpretará como una eliminación, renuncia o limitación de la garantía legal o de los derechos irrenunciables que pudieren asistir al comprador por mandato legal imperativo</strong> (incluyendo aquellos supuestos excepcionales en que resultaren aplicables disposiciones de la Ley N° 19.496 o de la Ley N° 20.416).
                 </p>
               </div>
             </div>

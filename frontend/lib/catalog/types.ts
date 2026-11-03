@@ -28,7 +28,7 @@ export const MARCOS_PUBLIC_COLUMNS =
  * Columnas públicas mínimas para el cálculo de facetas del catálogo en SSR (`anon`).
  */
 export const MARCOS_FACET_PUBLIC_COLUMNS =
-  'id, id_ext, marca, modelo, genero, material, forma, tamano';
+  'id, id_ext, marca, modelo, color, codigo_color, genero, material, forma, tamano, upc';
 
 /**
  * Columnas comerciales B2B adicionales autorizadas únicamente para el rol `authenticated`.

@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useCartStore, getValidStock, getProductCartKey } from '@/store/useCartStore';
@@ -13,6 +12,7 @@ import {
 } from 'lucide-react';
 import { calculateRetailProjection } from '@/lib/catalog/brandCategories';
 import { trackB2BEvent } from '@/lib/analytics';
+import ProductImage, { normalizeProductImageUrl } from '@/components/ui/ProductImage';
 
 interface Props {
   variants: EnrichedMarco[];
@@ -134,19 +134,31 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
   const images = useMemo(() => {
     const list: string[] = [];
     if (activeVariant?.imagen_principal) {
-      list.push(activeVariant.imagen_principal.trim());
+      const norm = normalizeProductImageUrl(activeVariant.imagen_principal);
+      if (norm !== '/placeholder.svg') list.push(norm);
     }
-    if (activeVariant?.imagenes_secundarias) {
-      const sec = activeVariant.imagenes_secundarias
-        .split(',')
+    const rawSec = activeVariant?.imagenes_secundarias as unknown;
+    if (Array.isArray(rawSec)) {
+      rawSec.forEach((s) => {
+        if (typeof s === 'string') {
+          const norm = normalizeProductImageUrl(s);
+          if (norm !== '/placeholder.svg') list.push(norm);
+        }
+      });
+    } else if (typeof rawSec === 'string' && rawSec.trim()) {
+      rawSec
+        .split(/[,;]/)
         .map((s) => s.trim())
-        .filter(Boolean);
-      list.push(...sec);
+        .filter(Boolean)
+        .forEach((s) => {
+          const norm = normalizeProductImageUrl(s);
+          if (norm !== '/placeholder.svg') list.push(norm);
+        });
     }
     return Array.from(new Set(list));
   }, [activeVariant]);
 
-  const currentImage = images[activeImageIndex] || activeVariant?.imagen_principal || '/placeholder.png';
+  const currentImage = images[activeImageIndex] || images[0] || activeVariant?.imagen_principal || '/placeholder.svg';
 
   // Manejo de cantidades en matriz
   const handleQuantityChange = (sku: string, val: string, maxStock: number, remainingStock: number) => {
@@ -287,13 +299,11 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
               </div>
 
               <div className="relative w-full h-full flex items-center justify-center">
-                <Image
+                <ProductImage
                   src={currentImage}
                   alt={`${activeVariant.marca} ${activeVariant.modelo} ${activeVariant.color || ''}`}
-                  fill
-                  priority
-                  sizes="(max-width: 1024px) 100vw, 50vw"
-                  className="object-contain p-4 mix-blend-multiply transition-all duration-300"
+                  loading="eager"
+                  className="w-full h-full object-contain p-4 mix-blend-multiply transition-all duration-300"
                 />
               </div>
             </div>
@@ -312,12 +322,12 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                         : 'border-[#E6E2DD] hover:border-[#0F0F0F] opacity-70 hover:opacity-100'
                     }`}
                   >
-                    <Image
+                    <ProductImage
                       src={img}
                       alt={`Toma ${idx + 1}`}
-                      fill
-                      sizes="64px"
-                      className="object-contain p-1 mix-blend-multiply"
+                      loading="lazy"
+                      showSpinner={false}
+                      className="w-full h-full object-contain p-1 mix-blend-multiply"
                     />
                   </button>
                 ))}
@@ -498,7 +508,6 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                   <div className="flex flex-wrap gap-2">
                     {b2bVariants.map((v, i) => {
                       const isSelected = v.id_ext === activeVariant?.id_ext;
-                      const swatchSrc = v.imagen_principal && v.imagen_principal.trim() ? v.imagen_principal.trim() : '/placeholder.png';
                       return (
                         <button
                           key={`swatch-detail-${v.id_ext || i}`}
@@ -514,15 +523,12 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                           <div className={`relative w-8 h-8 overflow-hidden bg-[#F4F2ED] border flex-shrink-0 flex items-center justify-center ${
                             isSelected ? 'border-[#0F0F0F]' : 'border-[#E6E2DD]'
                           }`}>
-                            <img 
-                              src={swatchSrc} 
+                            <ProductImage 
+                              src={v.imagen_principal} 
                               alt={v.color || v.codigo_color || 'Variante'} 
-                              loading="eager"
-                              decoding="async"
+                              loading="lazy"
+                              showSpinner={false}
                               className="w-full h-full object-contain p-0.5 mix-blend-multiply"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
-                              }}
                             />
                           </div>
 
@@ -649,7 +655,6 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                       const isMaxInCart = !outOfStock && remainingStock <= 0;
                       const isSelected = v.id_ext === activeVariant?.id_ext;
                       const qtySelected = quantities[v.id_ext] || 0;
-                      const rowImgSrc = v.imagen_principal && v.imagen_principal.trim() ? v.imagen_principal.trim() : '/placeholder.png';
 
                       return (
                         <div 
@@ -672,15 +677,12 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                             <div className={`relative w-10 h-10 overflow-hidden bg-[#F4F2ED] border flex-shrink-0 flex items-center justify-center ${
                               isSelected ? 'border-[#0F0F0F]' : 'border-[#E6E2DD]'
                             }`}>
-                              <img 
-                                src={rowImgSrc} 
+                              <ProductImage 
+                                src={v.imagen_principal} 
                                 alt={v.color || v.codigo_color || 'Variante'} 
-                                loading="eager"
-                                decoding="async"
+                                loading="lazy"
+                                showSpinner={false}
                                 className="w-full h-full object-contain p-0.5 mix-blend-multiply"
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
-                                }}
                               />
                             </div>
 

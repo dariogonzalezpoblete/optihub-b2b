@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { authenticateServerRequest } from '@/lib/auth/serverAuth';
 import { checkBusinessMutationAllowed } from '@/lib/env/runtimeEnv';
+import { sendOrderTrackingUpdateEmail } from '@/lib/email';
 
 // Service role Supabase client for administrative order management
 function getAdminSupabase() {
@@ -87,6 +88,28 @@ export async function handleUpdateTracking(
     if (error) {
       console.error('[UpdateTracking] Error updating order tracking:', error.message || error);
       return Response.json({ error: 'Error al actualizar el seguimiento del pedido' }, { status: 500 });
+    }
+
+    if (data?.contacto_email) {
+      try {
+        await sendOrderTrackingUpdateEmail(
+          {
+            email: data.contacto_email,
+            contacto_nombre: data.contacto_nombre || data.razon_social || 'Cliente Mayorista',
+            razon_social: data.razon_social || 'Óptica',
+            externalReference: data.external_reference || data.id,
+            stage: stage || 'logistica_usa',
+            shipping_provider: updatePayload.shipping_provider,
+            tracking_number: updatePayload.tracking_number,
+            customNote: customNote ? String(customNote).trim() : null,
+          },
+          {
+            idempotencyKey: `tracking_${data.id}_${stage || 'logistica_usa'}_${updatePayload.tracking_number || 'notrack'}`,
+          }
+        );
+      } catch (emailErr) {
+        console.warn('[UpdateTracking] Error no fatal enviando correo de seguimiento:', emailErr);
+      }
     }
 
     return Response.json({ success: true, order: data });

@@ -52,7 +52,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // (solo columnas públicas no sensibles; RLS marcos_select_anon_public filtra stock > 0 para anon)
     const { data, error } = await supabase
       .from('marcos')
-      .select('marca, modelo');
+      .select('marca, modelo')
+      .range(0, 2999);
 
     if (error || !data) {
       return staticRoutes;

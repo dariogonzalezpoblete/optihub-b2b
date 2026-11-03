@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ArrowRight, Search, X } from 'lucide-react';
 import type { EnrichedMarco } from '@/lib/catalog/types';
+import ProductImage from '@/components/ui/ProductImage';
 
 interface PredictiveSearchProps {
   items: EnrichedMarco[];
@@ -65,15 +66,16 @@ export default function PredictiveSearch({ value, onCommit, onSelect }: Predicti
     }
     const fetchSearch = async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(input.trim())}&limit=6`);
+        const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(input.trim())}&limit=6`);
+        if (!res.ok) return;
         const data = await res.json();
         if (isMounted && data.items) {
           setSuggestions(data.items);
-          setTotal(data.total);
+          setTotal(typeof data.total === 'number' ? data.total : data.items.length);
         }
       } catch(err) { console.error(err); }
     };
-    const t = setTimeout(fetchSearch, 300);
+    const t = setTimeout(fetchSearch, 250);
     return () => { isMounted = false; clearTimeout(t); };
   }, [input]);
 
@@ -194,10 +196,13 @@ export default function PredictiveSearch({ value, onCommit, onSelect }: Predicti
                         i === active ? 'bg-[#F4F2ED]' : 'hover:bg-[#F4F2ED]'
                       }`}
                     >
-                      <span className="w-14 h-10 bg-[#FFFFFF] border border-[#E6E2DD] flex items-center justify-center overflow-hidden flex-shrink-0">
-                        {m.imagen_principal && (
-                          <img src={m.imagen_principal} alt="" className="max-w-full max-h-full object-contain mix-blend-multiply" />
-                        )}
+                      <span className="relative w-14 h-10 bg-[#F4F2ED] border border-[#E6E2DD] flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <ProductImage
+                          src={m.imagen_principal}
+                          alt={`${m.marca} ${m.modelo}`}
+                          showSpinner={false}
+                          className="max-w-full max-h-full object-contain mix-blend-multiply"
+                        />
                       </span>
                       <span className="flex-1 min-w-0">
                         <span className="block text-xs font-semibold text-[#0F0F0F] truncate">

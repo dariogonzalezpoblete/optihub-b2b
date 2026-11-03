@@ -27,6 +27,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import DeliveryTimeline from '@/components/catalog/DeliveryTimeline';
 import { trackB2BEvent } from '@/lib/analytics';
+import ProductImage from '@/components/ui/ProductImage';
 
 export default function CarritoPage() {
   const [mounted, setMounted] = useState(false);
@@ -39,7 +40,7 @@ export default function CarritoPage() {
     cantidad: number;
   } | null>(null);
 
-  const { user, isLoggedIn, opticaData } = useAuth();
+  const { user, isLoggedIn, isB2BApproved, isB2BPending, opticaData } = useAuth();
 
   const cart = useCartStore((state) => state.cart);
   const updateQuantity = useCartStore((state) => state.updateQuantity);
@@ -317,14 +318,12 @@ export default function CarritoPage() {
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         {/* Imagen y Datos del Armazón */}
                         <div className="flex items-center gap-4 w-full sm:w-auto">
-                          <div className="w-20 h-20 sm:w-24 sm:h-24 bg-[#F4F2ED] border border-[#E6E2DD] p-2 flex-shrink-0 flex items-center justify-center overflow-hidden">
-                            <img 
-                              src={item.producto.imagen_principal || '/placeholder.png'} 
+                          <div className="relative w-20 h-20 sm:w-24 sm:h-24 bg-[#F4F2ED] border border-[#E6E2DD] p-2 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                            <ProductImage 
+                              src={item.producto.imagen_principal} 
                               alt={item.producto.modelo || 'Armazón'}
+                              loading="lazy"
                               className="w-full h-full object-contain mix-blend-multiply"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
-                              }}
                             />
                           </div>
 
@@ -552,7 +551,7 @@ export default function CarritoPage() {
                   </p>
                 </div>
               ) : moqValido ? (
-                isLoggedIn ? (
+                isLoggedIn && isB2BApproved ? (
                   <Link
                     href="/checkout"
                     className="w-full bg-[#0F0F0F] hover:bg-[#262626] text-white font-medium py-4 px-6 transition duration-200 text-center flex items-center justify-center gap-2 uppercase tracking-[0.2em] text-[11px] border border-[#0F0F0F]"
@@ -560,6 +559,16 @@ export default function CarritoPage() {
                     <span>Continuar al Checkout B2B</span>
                     <ArrowRight className="w-4 h-4 text-[#9E8256]" />
                   </Link>
+                ) : isLoggedIn && isB2BPending ? (
+                  <div className="p-4 bg-[#FAF6ED] border border-[#E6D7B8] text-left space-y-2">
+                    <div className="flex items-center gap-2 text-[#846C44] font-semibold text-xs font-mono uppercase tracking-wider">
+                      <Lock className="w-4 h-4 shrink-0 text-[#846C44]" />
+                      <span>Validación SII en Proceso</span>
+                    </div>
+                    <p className="text-xs text-[#5C5A55] leading-relaxed">
+                      Su cuenta de óptica está en revisión comercial ante el SII. El checkout directo se habilitará al confirmar su giro óptico.
+                    </p>
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     <Link
@@ -734,7 +743,7 @@ export default function CarritoPage() {
                   <div>
                     <span className="text-[#787670] block text-[10px] uppercase">Razón Social:</span>
                     <strong className="text-[#0F0F0F] text-xs">
-                      {opticaData?.razon_social || opticaData?.nombre_optica || (user ? 'Óptica Registrada B2B' : 'Cotización Preliminar Óptica')}
+                      {opticaData?.razon_social || opticaData?.nombre_optica || (isLoggedIn ? 'Óptica Registrada B2B' : 'Cotización Preliminar Óptica')}
                     </strong>
                   </div>
                   <div>

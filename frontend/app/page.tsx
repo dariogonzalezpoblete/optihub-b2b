@@ -15,6 +15,7 @@ import HeroSpotlight from '@/components/home/HeroSpotlight';
 import ImportSteps from '@/components/home/ImportSteps';
 import FaqSection from '@/components/home/FaqSection';
 import BrandLogosMarquee from '@/components/brands/BrandLogosMarquee';
+import ProductImage from '@/components/ui/ProductImage';
 
 interface MarcoDestacado {
   id_ext: string;
@@ -29,7 +30,7 @@ interface MarcoDestacado {
 }
 
 export default function Home() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, isB2BApproved, session } = useAuth();
   const [destacados, setDestacados] = useState<MarcoDestacado[]>([]);
   const [totalModelos, setTotalModelos] = useState<number | null>(null);
   const [loadingDestacados, setLoadingDestacados] = useState(true);
@@ -39,26 +40,58 @@ export default function Home() {
     let cancelled = false;
     async function loadFeatured() {
       try {
-        const columns = isLoggedIn
-          ? 'id_ext, marca, modelo, codigo_color, precio_neto_clp, stock, imagen_principal, material, forma'
-          : 'id_ext, marca, modelo, codigo_color, imagen_principal, material, forma';
-
-        let query = supabase
-          .from('marcos')
-          .select(columns)
-          .not('imagen_principal', 'is', null);
-
-        if (isLoggedIn) {
-          query = query.gt('stock', 0);
-        }
+        const columns = 'id_ext, marca, modelo, codigo_color, imagen_principal, material, forma';
 
         const [{ data, error }, { count }] = await Promise.all([
-          query.limit(16),
+          supabase
+            .from('marcos')
+            .select(columns)
+            .not('imagen_principal', 'is', null)
+            .limit(16),
           supabase.from('marcos').select('id_ext', { count: 'exact', head: true }),
         ]);
 
         if (!cancelled && !error && data) {
-          setDestacados(data as unknown as MarcoDestacado[]);
+          const items = data as unknown as MarcoDestacado[];
+          setDestacados(items);
+
+          if (isLoggedIn && isB2BApproved && session?.access_token && items.length > 0) {
+            const ids = Array.from(new Set(items.map((m) => m.id_ext).filter(Boolean)));
+            if (ids.length > 0) {
+              fetch('/api/catalog/pricing', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({ ids }),
+              })
+                .then((res) => res.json())
+                .then((pricingData) => {
+                  if (cancelled || !pricingData || !Array.isArray(pricingData.items)) return;
+                  const b2bMap = new Map(
+                    (pricingData.items as Array<{ id_ext: string; precio_neto_clp?: number | null; stock?: number | null }>).map(
+                      (row) => [row.id_ext, row]
+                    )
+                  );
+                  setDestacados((prev) =>
+                    prev.map((item) => {
+                      const b2b = b2bMap.get(item.id_ext);
+                      return b2b
+                        ? {
+                            ...item,
+                            precio_neto_clp: typeof b2b.precio_neto_clp === 'number' ? b2b.precio_neto_clp : undefined,
+                            stock: typeof b2b.stock === 'number' ? b2b.stock : undefined,
+                          }
+                        : item;
+                    })
+                  );
+                })
+                .catch((err) => {
+                  console.error('[Home] Error al consultar tarifas B2B:', err);
+                });
+            }
+          }
         }
         if (!cancelled && count !== null && count !== undefined) {
           setTotalModelos(count);
@@ -76,7 +109,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [isLoggedIn]);
+  }, [isLoggedIn, isB2BApproved, session?.access_token]);
 
   const filteredDestacados = useMemo(() => {
     if (activeFilter === 'todos') return destacados.slice(0, 8);
@@ -347,15 +380,13 @@ export default function Home() {
               >
                 {/* Zona de Imagen sobre piedra cálida (#F4F2ED) con mix-blend-multiply */}
                 <div className="relative aspect-[4/3] bg-[#F4F2ED] flex items-center justify-center p-6 overflow-hidden border-b border-[#E6E2DD]">
-                  <Image
-                    unoptimized
-                    src={marco.imagen_principal || '/placeholder.png'}
-                    alt={marco.modelo}
-                    fill
-                    sizes="(max-width: 640px) 100vw, 25vw"
-                    className="object-contain p-4 mix-blend-multiply group-hover:scale-[1.04] transition-transform duration-500 ease-out"
+                  <ProductImage
+                    src={marco.imagen_principal}
+                    alt={`${marco.marca} ${marco.modelo}`}
+                    loading="lazy"
+                    className="w-full h-full object-contain p-2 mix-blend-multiply group-hover:scale-[1.04] transition-transform duration-500 ease-out"
                   />
-                  <span className="absolute top-3 left-3 text-[10px] uppercase tracking-[0.2em] font-semibold text-[#0F0F0F] bg-[#FFFFFF]/90 border border-[#E6E2DD] px-2 py-0.5">
+                  <span className="absolute top-3 left-3 z-10 text-[10px] uppercase tracking-[0.2em] font-semibold text-[#0F0F0F] bg-[#FFFFFF]/90 border border-[#E6E2DD] px-2 py-0.5">
                     {marco.marca}
                   </span>
                 </div>
@@ -379,13 +410,13 @@ export default function Home() {
                   </div>
 
                   <div className="pt-3 border-t border-[#E6E2DD] flex justify-between items-end">
-                    {isLoggedIn ? (
+                    {isLoggedIn && isB2BApproved && typeof marco.precio_neto_clp === 'number' ? (
                       <div>
                         <span className="text-[9px] text-[#787670] uppercase block font-semibold tracking-wider">
                           Neto B2B
                         </span>
                         <span className="text-[#0F0F0F] font-bold text-base font-mono tabular-nums">
-                          ${marco.precio_neto_clp?.toLocaleString('es-CL')} CLP
+                          ${marco.precio_neto_clp.toLocaleString('es-CL')} CLP
                         </span>
                       </div>
                     ) : (
@@ -395,7 +426,7 @@ export default function Home() {
                       </span>
                     )}
 
-                    {isLoggedIn && typeof marco.stock === 'number' && (
+                    {isLoggedIn && isB2BApproved && typeof marco.stock === 'number' && (
                       <span className="text-[10px] font-mono text-[#5C5A55] bg-[#F4F2ED] border border-[#E6E2DD] px-2 py-0.5 tabular-nums">
                         {marco.stock >= 50 ? '50+ un.' : `${marco.stock} un.`}
                       </span>

@@ -486,6 +486,7 @@ export interface OpticaApprovedEmailPayload {
   nombre_contacto: string;
   razon_social: string;
   loginUrl?: string;
+  catalogCount?: number;
 }
 
 function generateOpticaApprovedEmailHtml(data: OpticaApprovedEmailPayload): string {
@@ -494,6 +495,10 @@ function generateOpticaApprovedEmailHtml(data: OpticaApprovedEmailPayload): stri
     (process.env.NEXT_PUBLIC_SITE_URL
       ? `${process.env.NEXT_PUBLIC_SITE_URL}/login`
       : 'https://frontend-gules-three-41.vercel.app/login');
+  const catalogCountLabel =
+    typeof data.catalogCount === 'number' && data.catalogCount > 0
+      ? `más de ${data.catalogCount.toLocaleString('es-CL')} armazones`
+      : 'más de 1.900 armazones';
 
   return `
     <!DOCTYPE html>
@@ -530,8 +535,8 @@ function generateOpticaApprovedEmailHtml(data: OpticaApprovedEmailPayload): stri
             </p>
             <ul style="margin: 0; padding-left: 20px; color: #94a3b8; font-size: 13px; line-height: 1.6;">
               <li>Visualización de <strong style="color: #34d399;">precios netos mayoristas</strong> en todo el catálogo.</li>
-              <li>Acceso a más de 700 armazones de marcas de prestigio (Ray-Ban, Carrera, Lacoste, Tommy Hilfiger, Tom Ford y más).</li>
-              <li>Consolidación e importación garantizada directo a tu óptica con factura electrónica.</li>
+              <li>Acceso a ${catalogCountLabel} originales de marcas internacionales (Tom Ford, Burberry, Ferragamo, Chopard, Montblanc, Guess, Nike y más).</li>
+              <li>Consolidación e importación garantizada directo a tu óptica con factura electrónica SII.</li>
             </ul>
           </div>
 
@@ -583,4 +588,197 @@ export async function sendOpticaApprovedEmail(data: OpticaApprovedEmailPayload) 
     return { success: false, error: msg };
   }
 }
+
+// ---------------------------------------------------------------------------
+// NOTIFICACIÓN DE DESPACHO Y ACTUALIZACIÓN LOGÍSTICA (ENVIADA A LA ÓPTICA)
+// ---------------------------------------------------------------------------
+
+export interface OrderTrackingEmailPayload {
+  email: string;
+  contacto_nombre: string;
+  razon_social: string;
+  externalReference: string;
+  stage: string;
+  shipping_provider?: string | null;
+  tracking_number?: string | null;
+  customNote?: string | null;
+  trackingUrl?: string;
+}
+
+const LOGISTICS_STAGE_LABELS: Record<string, { title: string; badge: string; description: string }> = {
+  logistica_usa: {
+    title: 'Consolidación en Bodega USA',
+    badge: 'Etapa 2 de 5 • Consolidación USA',
+    description:
+      'Tus armazones están siendo recepcionados, verificados en su packaging original e integrados en el lote de exportación en Estados Unidos.',
+  },
+  viajando: {
+    title: 'En Tránsito Internacional hacia Chile',
+    badge: 'Etapa 3 de 5 • Vuelo Internacional',
+    description:
+      'Tu pedido mayorista ya fue despachado desde Estados Unidos y se encuentra en tránsito aéreo hacia Santiago de Chile.',
+  },
+  desaduanamiento: {
+    title: 'Internación y Desaduanamiento en Chile',
+    badge: 'Etapa 4 de 5 • Aduana Chile',
+    description:
+      'El lote arribó a Chile y se encuentra en proceso de internación aduanera y liberación logística para despacho nacional.',
+  },
+  reparto_chile: {
+    title: 'Pedido Despachado a tu Óptica',
+    badge: 'Etapa 5 de 5 • En Reparto Nacional',
+    description:
+      '¡Tu pedido ya fue entregado al operador logístico nacional y va en camino directo a la dirección de tu óptica!',
+  },
+  entregado: {
+    title: 'Pedido Entregado en tu Óptica',
+    badge: 'Completado • Entregado',
+    description:
+      'Tu pedido mayorista figura como entregado en destino. Gracias por confiar en OptiHub B2B para abastecer tu óptica.',
+  },
+};
+
+function generateOrderTrackingEmailHtml(data: OrderTrackingEmailPayload): string {
+  const stageMeta = LOGISTICS_STAGE_LABELS[data.stage] || {
+    title: 'Actualización de Seguimiento Logístico',
+    badge: 'Actualización de Pedido',
+    description: 'Se ha registrado un nuevo avance en la logística de tu pedido mayorista.',
+  };
+
+  const targetTrackingUrl =
+    data.trackingUrl ||
+    (process.env.NEXT_PUBLIC_SITE_URL
+      ? `${process.env.NEXT_PUBLIC_SITE_URL}/seguimiento`
+      : 'https://frontend-gules-three-41.vercel.app/seguimiento');
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>${stageMeta.title} - Pedido #${data.externalReference}</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #FAF9F6; margin: 0; padding: 24px; color: #0F0F0F;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: #FFFFFF; border: 1px solid #E6E2DD; overflow: hidden; box-shadow: 0 4px 20px rgba(15,15,15,0.06);">
+        
+        <!-- Header Quiet Luxury -->
+        <div style="background-color: #0F0F0F; padding: 32px 24px; text-align: center; border-bottom: 3px solid #9E8256;">
+          <p style="color: #9E8256; margin: 0 0 8px 0; font-size: 10px; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase;">
+            OPTIHUB B2B • LOGÍSTICA MAYORISTA
+          </p>
+          <h1 style="color: #FFFFFF; margin: 0; font-size: 22px; font-weight: 400; font-family: Georgia, serif;">
+            ${stageMeta.title}
+          </h1>
+          <p style="color: #A39E93; margin: 8px 0 0 0; font-size: 13px;">
+            Orden Ref: <strong style="color: #FFFFFF; font-family: monospace;">${data.externalReference}</strong>
+          </p>
+        </div>
+
+        <div style="padding: 32px 24px;">
+          <div style="display: inline-block; background-color: #F4F2ED; border: 1px solid #E6E2DD; color: #9E8256; font-size: 10px; font-weight: 700; padding: 5px 12px; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 18px;">
+            ${stageMeta.badge}
+          </div>
+
+          <p style="font-size: 15px; color: #0F0F0F; margin: 0 0 12px 0;">
+            Estimado/a <strong>${data.contacto_nombre || data.razon_social}</strong>,
+          </p>
+
+          <p style="color: #4A4845; font-size: 14px; line-height: 1.6; margin: 0 0 22px 0;">
+            ${stageMeta.description}
+          </p>
+
+          ${
+            data.shipping_provider || data.tracking_number || data.customNote
+              ? `
+          <div style="background-color: #FAF9F6; border-left: 3px solid #9E8256; padding: 16px 18px; margin-bottom: 24px;">
+            <p style="margin: 0 0 10px 0; font-size: 11px; color: #9E8256; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em;">
+              Información de Despacho
+            </p>
+            ${
+              data.shipping_provider
+                ? `<p style="margin: 4px 0; font-size: 13px; color: #0F0F0F;"><strong>Operador Logístico / Courier:</strong> ${data.shipping_provider}</p>`
+                : ''
+            }
+            ${
+              data.tracking_number
+                ? `<p style="margin: 4px 0; font-size: 13px; color: #0F0F0F;"><strong>Código de Seguimiento (OT / Tracking):</strong> <span style="font-family: monospace; background-color: #F4F2ED; padding: 2px 6px; border: 1px solid #E6E2DD;">${data.tracking_number}</span></p>`
+                : ''
+            }
+            ${
+              data.customNote
+                ? `<p style="margin: 8px 0 0 0; font-size: 13px; color: #4A4845; font-style: italic;">"${data.customNote}"</p>`
+                : ''
+            }
+          </div>`
+              : ''
+          }
+
+          <div style="text-align: center; margin: 28px 0 16px 0;">
+            <a href="${targetTrackingUrl}" target="_blank" style="display: inline-block; background-color: #0F0F0F; color: #FFFFFF; text-decoration: none; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.2em; padding: 15px 28px;">
+              Ver Estado del Pedido en OptiHub →
+            </a>
+          </div>
+
+          <div style="text-align: center; font-size: 11px; color: #716E6A; margin-top: 32px; border-top: 1px solid #E6E2DD; padding-top: 16px;">
+            OptiHub Chile • Distribución Mayorista B2B de Armazones Originales
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+export async function sendOrderTrackingUpdateEmail(
+  data: OrderTrackingEmailPayload,
+  options?: { idempotencyKey?: string }
+) {
+  const fromEmail = process.env.EMAIL_FROM || 'OptiHub B2B <onboarding@resend.dev>';
+  const isSimulationMode = process.env.EMAIL_SIMULATION_MODE === 'true';
+
+  if (!data.email || !data.email.includes('@')) {
+    return { success: false, skipped: true, reason: 'Sin email de contacto válido' };
+  }
+
+  console.log(
+    `📧 Preparando notificación de despacho/seguimiento (${data.stage}) para orden ${data.externalReference} -> ${data.email}`
+  );
+
+  if (!resend || isSimulationMode) {
+    console.log(`ℹ Simulación de correo de despacho a: ${data.email}`, data);
+    return { success: true, simulated: true };
+  }
+
+  try {
+    const stageMeta = LOGISTICS_STAGE_LABELS[data.stage] || {
+      title: 'Actualización de Seguimiento',
+    };
+    const reqOptions = options?.idempotencyKey
+      ? { headers: { 'Idempotency-Key': options.idempotencyKey } }
+      : undefined;
+
+    const res = await resend.emails.send(
+      {
+        from: fromEmail,
+        to: data.email,
+        subject: `📦 ${stageMeta.title} • Pedido #${data.externalReference} | OptiHub B2B`,
+        html: generateOrderTrackingEmailHtml(data),
+      },
+      reqOptions
+    );
+
+    if (res.error) {
+      console.error('Error reportado por Resend al enviar notificación de despacho:', res.error);
+      return { success: false, error: res.error.message };
+    }
+
+    console.log('✓ Notificación de despacho enviada exitosamente a la óptica:', res);
+    return { success: true, res };
+  } catch (err: any) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('Excepción enviando notificación de despacho:', msg);
+    return { success: false, error: msg };
+  }
+}
+
 

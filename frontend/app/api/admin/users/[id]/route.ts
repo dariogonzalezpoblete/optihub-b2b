@@ -119,10 +119,16 @@ export async function PATCH(
     let emailSent = false;
     if (action === 'approve' && currentUser.email) {
       try {
+        const { count: activeCatalogCount } = await adminSupabase
+          .from('marcos')
+          .select('id_ext', { count: 'exact', head: true })
+          .gt('stock', 0);
+
         const emailResult = await sendOpticaApprovedEmail({
           email: currentUser.email,
           nombre_contacto: currentMeta.nombre_contacto || currentMeta.nombre || 'Estimado(a) Cliente',
           razon_social: currentMeta.razon_social || currentMeta.nombre_optica || 'Óptica Mayorista',
+          catalogCount: typeof activeCatalogCount === 'number' && activeCatalogCount > 0 ? activeCatalogCount : undefined,
         });
         emailSent = emailResult.success;
       } catch (emailErr) {
