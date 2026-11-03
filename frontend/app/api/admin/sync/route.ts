@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 import path from 'path';
 import fs from 'fs';
 import { calculateB2BPricing } from '@/lib/pricing/b2bPricing';
+import { authenticateServerRequest } from '@/lib/auth/serverAuth';
+
+export const dynamic = 'force-dynamic';
 
 const BACKEND_API_URL = process.env.BACKEND_API_URL;
 const REPORT_FILE_PATH = path.resolve(process.cwd(), '..', 'backend', 'scraper', 'sync_report_latest.json');
@@ -11,8 +14,7 @@ function getAdminSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const supabaseServiceKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SECRET_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    process.env.SUPABASE_SECRET_KEY;
 
   if (!supabaseUrl || !supabaseServiceKey) {
     throw new Error('Variables de entorno de Supabase no configuradas.');
@@ -21,8 +23,20 @@ function getAdminSupabase() {
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
-export async function GET() {
+export async function handleSyncGet(req: Request | NextRequest, options?: { customAuthClient?: any }) {
   try {
+    // 1. Validar autenticación de administrador
+    const auth = await authenticateServerRequest(req, options);
+    if (!auth.authenticated) {
+      return auth.response;
+    }
+    if (!auth.isAdmin) {
+      return NextResponse.json(
+        { error: 'Acceso denegado: Se requieren permisos de administrador.' },
+        { status: 403 }
+      );
+    }
+
     const supabase = getAdminSupabase();
 
     // Fetch total products and brand counts
@@ -82,9 +96,21 @@ export async function GET() {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function handleSyncPost(req: NextRequest | Request, options?: { customAuthClient?: any }) {
   const startTime = Date.now();
   try {
+    // 1. Validar autenticación de administrador
+    const auth = await authenticateServerRequest(req, options);
+    if (!auth.authenticated) {
+      return auth.response;
+    }
+    if (!auth.isAdmin) {
+      return NextResponse.json(
+        { error: 'Acceso denegado: Se requieren permisos de administrador.' },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const { brand, all_brands, dry_run, dolar, margin_percentage } = body;
 
@@ -264,3 +290,12 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export async function GET(req: NextRequest) {
+  return handleSyncGet(req);
+}
+
+export async function POST(req: NextRequest) {
+  return handleSyncPost(req);
+}
+

@@ -1,10 +1,75 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
+import { unstable_cache } from 'next/cache';
 import { supabase } from '@/lib/supabaseClient';
 import CatalogoClient from '@/components/catalog/CatalogoClient';
 import { normalizeText } from '@/lib/catalog/normalize';
 import { isFillerBrand } from '@/lib/catalog/brandCategories';
 import { MARCOS_FACET_PUBLIC_COLUMNS, MARCOS_PUBLIC_COLUMNS } from '@/lib/catalog/types';
+
+interface CachedCatalogFacets {
+  facetList: any[];
+  allDbBrands: string[];
+  allDbGeneros: string[];
+  allDbMateriales: string[];
+  allDbFormas: string[];
+}
+
+/**
+ * Consulta agregada de metadatos globales para facetas, optimizada mediante
+ * Next.js Data Cache (unstable_cache) con revalidación horaria (3600s).
+ * Evita escanear y transferir miles de filas a memoria en cada petición SSR dinámica.
+ */
+export const getCachedCatalogFacets = unstable_cache(
+  async (): Promise<CachedCatalogFacets> => {
+    const PAGE_SIZE = 1000;
+    const { count: totalFacetCount } = await supabase
+      .from('marcos')
+      .select('id_ext', { count: 'exact', head: true });
+
+    const countToUse = typeof totalFacetCount === 'number' && totalFacetCount > 0 ? totalFacetCount : 4000;
+    const totalPagesFacet = Math.max(1, Math.ceil(countToUse / PAGE_SIZE));
+    const facetRequests = [];
+    for (let p = 0; p < totalPagesFacet; p++) {
+      const from = p * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      facetRequests.push(
+        supabase
+          .from('marcos')
+          .select(MARCOS_FACET_PUBLIC_COLUMNS)
+          .range(from, to)
+      );
+    }
+    const facetResponses = await Promise.all(facetRequests);
+    const allFacetItems: any[] = [];
+    for (const res of facetResponses) {
+      if (res.data) {
+        allFacetItems.push(...res.data);
+      }
+    }
+
+    const facetList = (allFacetItems || []).filter(
+      (item) => item.marca && item.marca.toLowerCase() !== 'select'
+    );
+    const allDbBrands = Array.from(new Set(facetList.map((r) => r.marca).filter((b: string) => b && b.toLowerCase() !== 'select')));
+    const allDbGeneros = Array.from(new Set(facetList.map((r) => r.genero).filter((g: string) => g && g.toLowerCase() !== 'select')));
+    const allDbMateriales = Array.from(new Set(facetList.map((r) => r.material).filter((m: string) => m && m.toLowerCase() !== 'select')));
+    const allDbFormas = Array.from(new Set(facetList.map((r) => r.forma).filter((f: string) => f && f.toLowerCase() !== 'select')));
+
+    return {
+      facetList,
+      allDbBrands,
+      allDbGeneros,
+      allDbMateriales,
+      allDbFormas,
+    };
+  },
+  ['catalog-global-facets-v1'],
+  {
+    revalidate: 3600, // 1 hora de revalidación
+    tags: ['catalog-facets'],
+  }
+);
 
 // Renderizado dinámico inmediato para reflejar cambios de stock y nuevas marcas al instante
 export const dynamic = 'force-dynamic';
@@ -85,40 +150,14 @@ export default async function CatalogoPage({
     ? 'sol'
     : '';
 
-  // 2. Consulta exhaustiva de metadatos globales para facetas (sin corte de 1000 items de PostgREST)
-  const PAGE_SIZE = 1000;
-  const { count: totalFacetCount } = await supabase
-    .from('marcos')
-    .select('id', { count: 'exact', head: true });
-
-  const countToUse = typeof totalFacetCount === 'number' && totalFacetCount > 0 ? totalFacetCount : 4000;
-  const totalPagesFacet = Math.max(1, Math.ceil(countToUse / PAGE_SIZE));
-  const facetRequests = [];
-  for (let p = 0; p < totalPagesFacet; p++) {
-    const from = p * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
-    facetRequests.push(
-      supabase
-        .from('marcos')
-        .select(MARCOS_FACET_PUBLIC_COLUMNS)
-        .range(from, to)
-    );
-  }
-  const facetResponses = await Promise.all(facetRequests);
-  const allFacetItems: any[] = [];
-  for (const res of facetResponses) {
-    if (res.data) {
-      allFacetItems.push(...res.data);
-    }
-  }
-
-  const facetList = (allFacetItems || []).filter(
-    (item) => item.marca && item.marca.toLowerCase() !== 'select'
-  );
-  const allDbBrands = Array.from(new Set(facetList.map((r) => r.marca).filter((b) => b && b.toLowerCase() !== 'select')));
-  const allDbGeneros = Array.from(new Set(facetList.map((r) => r.genero).filter((g) => g && g.toLowerCase() !== 'select')));
-  const allDbMateriales = Array.from(new Set(facetList.map((r) => r.material).filter((m) => m && m.toLowerCase() !== 'select')));
-  const allDbFormas = Array.from(new Set(facetList.map((r) => r.forma).filter((f) => f && f.toLowerCase() !== 'select')));
+  // 2. Consulta de facetas optimizada mediante Next.js Data Cache (unstable_cache - 1 hora)
+  const {
+    facetList,
+    allDbBrands,
+    allDbGeneros,
+    allDbMateriales,
+    allDbFormas,
+  } = await getCachedCatalogFacets();
 
   // 3. Construcción de Query a Supabase (solo columnas públicas no sensibles; RLS filtra stock > 0 para anon)
   let query = supabase.from('marcos').select(MARCOS_PUBLIC_COLUMNS, { count: 'exact' });

@@ -44,12 +44,20 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**',
+        hostname: '*.supabase.co',
       },
       {
-        protocol: 'http',
-        hostname: '**',
-      }
+        protocol: 'https',
+        hostname: 'www.nywd.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'nywd.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.nywd.com',
+      },
     ],
   },
 };

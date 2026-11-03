@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
 
 interface SyncItem {
   id_ext: string;
@@ -50,6 +51,7 @@ const POPULAR_BRANDS = [
 ];
 
 export default function AdminSyncPage() {
+  const { session } = useAuth();
   const [selectedBrand, setSelectedBrand] = useState('Guess');
   const [headless, setHeadless] = useState(true);
   const [dryRun, setDryRun] = useState(false);
@@ -64,8 +66,13 @@ export default function AdminSyncPage() {
   // Load latest report on mount
   useEffect(() => {
     async function fetchLatest() {
+      if (!session?.access_token) return;
       try {
-        const res = await fetch('/api/admin/sync');
+        const res = await fetch('/api/admin/sync', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
         if (res.ok) {
           const data = await res.json();
           if (data.latest_summary) {
@@ -75,7 +82,7 @@ export default function AdminSyncPage() {
       } catch {}
     }
     fetchLatest();
-  }, []);
+  }, [session?.access_token]);
 
   const handleRunSync = async () => {
     setLoading(true);
@@ -94,9 +101,16 @@ export default function AdminSyncPage() {
     };
 
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
       const res = await fetch('/api/admin/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload),
       });
 

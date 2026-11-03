@@ -1,9 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateServerRequest } from '@/lib/auth/serverAuth';
+
+export const dynamic = 'force-dynamic';
 
 const BACKEND_API_URL = process.env.BACKEND_API_URL;
 
-export async function POST(req: NextRequest) {
+export async function handleScraper(req: NextRequest | Request, options?: { customAuthClient?: any }) {
   try {
+    // 1. Validar autenticación de administrador
+    const auth = await authenticateServerRequest(req, options);
+    if (!auth.authenticated) {
+      return auth.response;
+    }
+    if (!auth.isAdmin) {
+      return NextResponse.json(
+        { error: 'Acceso denegado: Se requieren permisos de administrador.' },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const mode = body.mode || 'full-catalog';
     const endpoint = mode === 'full-catalog' ? '/api/sync/full-catalog' : '/api/sync/stock-prices';
@@ -36,3 +51,8 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export async function POST(req: NextRequest) {
+  return handleScraper(req);
+}
+

@@ -54,7 +54,7 @@ export default function Home() {
 
         const [{ data, error }, { count }] = await Promise.all([
           query.limit(16),
-          supabase.from('marcos').select('*', { count: 'exact', head: true }).gt('stock', 0),
+          supabase.from('marcos').select('id_ext', { count: 'exact', head: true }),
         ]);
 
         if (!cancelled && !error && data) {
