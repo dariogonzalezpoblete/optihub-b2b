@@ -30,7 +30,7 @@ const FAQS: FaqItem[] = [
   {
     question: '¿Debo hacer algún trámite en Aduana o pagar impuestos extra al recibir en Chile?',
     answer:
-      'No. El valor B2B facturado en pesos chilenos es el costo final nacionalizado bajo modalidad DDP ("llave en mano"). OPTIHUB gestiona íntegramente el flete aéreo internacional, la internación aduanera y el pago de aranceles ante el Servicio Nacional de Aduanas. Recibes en tu óptica con Factura Electrónica SII afecta a IVA para deducir crédito fiscal.',
+      'No. El valor B2B facturado en pesos chilenos es el costo final nacionalizado bajo modalidad DDP ("llave en mano"). MARCOS DE MARCA gestiona íntegramente el flete aéreo internacional, la internación aduanera y el pago de aranceles ante el Servicio Nacional de Aduanas. Recibes en tu óptica con Factura Electrónica SII afecta a IVA para deducir crédito fiscal.',
     linkText: 'Revisar políticas de importación DDP',
     linkHref: '/politicas-importacion-y-garantia',
   },
@@ -160,7 +160,7 @@ export default function FaqSection() {
             <span>Atención comercial directa de lunes a viernes con nuestro equipo en Santiago de Chile.</span>
           </div>
           <a
-            href="https://wa.me/56989338537?text=Hola%20equipo%20OPTIHUB%2C%20escribo%20desde%20una%20%C3%B3ptica%20en%20Chile%20y%20tengo%20una%20consulta%20sobre%20el%20abastecimiento%20mayorista"
+            href="https://wa.me/56989338537?text=Hola%20equipo%20Marcos%20de%20Marca%2C%20escribo%20desde%20una%20%C3%B3ptica%20en%20Chile%20y%20tengo%20una%20consulta%20sobre%20el%20abastecimiento%20mayorista"
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => {

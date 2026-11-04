@@ -177,7 +177,7 @@ function RegisterForm() {
     }
 
     if (!acceptedTerms) {
-      setErrorMsg('Debe aceptar los Términos y Condiciones Mayoristas y la Política de Privacidad de OPTIHUB para continuar.');
+      setErrorMsg('Debe aceptar los Términos y Condiciones Mayoristas y la Política de Privacidad de MARCOS DE MARCA para continuar.');
       return;
     }
 
@@ -239,7 +239,7 @@ function RegisterForm() {
 
   // PANTALLA FORMAL DE CONFIRMACIÓN Y CONTACTO WHATSAPP PARA ACTIVACIÓN PRIORITARIA
   if (successData) {
-    const whatsappMessage = `Hola OptiHub B2B, acabo de registrar la óptica ${successData.nombre_optica || 'Óptica'} (Razón Social: ${successData.razon_social || 'N/A'}, RUT: ${successData.rut_empresa}, Giro: ${successData.giro_comercial}). Solicito la activación prioritaria de mi cuenta comercial para acceder al catálogo mayorista.`;
+    const whatsappMessage = `Hola Marcos de Marca B2B, acabo de registrar la óptica ${successData.nombre_optica || 'Óptica'} (Razón Social: ${successData.razon_social || 'N/A'}, RUT: ${successData.rut_empresa}, Giro: ${successData.giro_comercial}). Solicito la activación prioritaria de mi cuenta comercial para acceder al catálogo mayorista.`;
     const whatsappUrl = `https://wa.me/56989338537?text=${encodeURIComponent(whatsappMessage)}`;
 
     return (
@@ -267,7 +267,7 @@ function RegisterForm() {
               </span>
             </div>
             <p className="text-xs text-[#5C5A55] leading-relaxed">
-              Para proteger a las ópticas establecidas en Chile, OptiHub verifica la concordancia del RUT y Giro Comercial ante el SII antes de habilitar la visualización de precios netos e importación directa.
+              Para proteger a las ópticas establecidas en Chile, Marcos de Marca verifica la concordancia del RUT y Giro Comercial ante el SII antes de habilitar la visualización de precios netos e importación directa.
             </p>
           </div>
 
@@ -701,7 +701,7 @@ function RegisterForm() {
                   >
                     Política de Privacidad
                   </Link>{' '}
-                  de OPTIHUB.
+                  de MARCOS DE MARCA.
                 </span>
               </label>
             </div>

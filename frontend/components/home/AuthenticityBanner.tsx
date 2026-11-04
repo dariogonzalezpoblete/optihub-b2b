@@ -62,7 +62,7 @@ export default function AuthenticityBanner() {
             </h2>
 
             <p className="text-[#575551] text-base sm:text-lg leading-relaxed">
-              En <strong className="text-[#0F0F0F] font-semibold">OptiHub B2B</strong> eliminamos intermediarios sin comprometer la legitimidad. Todos nuestros armazones proceden de distribuidores certificados internacionales y se despachan en su presentación de vitrina original para que tu óptica entregue la máxima confianza al paciente final.
+              En <strong className="text-[#0F0F0F] font-semibold">Marcos de Marca</strong> eliminamos intermediarios sin comprometer la legitimidad. Todos nuestros armazones proceden de distribuidores certificados internacionales y se despachan en su presentación de vitrina original para que tu óptica entregue la máxima confianza al paciente final.
             </p>
           </div>
 

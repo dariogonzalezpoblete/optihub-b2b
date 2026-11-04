@@ -41,7 +41,7 @@ const STEPS = [
     step: '04',
     icon: Truck,
     title: 'Recepción Puerta a Puerta (10-15 días hábiles)',
-    desc: 'Despacho consolidado desde EE. UU. directo a tu óptica en cualquiera de las 16 regiones de Chile, con aduana e internación 100% gestionadas por OPTIHUB.',
+    desc: 'Despacho consolidado desde EE. UU. directo a tu óptica en cualquiera de las 16 regiones de Chile, con aduana e internación 100% gestionadas por MARCOS DE MARCA.',
     badge: 'Modalidad DDP',
     highlight: '16 regiones de Chile',
   },
@@ -61,7 +61,7 @@ export default function ImportSteps() {
             </span>
           </div>
           <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-normal text-[#0F0F0F] tracking-tight leading-tight">
-            ¿Cómo funciona la importación consolidada OPTIHUB?
+            ¿Cómo funciona la importación consolidada MARCOS DE MARCA?
           </h2>
           <p className="text-[#5C5A55] text-xs sm:text-sm mt-3 leading-relaxed max-w-2xl">
             Abastece tu óptica con precios directos de origen en Estados Unidos a través de un flujo estructurado, seguro y con respaldo tributario chileno.

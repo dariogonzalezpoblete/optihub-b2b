@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { ShoppingBag, LogOut, ShieldCheck, Menu, X, User, Package } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
 import { useAuth } from '@/context/AuthContext';
+import { MarcosDeMarcaEmblem } from '@/components/ui/OptiHubLogo';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -35,7 +36,14 @@ export default function Navbar() {
     mounted &&
     isLoggedIn &&
     user?.email &&
-    ['multifocuslimitada@gmail.com', 'dario.joda.2007@gmail.com', 'admin@optihub.cl', 'contacto@optihub.cl'].includes(
+    [
+      'multifocuslimitada@gmail.com',
+      'dario.joda.2007@gmail.com',
+      'admin@optihub.cl',
+      'contacto@optihub.cl',
+      'admin@marcosdemarca.cl',
+      'contacto@marcosdemarca.cl',
+    ].includes(
       user.email.toLowerCase().trim()
     );
 
@@ -43,14 +51,17 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 bg-[#FAF9F6]/95 backdrop-blur-md border-b border-[#E6E2DD] transition-all">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-6">
         
-        {/* LOGOTIPO TIPOGRÁFICO PURO (MAISON EDITORIAL) */}
-        <Link href="/" className="flex flex-col group flex-shrink-0">
-          <span className="font-serif text-xl sm:text-2xl tracking-[0.2em] sm:tracking-[0.22em] uppercase text-[#0F0F0F] font-normal group-hover:text-[#9E8256] transition-colors leading-tight">
-            OPTIHUB
-          </span>
-          <span className="text-[8px] sm:text-[9px] tracking-[0.2em] sm:tracking-[0.25em] text-[#5C5A55] uppercase font-sans mt-0.5">
-            MAYORISTA ÓPTICO · USA
-          </span>
+        {/* LOGOTIPO E ISOTIPO MARCOS DE MARCA */}
+        <Link href="/" className="flex items-center gap-2.5 sm:gap-3.5 group flex-shrink-0">
+          <MarcosDeMarcaEmblem className="w-7 h-7 sm:w-9 sm:h-9 shrink-0" theme="brass" />
+          <div className="flex flex-col">
+            <span className="font-sans text-sm sm:text-lg tracking-[0.2em] sm:tracking-[0.24em] uppercase text-[#263E55] font-medium group-hover:text-[#9E8256] transition-colors leading-tight">
+              MARCOS DE MARCA
+            </span>
+            <span className="text-[7px] sm:text-[8.5px] tracking-[0.2em] sm:tracking-[0.26em] text-[#5C5A55] uppercase font-sans mt-0.5">
+              DISTRIBUCIÓN MAYORISTA ÓPTICA
+            </span>
+          </div>
         </Link>
 
         {/* NAVEGACIÓN DESKTOP / TABLET */}

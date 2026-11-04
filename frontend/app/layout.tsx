@@ -38,12 +38,14 @@ const BASE_URL =
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
-    default: 'OptiHub | Marcos ópticos al por mayor en Chile • Importación Directa',
-    template: '%s | OptiHub B2B',
+    default: 'Marcos de Marca | Distribución Mayorista Óptica en Chile • Importación Directa B2B',
+    template: '%s | Marcos de Marca B2B',
   },
-  description: 'Distribución mayorista e importación directa de armazones oftálmicos y lentes de sol de alta gama desde EE.UU. para ópticas en Chile. Mínimo 10 unidades combinables y factura electrónica SII.',
+  description: 'Distribución mayorista B2B de marcos ópticos y gafas de sol de marcas originales y reconocidas para ópticas y distribuidores en Chile. Mínimo 10 unidades combinables y factura electrónica SII.',
   keywords: [
+    'marcos de marca',
     'marcos opticos por mayor chile',
+    'distribucion mayorista optica',
     'distribucion armazones opticas chile',
     'lentes de sol por mayor santiago',
     'importacion armazones estados unidos',
@@ -53,9 +55,9 @@ export const metadata: Metadata = {
     'compra minima 10 armazones',
     'factura electronica sii optica'
   ],
-  authors: [{ name: 'OptiHub B2B' }],
-  creator: 'OptiHub B2B',
-  publisher: 'OptiHub B2B',
+  authors: [{ name: 'Marcos de Marca B2B' }],
+  creator: 'Marcos de Marca B2B',
+  publisher: 'Marcos de Marca B2B',
   formatDetection: {
     email: false,
     address: false,
@@ -65,10 +67,10 @@ export const metadata: Metadata = {
     canonical: BASE_URL,
   },
   openGraph: {
-    title: 'OptiHub | Marcos ópticos al por mayor en Chile • Importación Directa',
-    description: 'Catálogo mayorista de armazones de acetato, titanio y lentes de sol para ópticas en Chile. Precios netos en CLP, entrega en 10-15 días y factura SII.',
+    title: 'Marcos de Marca | Distribución Mayorista Óptica en Chile • Importación Directa B2B',
+    description: 'Distribución mayorista B2B de marcos ópticos y gafas de sol de marcas originales y reconocidas para ópticas en Chile. Precios netos en CLP, entrega en 10-15 días y factura SII.',
     url: BASE_URL,
-    siteName: 'OptiHub B2B',
+    siteName: 'Marcos de Marca',
     locale: 'es_CL',
     type: 'website',
     images: [
@@ -76,15 +78,15 @@ export const metadata: Metadata = {
         url: `${BASE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: 'OptiHub B2B - Importación Mayorista de Armazones Ópticos en Chile',
+        alt: 'Marcos de Marca - Distribución Mayorista Óptica en Chile',
         type: 'image/png',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'OptiHub | Marcos ópticos al por mayor en Chile • Importación Directa',
-    description: 'Importación directa mayorista de armazones para ópticas en Chile. Mínimo 10 unidades combinables y factura electrónica SII.',
+    title: 'Marcos de Marca | Distribución Mayorista Óptica en Chile • Importación Directa B2B',
+    description: 'Distribución mayorista B2B de marcos ópticos y gafas de sol de marcas originales para ópticas en Chile. Mínimo 10 unidades combinables y factura electrónica SII.',
     images: [`${BASE_URL}/og-image.png`],
   },
   robots: {

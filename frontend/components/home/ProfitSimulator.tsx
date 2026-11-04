@@ -65,7 +65,7 @@ export default function ProfitSimulator() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800">
                 <label className="text-xs text-slate-400 block mb-1.5 font-medium">
-                  Costo promedio OptiHub (Neto):
+                  Costo promedio Marcos de Marca (Neto):
                 </label>
                 <div className="flex items-center gap-2">
                   <span className="text-emerald-400 font-bold">$</span>

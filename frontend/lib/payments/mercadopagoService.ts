@@ -98,7 +98,7 @@ function getSiteUrl(): string {
       throw new Error('La URL base no debe contener credenciales ni parámetros de autenticación.');
     }
     if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
-      throw new Error('Mercado Pago auto_return requiere un dominio público accesible. No se admite localhost ni 127.0.0.1. Configure el dominio desplegado de OptiHub en SITE_URL.');
+      throw new Error('Mercado Pago auto_return requiere un dominio público accesible. No se admite localhost ni 127.0.0.1. Configure el dominio desplegado de Marcos de Marca en SITE_URL.');
     }
     return candidate.replace(/\/+$/, '');
   } catch (err: any) {
@@ -333,7 +333,7 @@ export async function createOrderPaymentPreference(
       billingDetails?.customerEmail || order.customer_email || 'contacto@optihub.cl';
     const customerEmail = resolveSandboxSafePayerEmail(rawCustomerEmail);
     const customerName =
-      billingDetails?.customerName || order.customer_name || 'Cliente B2B OptiHub';
+      billingDetails?.customerName || order.customer_name || 'Cliente B2B Marcos de Marca';
     const customerPhone =
       billingDetails?.customerPhone || order.customer_phone || undefined;
     const businessRut =
@@ -371,7 +371,7 @@ export async function createOrderPaymentPreference(
       auto_return: 'approved' as const,
       external_reference: cleanOrderId,
       notification_url: `${siteUrl}/api/webhooks/mercadopago`,
-      statement_descriptor: 'OptiHub B2B',
+      statement_descriptor: 'MARCOS DE MARCA',
       metadata: {
         order_id: cleanOrderId,
         user_id: userId,

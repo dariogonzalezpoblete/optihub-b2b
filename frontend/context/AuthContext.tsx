@@ -250,7 +250,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       user.app_metadata?.role === 'admin' ||
       user.user_metadata?.role === 'admin' ||
       user.user_metadata?.is_admin === true ||
-      ['multifocuslimitada@gmail.com', 'dario.joda.2007@gmail.com', 'contacto@optihub.cl', 'admin@optihub.cl'].includes(
+      ['multifocuslimitada@gmail.com', 'dario.joda.2007@gmail.com', 'contacto@marcosdemarca.cl', 'admin@marcosdemarca.cl', 'contacto@optihub.cl', 'admin@optihub.cl'].includes(
         user.email?.toLowerCase().trim() || ''
       )
     )

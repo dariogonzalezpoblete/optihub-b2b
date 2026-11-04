@@ -69,7 +69,7 @@ function generateClientEmailHtml(data: OrderEmailPayload): string {
         
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #059669, #0d9488); padding: 32px 24px; text-align: center;">
-          <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 900; letter-spacing: 1px;">OPTIHUB B2B WHOLESALE</h1>
+          <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 900; letter-spacing: 1px;">MARCOS DE MARCA</h1>
           <p style="color: #e6fffa; margin: 8px 0 0 0; font-size: 14px;">Confirmación de Pedido Mayorista • Ref: <strong>${externalReference}</strong></p>
         </div>
 
@@ -130,7 +130,7 @@ function generateClientEmailHtml(data: OrderEmailPayload): string {
           </div>
 
           <div style="margin-top: 32px; text-align: center; border-top: 1px solid #1f2937; padding-top: 20px;">
-            <p style="font-size: 12px; color: #64748b; margin: 0;">OptiHub Chile • Plataforma Mayorista B2B de Armazones Ópticos</p>
+            <p style="font-size: 12px; color: #64748b; margin: 0;">Marcos de Marca • Distribución Mayorista Óptica B2B</p>
           </div>
         </div>
       </div>
@@ -209,7 +209,7 @@ function generateAdminEmailHtml(data: OrderEmailPayload): string {
           </table>
 
           <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #64748b;">
-            Notificación automática del sistema OptiHub B2B
+            Notificación automática del sistema Marcos de Marca B2B
           </div>
         </div>
       </div>
@@ -224,7 +224,7 @@ export async function sendOrderConfirmationEmails(
   options?: { idempotencyKey?: string }
 ) {
   const adminEmail = process.env.ADMIN_EMAIL || 'contacto@optihub.cl';
-  const fromEmail = process.env.EMAIL_FROM || 'OptiHub B2B <onboarding@resend.dev>';
+  const fromEmail = process.env.EMAIL_FROM || 'Marcos de Marca B2B <onboarding@resend.dev>';
   const isSimulationMode = process.env.EMAIL_SIMULATION_MODE === 'true';
 
   console.log(`📧 Preparando envío de correos automáticos para orden ${data.externalReference}...`);
@@ -269,7 +269,7 @@ export async function sendOrderConfirmationEmails(
       {
         from: fromEmail,
         to: data.billing.contacto_email,
-        subject: `👓 Pedido Mayorista Confirmado #${data.externalReference} | OptiHub B2B`,
+        subject: `👓 Pedido Mayorista Confirmado #${data.externalReference} | Marcos de Marca`,
         html: generateClientEmailHtml(data),
         headers: Object.keys(clientHeaders).length > 0 ? clientHeaders : undefined,
       },
@@ -368,7 +368,7 @@ function generateAdminNewRegistrationEmailHtml(data: NewRegistrationEmailPayload
             🔔 Nueva Solicitud B2B
           </span>
           <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">
-            ¡Nueva Óptica Registrada en OptiHub!
+            ¡Nueva Óptica Registrada en Marcos de Marca!
           </h1>
           <p style="color: #94a3b8; font-size: 13px; margin: 6px 0 0 0;">
             Requiere tu revisión y aprobación para acceder a precios mayoristas.
@@ -434,7 +434,7 @@ function generateAdminNewRegistrationEmailHtml(data: NewRegistrationEmailPayload
           </div>
 
           <div style="text-align: center; font-size: 12px; color: #64748b; margin-top: 24px; border-top: 1px solid #334155; padding-top: 16px;">
-            OptiHub B2B Sistema de Seguridad y Verificación • ${fecha_solicitud ? new Date(fecha_solicitud).toLocaleString('es-CL') : 'Ahora'}
+            Marcos de Marca • Sistema de Seguridad y Verificación B2B • ${fecha_solicitud ? new Date(fecha_solicitud).toLocaleString('es-CL') : 'Ahora'}
           </div>
         </div>
       </div>
@@ -445,7 +445,7 @@ function generateAdminNewRegistrationEmailHtml(data: NewRegistrationEmailPayload
 
 export async function sendAdminNewRegistrationEmail(data: NewRegistrationEmailPayload) {
   const adminEmail = process.env.ADMIN_EMAIL || 'contacto@optihub.cl';
-  const fromEmail = process.env.EMAIL_FROM || 'OptiHub B2B <onboarding@resend.dev>';
+  const fromEmail = process.env.EMAIL_FROM || 'Marcos de Marca B2B <onboarding@resend.dev>';
   const isSimulationMode = process.env.EMAIL_SIMULATION_MODE === 'true';
 
   console.log(`📧 Preparando notificación de nueva óptica (${data.razon_social}) para el Administrador...`);
@@ -512,7 +512,7 @@ function generateOpticaApprovedEmailHtml(data: OpticaApprovedEmailPayload): stri
         
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #059669, #0d9488); padding: 32px 24px; text-align: center;">
-          <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 900; letter-spacing: 1px;">OPTIHUB B2B WHOLESALE</h1>
+          <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 900; letter-spacing: 1px;">MARCOS DE MARCA</h1>
           <p style="color: #e6fffa; margin: 8px 0 0 0; font-size: 14px;">Plataforma Mayorista para Ópticas de Chile</p>
         </div>
 
@@ -522,7 +522,7 @@ function generateOpticaApprovedEmailHtml(data: OpticaApprovedEmailPayload): stri
           </div>
 
           <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 12px 0;">
-            ¡Bienvenido/a a OptiHub, ${data.nombre_contacto}!
+            ¡Bienvenido/a a Marcos de Marca, ${data.nombre_contacto}!
           </h2>
 
           <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
@@ -547,7 +547,7 @@ function generateOpticaApprovedEmailHtml(data: OpticaApprovedEmailPayload): stri
           </div>
 
           <div style="text-align: center; font-size: 12px; color: #64748b; margin-top: 32px; border-top: 1px solid #1f2937; padding-top: 16px;">
-            OptiHub Chile • Importación y Distribución Mayorista para Ópticas
+            Marcos de Marca • Distribución Mayorista Óptica B2B
           </div>
         </div>
       </div>
@@ -557,7 +557,7 @@ function generateOpticaApprovedEmailHtml(data: OpticaApprovedEmailPayload): stri
 }
 
 export async function sendOpticaApprovedEmail(data: OpticaApprovedEmailPayload) {
-  const fromEmail = process.env.EMAIL_FROM || 'OptiHub B2B <onboarding@resend.dev>';
+  const fromEmail = process.env.EMAIL_FROM || 'Marcos de Marca B2B <onboarding@resend.dev>';
   const isSimulationMode = process.env.EMAIL_SIMULATION_MODE === 'true';
 
   console.log(`📧 Preparando correo de aprobación para la óptica (${data.email})...`);
@@ -571,7 +571,7 @@ export async function sendOpticaApprovedEmail(data: OpticaApprovedEmailPayload) 
     const res = await resend.emails.send({
       from: fromEmail,
       to: data.email,
-      subject: `🎉 ¡Cuenta Aprobada! Ya puedes acceder a Precios Mayoristas | OptiHub B2B`,
+      subject: `🎉 ¡Cuenta Aprobada! Ya puedes acceder a Precios Mayoristas | Marcos de Marca`,
       html: generateOpticaApprovedEmailHtml(data),
     });
 
@@ -634,7 +634,7 @@ const LOGISTICS_STAGE_LABELS: Record<string, { title: string; badge: string; des
     title: 'Pedido Entregado en tu Óptica',
     badge: 'Completado • Entregado',
     description:
-      'Tu pedido mayorista figura como entregado en destino. Gracias por confiar en OptiHub B2B para abastecer tu óptica.',
+      'Tu pedido mayorista figura como entregado en destino. Gracias por confiar en Marcos de Marca para abastecer tu óptica.',
   },
 };
 
@@ -664,7 +664,7 @@ function generateOrderTrackingEmailHtml(data: OrderTrackingEmailPayload): string
         <!-- Header Quiet Luxury -->
         <div style="background-color: #0F0F0F; padding: 32px 24px; text-align: center; border-bottom: 3px solid #9E8256;">
           <p style="color: #9E8256; margin: 0 0 8px 0; font-size: 10px; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase;">
-            OPTIHUB B2B • LOGÍSTICA MAYORISTA
+            MARCOS DE MARCA • DISTRIBUCIÓN MAYORISTA ÓPTICA
           </p>
           <h1 style="color: #FFFFFF; margin: 0; font-size: 22px; font-weight: 400; font-family: Georgia, serif;">
             ${stageMeta.title}
@@ -715,12 +715,12 @@ function generateOrderTrackingEmailHtml(data: OrderTrackingEmailPayload): string
 
           <div style="text-align: center; margin: 28px 0 16px 0;">
             <a href="${targetTrackingUrl}" target="_blank" style="display: inline-block; background-color: #0F0F0F; color: #FFFFFF; text-decoration: none; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.2em; padding: 15px 28px;">
-              Ver Estado del Pedido en OptiHub →
+              Ver Estado del Pedido en Marcos de Marca →
             </a>
           </div>
 
           <div style="text-align: center; font-size: 11px; color: #716E6A; margin-top: 32px; border-top: 1px solid #E6E2DD; padding-top: 16px;">
-            OptiHub Chile • Distribución Mayorista B2B de Armazones Originales
+            Marcos de Marca • Distribución Mayorista B2B de Armazones Originales
           </div>
         </div>
       </div>
@@ -733,7 +733,7 @@ export async function sendOrderTrackingUpdateEmail(
   data: OrderTrackingEmailPayload,
   options?: { idempotencyKey?: string }
 ) {
-  const fromEmail = process.env.EMAIL_FROM || 'OptiHub B2B <onboarding@resend.dev>';
+  const fromEmail = process.env.EMAIL_FROM || 'Marcos de Marca B2B <onboarding@resend.dev>';
   const isSimulationMode = process.env.EMAIL_SIMULATION_MODE === 'true';
 
   if (!data.email || !data.email.includes('@')) {
@@ -761,7 +761,7 @@ export async function sendOrderTrackingUpdateEmail(
       {
         from: fromEmail,
         to: data.email,
-        subject: `📦 ${stageMeta.title} • Pedido #${data.externalReference} | OptiHub B2B`,
+        subject: `📦 ${stageMeta.title} • Pedido #${data.externalReference} | Marcos de Marca`,
         html: generateOrderTrackingEmailHtml(data),
       },
       reqOptions

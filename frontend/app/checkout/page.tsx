@@ -981,7 +981,7 @@ export default function CheckoutPage() {
 
             <div className="space-y-3.5 text-xs sm:text-sm text-[#575551] leading-relaxed">
               <p>
-                <strong className="text-[#0F0F0F]">1. Modalidad Mayorista (MOQ):</strong> OptiHub opera exclusivamente en modalidad de distribución mayorista B2B para ópticas y clínicas oftalmológicas establecidas, con un mínimo de compra de 10 unidades por orden.
+                <strong className="text-[#0F0F0F]">1. Modalidad Mayorista (MOQ):</strong> Marcos de Marca opera exclusivamente en modalidad de distribución mayorista B2B para ópticas y clínicas oftalmológicas establecidas, con un mínimo de compra de 10 unidades por orden.
               </p>
               <p>
                 <strong className="text-[#0F0F0F]">2. Confirmación y Descuento de Stock:</strong> Los pagos se procesan mediante Mercado Pago Checkout Pro. El inventario se descuenta de forma transaccional una vez acreditado el pago en nuestros servidores.

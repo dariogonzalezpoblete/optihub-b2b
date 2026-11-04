@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { trackB2BEvent } from '@/lib/analytics';
+import { MarcosDeMarcaEmblem } from '@/components/ui/OptiHubLogo';
 import {
   ShieldCheck,
   Truck,
@@ -81,17 +82,20 @@ export default function Footer() {
           
           {/* COLUMNA 1: IDENTIDAD Y RESPALDO */}
           <div className="space-y-4">
-            <Link href="/" className="inline-flex flex-col group">
-              <span className="font-serif text-2xl tracking-[0.22em] uppercase text-[#0F0F0F] font-normal group-hover:text-[#9E8256] transition-colors leading-tight">
-                OPTIHUB
-              </span>
-              <span className="text-[9px] tracking-[0.25em] text-[#5C5A55] uppercase font-sans mt-0.5">
-                MAYORISTA ÓPTICO · USA
-              </span>
+            <Link href="/" className="inline-flex items-center gap-3 group">
+              <MarcosDeMarcaEmblem className="w-9 h-9 shrink-0" theme="brass" />
+              <div className="flex flex-col">
+                <span className="font-sans text-lg tracking-[0.22em] uppercase text-[#263E55] font-medium group-hover:text-[#9E8256] transition-colors leading-tight">
+                  MARCOS DE MARCA
+                </span>
+                <span className="text-[8.5px] tracking-[0.24em] text-[#5C5A55] uppercase font-sans mt-0.5">
+                  DISTRIBUCIÓN MAYORISTA ÓPTICA
+                </span>
+              </div>
             </Link>
 
             <p className="text-xs text-[#5C5A55] leading-relaxed">
-              Plataforma B2B de aprovisionamiento e importación directa de armazones oftálmicos y solares originales desde Estados Unidos para ópticas establecidas en Chile.
+              Distribución mayorista B2B de marcos ópticos y gafas de sol de marcas originales y reconocidas desde Estados Unidos para ópticas y distribuidores establecidos en Chile.
             </p>
 
             <div className="pt-2 border-t border-[#E6E2DD] space-y-2 text-xs text-[#5C5A55]">
@@ -216,7 +220,7 @@ export default function Footer() {
 
             <div className="pt-2">
               <a
-                href="https://wa.me/56989338537?text=Hola%2C%20necesito%20asistencia%20comercial%20en%20Optihub%20B2B"
+                href="https://wa.me/56989338537?text=Hola%2C%20necesito%20asistencia%20comercial%20en%20Marcos%20de%20Marca%20B2B"
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => {
@@ -300,7 +304,7 @@ export default function Footer() {
 
         {/* LÍNEA FINAL DE COPYRIGHT Y CUMPLIMIENTO */}
         <div className="mt-14 pt-8 border-t border-[#E6E2DD] flex flex-col md:flex-row items-center justify-between gap-4 text-[10px] uppercase tracking-[0.18em] text-[#787670] text-center md:text-left">
-          <p>© {new Date().getFullYear()} OPTIHUB · OPTICA MULTIFOCUS LIMITADA. TODOS LOS DERECHOS RESERVADOS.</p>
+          <p>© {new Date().getFullYear()} MARCOS DE MARCA · OPTICA MULTIFOCUS LIMITADA. TODOS LOS DERECHOS RESERVADOS.</p>
           <p className="normal-case tracking-normal text-xs text-[#787670]">
             Cumplimiento Ley N° 19.628 & N° 21.719 de Protección de Datos Personales · Servicio de Impuestos Internos (SII) de Chile.
           </p>

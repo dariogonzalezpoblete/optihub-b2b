@@ -1,4 +1,4 @@
-# OptiHub Provider Catalog Scraper (v2.1 Enterprise)
+# Marcos de Marca — Provider Catalog Scraper (v2.1 Enterprise)
 
 Scraper de alta velocidad, resiliente y de fidelidad empresarial para el catálogo de monturas ópticas de **nywd.com** (Miami wholesale), desarrollado con **Node.js**, **TypeScript**, **Playwright**, **Sharp** y **Supabase**.
 

@@ -267,7 +267,7 @@ function ResultadoContent() {
               </div>
 
               <div className="flex justify-between items-center pb-2.5 border-b border-[#E6E2DD]">
-                <span className="text-[#575551] font-medium">N° de Orden OptiHub:</span>
+                <span className="text-[#575551] font-medium">N° de Orden Marcos de Marca:</span>
                 <span className="font-mono font-bold text-[#0F0F0F] text-xs sm:text-sm">
                   {displayRef}
                 </span>

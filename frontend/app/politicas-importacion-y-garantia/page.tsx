@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Políticas de Importación y Garantía de Fábrica | OPTIHUB Chile',
+  title: 'Políticas de Importación y Garantía de Fábrica | MARCOS DE MARCA Chile',
   description:
     'Garantía de autenticidad 100% original con trazabilidad USA-SII, empaque oficial completo por unidad, entrega nacionalizada puerta a puerta sin trámites aduaneros y protocolo formal de garantía técnica para ópticas en Chile.',
   alternates: {
@@ -81,7 +81,7 @@ export default function PoliticasImportacionYGarantiaPage() {
             </div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-[#0F0F0F]">Sin Trámites Aduaneros</h3>
             <p className="text-[11px] text-[#5C5A55] mt-1 leading-relaxed">
-              Recepción puerta a puerta con aranceles e internación resueltos por Optihub.
+              Recepción puerta a puerta con aranceles e internación resueltos por Marcos de Marca.
             </p>
           </div>
 
@@ -112,7 +112,7 @@ export default function PoliticasImportacionYGarantiaPage() {
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-[#5C5A55] leading-relaxed">
-              En el mercado óptico mayorista, la autenticidad y el prestigio de marca constituyen el activo más valioso de su óptica. Por ello, <strong className="text-[#0F0F0F]">OPTIHUB opera con una política estricta de tolerancia cero</strong> frente a falsificaciones, réplicas, saldos intervenidos o productos de procedencia dudosa:
+              En el mercado óptico mayorista, la autenticidad y el prestigio de marca constituyen el activo más valioso de su óptica. Por ello, <strong className="text-[#0F0F0F]">MARCOS DE MARCA opera con una política estricta de tolerancia cero</strong> frente a falsificaciones, réplicas, saldos intervenidos o productos de procedencia dudosa:
             </p>
             <div className="bg-[#FAF9F6] border border-[#E6E2DD] p-5 space-y-3">
               <div className="flex items-start gap-3">
@@ -201,14 +201,14 @@ export default function PoliticasImportacionYGarantiaPage() {
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-[#5C5A55] leading-relaxed">
-              La mayor barrera que enfrentan las ópticas chilenas al importar armazones desde Estados Unidos es la complejidad aduanera, las retenciones sorpresivas y los costos imprevistos de agentes de aduana. OPTIHUB elimina completamente esta fricción:
+              La mayor barrera que enfrentan las ópticas chilenas al importar armazones desde Estados Unidos es la complejidad aduanera, las retenciones sorpresivas y los costos imprevistos de agentes de aduana. MARCOS DE MARCA elimina completamente esta fricción:
             </p>
             <div className="bg-[#FAF9F6] border-l-2 border-[#9E8256] p-5 space-y-2 text-xs sm:text-sm">
               <h4 className="font-bold text-[#0F0F0F] uppercase tracking-wider">
                 Modalidad DDP (Delivered Duty Paid - Entrega con Derechos Pagados):
               </h4>
               <p className="text-[#5C5A55] leading-relaxed">
-                Su óptica no efectúa ningún trámite aduanero, no contrata agentes externos y no realiza declaraciones de importación personales. OPTIHUB asume la internación consolidada en Santiago, liquida los aranceles de importación correspondientes y despacha el pedido nacionalizado directamente a la puerta de su local u óptica.
+                Su óptica no efectúa ningún trámite aduanero, no contrata agentes externos y no realiza declaraciones de importación personales. MARCOS DE MARCA asume la internación consolidada en Santiago, liquida los aranceles de importación correspondientes y despacha el pedido nacionalizado directamente a la puerta de su local u óptica.
               </p>
             </div>
             <div className="space-y-2 text-xs sm:text-sm text-[#5C5A55] pt-1">
@@ -231,7 +231,7 @@ export default function PoliticasImportacionYGarantiaPage() {
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-[#5C5A55] leading-relaxed">
-              Bajo nuestro modelo de abastecimiento mayorista, cada lote es importado de forma consolidada desde Estados Unidos e internado bajo régimen DDP en Chile. Debido a la estructura logística internacional, no se habilita logística inversa hacia EE. UU. para devoluciones discrecionales, operando las transacciones bajo modalidad de <strong className="text-[#0F0F0F]">VENTA FIRME</strong>. Al mismo tiempo, <strong className="text-[#0F0F0F]">OPTIHUB jamás exigirá a la óptica cliente enviar productos a Estados Unidos como procedimiento ordinario de posventa o garantía</strong>; toda evaluación y resolución procedente se ejecuta localmente en Chile conforme a las siguientes reglas:
+              Bajo nuestro modelo de abastecimiento mayorista, cada lote es importado de forma consolidada desde Estados Unidos e internado bajo régimen DDP en Chile. Debido a la estructura logística internacional, no se habilita logística inversa hacia EE. UU. para devoluciones discrecionales, operando las transacciones bajo modalidad de <strong className="text-[#0F0F0F]">VENTA FIRME</strong>. Al mismo tiempo, <strong className="text-[#0F0F0F]">MARCOS DE MARCA jamás exigirá a la óptica cliente enviar productos a Estados Unidos como procedimiento ordinario de posventa o garantía</strong>; toda evaluación y resolución procedente se ejecuta localmente en Chile conforme a las siguientes reglas:
             </p>
 
             <div className="space-y-4 pt-2">
@@ -249,7 +249,7 @@ export default function PoliticasImportacionYGarantiaPage() {
                   2. Exclusión de Retracto y de Cambios Voluntarios por Gusto o Rotación
                 </span>
                 <p className="text-xs text-[#5C5A55] leading-relaxed">
-                  Conforme a la normativa mercantil chilena para compraventas mayoristas destinadas a la reventa (Código de Comercio) y a la exclusión expresa del derecho a retracto informada conforme al artículo 3 bis letra b) de la Ley N° 19.496, OPTIHUB no ofrece cambios voluntarios ni tickets de cambio por:
+                  Conforme a la normativa mercantil chilena para compraventas mayoristas destinadas a la reventa (Código de Comercio) y a la exclusión expresa del derecho a retracto informada conforme al artículo 3 bis letra b) de la Ley N° 19.496, MARCOS DE MARCA no ofrece cambios voluntarios ni tickets de cambio por:
                 </p>
                 <ul className="list-disc pl-5 text-xs text-[#5C5A55] space-y-1">
                   <li><strong className="text-[#0F0F0F]">NO hay cambios por rotación de inventario:</strong> La óptica asume el riesgo comercial de venta en sus locales.</li>
@@ -305,7 +305,7 @@ export default function PoliticasImportacionYGarantiaPage() {
               </p>
             </div>
             <a
-              href="https://wa.me/56989338537?text=Hola%2C%20requiero%20asistencia%20del%20departamento%20de%20Importaciones%20y%20Garant%C3%ADa%20Optihub"
+              href="https://wa.me/56989338537?text=Hola%2C%20requiero%20asistencia%20del%20departamento%20de%20Importaciones%20y%20Garant%C3%ADa%20Marcos%20de%20Marca"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 bg-[#0F0F0F] hover:bg-[#262626] text-white px-6 py-3 text-[11px] uppercase tracking-[0.18em] transition-colors whitespace-nowrap"

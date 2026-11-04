@@ -1,21 +1,27 @@
 @import "tailwindcss";
 
 /* ============================================================
-   OPTIHUB B2B — ARCHITECTURAL QUIET LUXURY DESIGN SYSTEM
-   Inspirado en la dirección de arte de MyLuxottica, Kering Eyewear, Thélios y Celine.
+   MARCOS DE MARCA B2B — ARCHITECTURAL QUIET LUXURY DESIGN SYSTEM
+   Distribución Mayorista Óptica · Identidad Corporativa:
    Paleta: 
-     Fondo Principal:       Alabastro Cálido (#FAF9F6)
-     Superficie Estudio:    Piedra Cálida Suave (#F4F2ED)
-     Contenedores/Modales:  Blanco Puro (#FFFFFF)
-     Texto/Botón Primario:  Negro Obsidiana (#0F0F0F)
+     Azul Marino Marca:     #263E55
+     Marfil / Alabastro:    #F3F1EC / #FAF9F6
+     Grafito / Obsidiana:   #292929 / #0F0F0F
+     Blanco Puro:           #FFFFFF
      Texto Secundario:      Gris Grafito Cálido (#5C5A55)
-     Acento de Lujo:        Bronce Cepillado / Champagne (#9E8256)
+     Acento de Lujo:        Latón / Champagne (#9E8256 / #B39058)
      Líneas Hairlines:      1px solid #E6E2DD
    ============================================================ */
 
 :root {
   --background: #FAF9F6;
   --foreground: #0F0F0F;
+
+  /* Marcos de Marca Reference Palette */
+  --mdm-navy:     #263E55;
+  --mdm-ivory:    #F3F1EC;
+  --mdm-graphite: #292929;
+  --mdm-brass:    #B39058;
 
   /* Architectural Quiet Luxury Tokens */
   --maison-bg:             #FAF9F6;

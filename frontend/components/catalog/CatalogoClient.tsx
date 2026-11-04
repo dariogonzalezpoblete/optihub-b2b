@@ -301,7 +301,7 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
                   )}
                 </div>
                 <p className="text-xs text-[#5C5A55] mt-1.5 max-w-2xl leading-relaxed">
-                  Bienvenido a OptiHub. Su cuenta para <strong className="text-[#0F0F0F]">{opticaData?.nombre_optica || opticaData?.razon_social || 'su óptica'}</strong> está siendo verificada ante el Servicio de Impuestos Internos. Los precios mayoristas netos e importación directa se activarán una vez confirmado su giro comercial.
+                  Bienvenido a Marcos de Marca. Su cuenta para <strong className="text-[#0F0F0F]">{opticaData?.nombre_optica || opticaData?.razon_social || 'su óptica'}</strong> está siendo verificada ante el Servicio de Impuestos Internos. Los precios mayoristas netos e importación directa se activarán una vez confirmado su giro comercial.
                 </p>
               </div>
             </div>
@@ -309,7 +309,7 @@ export default function CatalogoClient({ initialMarcos, totalCount, currentPage,
             <div className="flex items-center gap-3 w-full md:w-auto">
               <a
                 href={`https://wa.me/56989338537?text=${encodeURIComponent(
-                  `Hola OptiHub B2B, acabo de ingresar a mi cuenta de óptica (${opticaData?.nombre_optica || 'Óptica'}, RUT: ${opticaData?.rut_empresa || ''}). Mi cuenta está en validación SII y solicito activación comercial prioritaria.`
+                  `Hola Marcos de Marca B2B, acabo de ingresar a mi cuenta de óptica (${opticaData?.nombre_optica || 'Óptica'}, RUT: ${opticaData?.rut_empresa || ''}). Mi cuenta está en validación SII y solicito activación comercial prioritaria.`
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"

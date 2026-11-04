@@ -453,7 +453,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 5.5. CÓMO FUNCIONA LA IMPORTACIÓN CONSOLIDADA OPTIHUB */}
+      {/* 5.5. CÓMO FUNCIONA LA IMPORTACIÓN CONSOLIDADA MARCOS DE MARCA */}
       <ImportSteps />
 
       {/* 6. VISTOS RECIENTEMENTE */}

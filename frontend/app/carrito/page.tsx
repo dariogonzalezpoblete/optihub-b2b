@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useCartStore, getValidStock, getProductCartKey } from '@/store/useCartStore';
+import { MarcosDeMarcaEmblem } from '@/components/ui/OptiHubLogo';
 import { 
   ShoppingBag, 
   Trash2, 
@@ -101,7 +102,7 @@ export default function CarritoPage() {
 
   const generateWhatsAppOrderUrl = () => {
     const lines: string[] = [
-      '*SOLICITUD DE PEDIDO MAYORISTA - OPTIHUB B2B*',
+      '*SOLICITUD DE PEDIDO MAYORISTA - MARCOS DE MARCA B2B*',
       '',
       `*N° Cotización:* ${quoteNumber}`,
       `*Óptica:* ${opticaData?.nombre_optica || opticaData?.razon_social || 'Óptica Cliente'} (RUT: ${opticaData?.rut_empresa || 'En validación'})`,
@@ -707,12 +708,17 @@ export default function CarritoPage() {
               {/* Encabezado con Membrete Corporativo OPTICA MULTIFOCUS LIMITADA */}
               <div className="flex flex-col sm:flex-row justify-between items-start gap-6 pb-6 border-b-2 border-[#0F0F0F]">
                 <div>
-                  <span className="font-serif text-3xl tracking-[0.22em] uppercase text-[#0F0F0F] block leading-tight font-normal">
-                    OPTIHUB
-                  </span>
-                  <span className="text-[10px] tracking-[0.25em] text-[#5C5A55] uppercase font-sans block mt-0.5">
-                    MAYORISTA ÓPTICO · IMPORTACIÓN DIRECTA USA
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <MarcosDeMarcaEmblem className="w-9 h-9 shrink-0" theme="brass" />
+                    <div>
+                      <span className="font-sans text-2xl tracking-[0.22em] uppercase text-[#263E55] block leading-tight font-medium">
+                        MARCOS DE MARCA
+                      </span>
+                      <span className="text-[9.5px] tracking-[0.25em] text-[#5C5A55] uppercase font-sans block mt-0.5">
+                        DISTRIBUCIÓN MAYORISTA ÓPTICA · IMPORTACIÓN DIRECTA USA
+                      </span>
+                    </div>
+                  </div>
                   <div className="mt-3 text-xs text-[#5C5A55] space-y-0.5 font-mono">
                     <p><strong className="text-[#0F0F0F]">Razón Social:</strong> OPTICA MULTIFOCUS LIMITADA</p>
                     <p><strong className="text-[#0F0F0F]">RUT:</strong> 78.044.452-5</p>

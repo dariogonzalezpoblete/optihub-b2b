@@ -6,7 +6,7 @@ import { MessageCircle, X, Send, Bot, Sparkles } from 'lucide-react';
 export default function AIChatbox() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: '¡Hola! Soy tu asistente IA de OptiHub B2B. ¿Buscabas algún modelo o material en específico?' }
+    { role: 'assistant', content: '¡Hola! Soy tu asistente IA de Marcos de Marca B2B. ¿Buscabas algún modelo o material en específico?' }
   ]);
   const [input, setInput] = useState('');
 
@@ -54,7 +54,7 @@ export default function AIChatbox() {
               <Bot className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-1">OptiBot IA <Sparkles className="w-3 h-3 text-emerald-400" /></h3>
+              <h3 className="text-sm font-bold text-white flex items-center gap-1">Marcos de Marca IA <Sparkles className="w-3 h-3 text-emerald-400" /></h3>
               <p className="text-[10px] text-emerald-500 font-medium">Asistente Virtual B2B</p>
             </div>
           </div>

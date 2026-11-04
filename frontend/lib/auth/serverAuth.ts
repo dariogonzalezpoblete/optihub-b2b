@@ -3,12 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 import type { User } from '@supabase/supabase-js';
 
 /**
- * Lista explícita de correos autorizados para funciones administrativas en OptiHub B2B.
+ * Lista explícita de correos autorizados para funciones administrativas en Marcos de Marca B2B.
  * Mantiene compatibilidad con el administrador legítimo de la plataforma.
  */
 const DEFAULT_ADMIN_EMAILS = [
   'multifocuslimitada@gmail.com',
   'dario.joda.2007@gmail.com',
+  'contacto@marcosdemarca.cl',
+  'admin@marcosdemarca.cl',
   'contacto@optihub.cl',
   'admin@optihub.cl'
 ];

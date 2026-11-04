@@ -20,7 +20,7 @@ import { supabase } from '@/lib/supabaseClient';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Términos y Condiciones Mayoristas B2B | OPTIHUB Chile',
+  title: 'Términos y Condiciones Mayoristas B2B | MARCOS DE MARCA Chile',
   description:
     'Condiciones generales de contratación y venta mayorista B2B para ópticas en Chile. Regla de compra mínima (MOQ) de 10 unidades, Factura Electrónica SII en CLP y logística directa desde EE. UU.',
   alternates: {
@@ -56,7 +56,7 @@ export default async function TerminosYCondicionesPage() {
             Términos y Condiciones Mayoristas
           </h1>
           <p className="text-[#5C5A55] text-sm sm:text-base mt-4 max-w-3xl leading-relaxed">
-            Las presentes estipulaciones rigen de manera exclusiva los actos y contratos comerciales de abastecimiento celebrados entre <strong className="text-[#0F0F0F] font-semibold">OPTICA MULTIFOCUS LIMITADA</strong> (RUT 78.044.452-5, operadora comercial de la plataforma mayorista <strong className="text-[#0F0F0F]">OPTIHUB</strong>) y las ópticas, profesionales de la salud visual y personas jurídicas del rubro acreditadas en el territorio de la República de Chile.
+            Las presentes estipulaciones rigen de manera exclusiva los actos y contratos comerciales de abastecimiento celebrados entre <strong className="text-[#0F0F0F] font-semibold">OPTICA MULTIFOCUS LIMITADA</strong> (RUT 78.044.452-5, operadora comercial de la plataforma mayorista <strong className="text-[#0F0F0F]">MARCOS DE MARCA</strong>) y las ópticas, profesionales de la salud visual y personas jurídicas del rubro acreditadas en el territorio de la República de Chile.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-4 text-[11px] uppercase tracking-wider text-[#787670] font-mono">
             <span>Última actualización: Octubre 2026</span>
@@ -128,7 +128,7 @@ export default async function TerminosYCondicionesPage() {
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-[#5C5A55] leading-relaxed">
-              <strong className="text-[#0F0F0F]">OPTIHUB</strong> opera en Chile de forma exclusiva como un hub digital de abastecimiento mayorista de óptica orientado a transacciones entre empresas (<em className="font-serif">Business-to-Business</em>). En consecuencia:
+              <strong className="text-[#0F0F0F]">MARCOS DE MARCA</strong> opera en Chile de forma exclusiva como una plataforma digital de distribución mayorista óptica orientada a transacciones entre empresas (<em className="font-serif">Business-to-Business</em>). En consecuencia:
             </p>
             <ul className="list-disc pl-5 text-xs sm:text-sm text-[#5C5A55] space-y-2">
               <li>
@@ -170,7 +170,7 @@ export default async function TerminosYCondicionesPage() {
               </p>
             </div>
             <p className="text-xs sm:text-sm text-[#5C5A55] leading-relaxed">
-              El motor de compras de OPTIHUB bloquea automáticamente el paso a checkout si la suma total de piezas es inferior a 10 unidades. Pedidos de mayor volumen (50, 100 o más piezas) pueden ser coordinados con condiciones comerciales preferenciales mediante nuestro canal corporativo.
+              El motor de compras de MARCOS DE MARCA bloquea automáticamente el paso a checkout si la suma total de piezas es inferior a 10 unidades. Pedidos de mayor volumen (50, 100 o más piezas) pueden ser coordinados con condiciones comerciales preferenciales mediante nuestro canal corporativo.
             </p>
           </section>
 
@@ -225,10 +225,10 @@ export default async function TerminosYCondicionesPage() {
                 <strong className="text-[#0F0F0F]">Plazo de Tránsito Estimado:</strong> El plazo ordinario de consolidación aérea, traslado internacional, internación aduanera y despacho final puerta a puerta comprende un rango de <strong className="text-[#0F0F0F]">10 a 15 días hábiles</strong> contados desde la confirmación del pago del pedido.
               </li>
               <li>
-                <strong className="text-[#0F0F0F]">Entrega Nacionalizada Puerta a Puerta:</strong> OPTIHUB coordina la entrega en la dirección comercial declarada por la óptica en cualquier comuna de Chile mediante operadores logísticos certificados con guía de despacho y seguimiento en línea.
+                <strong className="text-[#0F0F0F]">Entrega Nacionalizada Puerta a Puerta:</strong> MARCOS DE MARCA coordina la entrega en la dirección comercial declarada por la óptica en cualquier comuna de Chile mediante operadores logísticos certificados con guía de despacho y seguimiento en línea.
               </li>
               <li>
-                <strong className="text-[#0F0F0F]">Fuerza Mayor y Contingencias Aduaneras:</strong> Eventuales retrasos originados por inspecciones extraordinarias del Servicio Nacional de Aduanas de Chile, fiscalizaciones sanitarias, cancelaciones de vuelos internacionales o catástrofes naturales serán informados prontamente al cliente, sin que ello constituya incumplimiento imputable a OPTIHUB.
+                <strong className="text-[#0F0F0F]">Fuerza Mayor y Contingencias Aduaneras:</strong> Eventuales retrasos originados por inspecciones extraordinarias del Servicio Nacional de Aduanas de Chile, fiscalizaciones sanitarias, cancelaciones de vuelos internacionales o catástrofes naturales serán informados prontamente al cliente, sin que ello constituya incumplimiento imputable a MARCOS DE MARCA.
               </li>
             </ul>
           </section>
@@ -270,7 +270,7 @@ export default async function TerminosYCondicionesPage() {
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-[#5C5A55] leading-relaxed">
-              Las adquisiciones realizadas en OPTIHUB constituyen contratos de compraventa mercantil entre partes comerciales regulados por el Código de Comercio de la República de Chile (artículos 130, 144, 158 y siguientes). Conforme a la legislación chilena y a las características técnicas y logísticas de la importación internacional consolidada, las partes estipulan expresamente las siguientes condiciones:
+              Las adquisiciones realizadas en MARCOS DE MARCA constituyen contratos de compraventa mercantil entre partes comerciales regulados por el Código de Comercio de la República de Chile (artículos 130, 144, 158 y siguientes). Conforme a la legislación chilena y a las características técnicas y logísticas de la importación internacional consolidada, las partes estipulan expresamente las siguientes condiciones:
             </p>
 
             <div className="bg-[#FAF9F6] border-l-2 border-[#9E8256] p-4 text-xs sm:text-sm text-[#0F0F0F] space-y-2">
@@ -278,7 +278,7 @@ export default async function TerminosYCondicionesPage() {
                 1. Naturaleza de Venta Firme (Firm Sale) y Gestión Posventa 100% Local en Chile
               </p>
               <p className="text-[#5C5A55] leading-relaxed">
-                Toda orden confirmada y facturada opera bajo la modalidad comercial de <strong className="text-[#0F0F0F]">VENTA FIRME</strong>. Debido a la estructura de importación consolidada desde Estados Unidos bajo régimen DDP en Chile, no se habilita logística inversa internacional para devoluciones discrecionales. Al mismo tiempo, <strong className="text-[#0F0F0F]">OPTIHUB jamás exigirá a la óptica cliente que exporte o envíe un producto de regreso a Estados Unidos como procedimiento ordinario de reclamo o garantía</strong>; toda evaluación y solución procedente se gestiona íntegramente en Chile.
+                Toda orden confirmada y facturada opera bajo la modalidad comercial de <strong className="text-[#0F0F0F]">VENTA FIRME</strong>. Debido a la estructura de importación consolidada desde Estados Unidos bajo régimen DDP en Chile, no se habilita logística inversa internacional para devoluciones discrecionales. Al mismo tiempo, <strong className="text-[#0F0F0F]">MARCOS DE MARCA jamás exigirá a la óptica cliente que exporte o envíe un producto de regreso a Estados Unidos como procedimiento ordinario de reclamo o garantía</strong>; toda evaluación y solución procedente se gestiona íntegramente en Chile.
               </p>
             </div>
 
@@ -303,7 +303,7 @@ export default async function TerminosYCondicionesPage() {
                   3. Exclusión de Retracto y de Cambios Voluntarios por Gusto o Rotación
                 </strong>
                 <p>
-                  En conformidad con la normativa mercantil aplicable a compraventas mayoristas para reventa y con la exclusión expresa del derecho a retracto informada conforme al artículo 3 bis letra b) de la Ley N° 19.496, <strong className="text-[#0F0F0F]">OPTIHUB no ofrece tickets de cambio voluntarios ni admite devoluciones discrecionales fundadas en</strong>:
+                  En conformidad con la normativa mercantil aplicable a compraventas mayoristas para reventa y con la exclusión expresa del derecho a retracto informada conforme al artículo 3 bis letra b) de la Ley N° 19.496, <strong className="text-[#0F0F0F]">MARCOS DE MARCA no ofrece tickets de cambio voluntarios ni admite devoluciones discrecionales fundadas en</strong>:
                 </p>
                 <ul className="list-disc pl-5 space-y-1 text-[#5C5A55]">
                   <li><strong className="text-[#0F0F0F]">Baja rotación de inventario:</strong> La óptica adquirente asume el riesgo comercial de rotación y comercialización en sus locales.</li>
@@ -346,7 +346,7 @@ export default async function TerminosYCondicionesPage() {
                   5. Mecanismos de Resolución en Chile y Salvaguarda de Derechos Legales Irrenunciables
                 </strong>
                 <p className="leading-relaxed">
-                  Una vez evaluados los antecedentes y verificada la procedencia del reclamo en Chile, OPTIHUB resolverá localmente la incidencia mediante la <strong className="text-[#0F0F0F]">reposición de la pieza, la emisión de una Nota de Crédito Electrónica SII en CLP o el reembolso correspondiente</strong>, coordinando en Chile la recepción de la pieza defectuosa cuando sea necesario sin costos ni envíos internacionales hacia Estados Unidos para la óptica.
+                  Una vez evaluados los antecedentes y verificada la procedencia del reclamo en Chile, MARCOS DE MARCA resolverá localmente la incidencia mediante la <strong className="text-[#0F0F0F]">reposición de la pieza, la emisión de una Nota de Crédito Electrónica SII en CLP o el reembolso correspondiente</strong>, coordinando en Chile la recepción de la pieza defectuosa cuando sea necesario sin costos ni envíos internacionales hacia Estados Unidos para la óptica.
                 </p>
                 <p className="leading-relaxed">
                   El vencimiento del plazo operativo de cinco (5) días hábiles acredita la recepción conforme del despacho en cuanto a bultos, empaque exterior y referencias entregadas, <strong className="text-[#0F0F0F]">pero no extingue por sí solo los derechos o acciones legales por vicios o defectos de fabricación que pudieren corresponder conforme a la ley chilena</strong>. Sin perjuicio de la naturaleza mercantil mayorista de las operaciones celebradas para reventa (regidas por el Código de Comercio), <strong className="text-[#0F0F0F]">nada de lo dispuesto en estos Términos se interpretará como una eliminación, renuncia o limitación de la garantía legal o de los derechos irrenunciables que pudieren asistir al comprador por mandato legal imperativo</strong> (incluyendo aquellos supuestos excepcionales en que resultaren aplicables disposiciones de la Ley N° 19.496 o de la Ley N° 20.416).
@@ -368,7 +368,7 @@ export default async function TerminosYCondicionesPage() {
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-[#5C5A55] leading-relaxed">
-              Todas las marcas, logos, denominaciones de modelos e insignias de diseñador exhibidos en el catálogo corresponden a la propiedad industrial e intelectual exclusiva de sus respectivos titulares y fabricantes mundiales. La exhibición de las mismas en el portal OPTIHUB responde exclusivamente a fines informativos de identificación y comercialización legítima de productos originales adquiridos en los canales mayoristas autorizados de Estados Unidos.
+              Todas las marcas, logos, denominaciones de modelos e insignias de diseñador exhibidos en el catálogo corresponden a la propiedad industrial e intelectual exclusiva de sus respectivos titulares y fabricantes mundiales. La exhibición de las mismas en el portal MARCOS DE MARCA responde exclusivamente a fines informativos de identificación y comercialización legítima de productos originales adquiridos en los canales mayoristas autorizados de Estados Unidos.
             </p>
           </section>
 

@@ -32,7 +32,7 @@ export const IMPORT_STAGES: StageDefinition[] = [
     label: 'Control de Aduanas',
     badge: 'Aduana SCL',
     location: 'Aduana de Chile',
-    description: 'Trámite de internación comercial, aforo aduanero y validación técnica por OptiHub.'
+    description: 'Trámite de internación comercial, aforo aduanero y validación técnica por Marcos de Marca.'
   },
   {
     key: 'reparto_chile',

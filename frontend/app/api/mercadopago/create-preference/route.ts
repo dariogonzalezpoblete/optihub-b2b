@@ -70,7 +70,7 @@ export function resolveAndValidateBaseUrl(providedUrl?: string): { valid: boolea
     if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
       return {
         valid: false,
-        error: 'Mercado Pago auto_return requiere un dominio público accesible. No se admite localhost ni 127.0.0.1. Configure el dominio desplegado de OptiHub en SITE_URL.'
+        error: 'Mercado Pago auto_return requiere un dominio público accesible. No se admite localhost ni 127.0.0.1. Configure el dominio desplegado de Marcos de Marca en SITE_URL.'
       };
     }
     return {

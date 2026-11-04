@@ -85,7 +85,7 @@ export async function GET(req: Request) {
         created_at: u.created_at,
         last_sign_in_at: u.last_sign_in_at || null,
         email_confirmed: Boolean(u.email_confirmed_at),
-        razon_social: profile.business_name || meta.razon_social || meta.nombre_optica || (isAdmin ? 'Administrador OptiHub' : 'Sin Razón Social'),
+        razon_social: profile.business_name || meta.razon_social || meta.nombre_optica || (isAdmin ? 'Administrador Marcos de Marca' : 'Sin Razón Social'),
         nombre_optica: meta.nombre_optica || profile.business_name || meta.razon_social || 'Óptica',
         rut_empresa: profile.rut || meta.rut_empresa || meta.rut || (isAdmin ? 'N/A' : 'Sin RUT'),
         giro_comercial: profile.business_giro || meta.giro_comercial || meta.giro || 'Venta de productos ópticos al por mayor y menor',

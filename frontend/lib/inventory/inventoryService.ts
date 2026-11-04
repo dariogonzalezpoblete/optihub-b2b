@@ -158,7 +158,7 @@ export async function createPurchaseOrderWithAtomicStockDeduction(
 
       const productName =
         (item.productName || '').trim() || `${marco.marca} ${marco.modelo}`.trim();
-      const brandName = (item.brandName || '').trim() || marco.marca || 'OptiHub';
+      const brandName = (item.brandName || '').trim() || marco.marca || 'Marcos de Marca';
       const sku = (item.sku || '').trim() || marco.id_ext;
 
       resolvedOrderItems.push({

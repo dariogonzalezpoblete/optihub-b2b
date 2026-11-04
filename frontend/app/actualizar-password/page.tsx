@@ -213,7 +213,7 @@ function ActualizarPasswordForm() {
           <div className="flex items-center justify-center gap-2 mb-3">
             <span className="w-6 h-[1px] bg-[#9E8256]" />
             <span className="text-[10px] uppercase tracking-[0.25em] text-[#9E8256] font-medium">
-              SEGURIDAD B2B · OPTIHUB
+              SEGURIDAD B2B · MARCOS DE MARCA
             </span>
             <span className="w-6 h-[1px] bg-[#9E8256]" />
           </div>

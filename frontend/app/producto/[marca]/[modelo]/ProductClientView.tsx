@@ -255,7 +255,7 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
     const brand = activeVariant?.marca || baseProduct?.marca || '';
     const model = activeVariant?.modelo || baseProduct?.modelo || '';
     const sku = activeVariant?.id_ext || baseProduct?.id_ext || '';
-    const msg = `Hola equipo OPTIHUB, escribo desde una óptica en Chile y quiero consultar por el armazón ${brand} ${model} (SKU: ${sku}) para mi pedido mayorista`;
+    const msg = `Hola equipo Marcos de Marca, escribo desde una óptica en Chile y quiero consultar por el armazón ${brand} ${model} (SKU: ${sku}) para mi pedido mayorista`;
     return `https://wa.me/56989338537?text=${encodeURIComponent(msg)}`;
   }, [activeVariant, baseProduct]);
 
@@ -611,7 +611,7 @@ export default function ProductClientView({ variants, baseProduct }: Props) {
                   <div className="w-full max-w-sm space-y-3">
                     <a
                       href={`https://wa.me/56989338537?text=${encodeURIComponent(
-                        `Hola OptiHub B2B, acabo de ver la ficha de ${baseProduct.marca} ${baseProduct.modelo}. Mi cuenta (${opticaData?.nombre_optica || 'Óptica'}, RUT: ${opticaData?.rut_empresa || ''}) está en validación SII. Solicito activación prioritaria para cotizar.`
+                        `Hola Marcos de Marca B2B, acabo de ver la ficha de ${baseProduct.marca} ${baseProduct.modelo}. Mi cuenta (${opticaData?.nombre_optica || 'Óptica'}, RUT: ${opticaData?.rut_empresa || ''}) está en validación SII. Solicito activación prioritaria para cotizar.`
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"

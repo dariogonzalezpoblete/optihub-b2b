@@ -2,7 +2,7 @@
   "name": "optihub",
   "version": "2.0.0",
   "private": true,
-  "description": "OptiHub B2B Platform & Provider Catalog Engine",
+  "description": "Marcos de Marca B2B Platform & Provider Catalog Engine",
   "scripts": {
     "sync:fast": "npm --prefix backend/scraper run sync:fast --",
     "sync:fast:headless": "npm --prefix backend/scraper run sync:fast:headless --",

@@ -9,7 +9,7 @@ import { Mail, ArrowRight, AlertCircle, CheckCircle, ArrowLeft, Lock, MessageCir
 const WHATSAPP_B2B_SUPPORT_URL =
   'https://wa.me/56989338537?text=' +
   encodeURIComponent(
-    'Hola OptiHub, necesito asistencia B2B porque perdimos acceso al correo corporativo de nuestra óptica para restablecer la clave.'
+    'Hola Marcos de Marca, necesito asistencia B2B porque perdimos acceso al correo corporativo de nuestra óptica para restablecer la clave.'
   );
 
 function RecuperarPasswordForm() {
@@ -94,7 +94,7 @@ function RecuperarPasswordForm() {
                   Solicitud Enviada
                 </h2>
                 <p className="text-xs sm:text-sm text-[#5C5A55] leading-relaxed max-w-sm mx-auto">
-                  Si el correo está asociado a una óptica registrada en OPTIHUB, recibirás un enlace seguro para restablecer tu clave en los próximos minutos.
+                  Si el correo está asociado a una óptica registrada en MARCOS DE MARCA, recibirás un enlace seguro para restablecer tu clave en los próximos minutos.
                 </p>
               </div>
 

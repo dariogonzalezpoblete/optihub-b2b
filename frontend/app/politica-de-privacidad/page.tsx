@@ -15,9 +15,9 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Política de Privacidad y Tratamiento de Datos | OPTIHUB Chile',
+  title: 'Política de Privacidad y Tratamiento de Datos | MARCOS DE MARCA Chile',
   description:
-    'Política de Privacidad de OPTIHUB conforme a la Ley 19.628 y Ley 21.719 de Protección de Datos Personales en Chile. Resguardo confidencial de RUT, Razón Social e historial de compras B2B.',
+    'Política de Privacidad de MARCOS DE MARCA conforme a la Ley 19.628 y Ley 21.719 de Protección de Datos Personales en Chile. Resguardo confidencial de RUT, Razón Social e historial de compras B2B.',
   alternates: {
     canonical: '/politica-de-privacidad',
   },
@@ -39,7 +39,7 @@ export default function PoliticaDePrivacidadPage() {
             Política de Privacidad B2B
           </h1>
           <p className="text-[#5C5A55] text-sm sm:text-base mt-4 max-w-3xl leading-relaxed">
-            Compromiso institucional de <strong className="text-[#0F0F0F] font-semibold">OPTICA MULTIFOCUS LIMITADA</strong> (operadora comercial de OPTIHUB) en resguardo de la confidencialidad, tratamiento lícito y seguridad de la información corporativa y datos de contacto de nuestros clientes ópticos en estricto cumplimiento con la <strong className="text-[#0F0F0F]">Ley N° 19.628</strong> y la nueva <strong className="text-[#0F0F0F]">Ley N° 21.719</strong> de la República de Chile.
+            Compromiso institucional de <strong className="text-[#0F0F0F] font-semibold">OPTICA MULTIFOCUS LIMITADA</strong> (operadora comercial de MARCOS DE MARCA) en resguardo de la confidencialidad, tratamiento lícito y seguridad de la información corporativa y datos de contacto de nuestros clientes ópticos en estricto cumplimiento con la <strong className="text-[#0F0F0F]">Ley N° 19.628</strong> y la nueva <strong className="text-[#0F0F0F]">Ley N° 21.719</strong> de la República de Chile.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-4 text-[11px] uppercase tracking-wider text-[#787670] font-mono">
             <span>Marco: Ley N° 19.628 & Ley N° 21.719</span>
@@ -111,7 +111,7 @@ export default function PoliticaDePrivacidadPage() {
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-[#5C5A55] leading-relaxed">
-              El responsable del tratamiento de los datos personales y comerciales recabados a través del sitio web <strong className="text-[#0F0F0F]">optihub.cl</strong> es:
+              El responsable del tratamiento de los datos personales y comerciales recabados a través de la plataforma mayorista <strong className="text-[#0F0F0F]">MARCOS DE MARCA</strong> es:
             </p>
             <div className="bg-[#FAF9F6] border border-[#E6E2DD] p-4 text-xs font-mono space-y-1 text-[#0F0F0F]">
               <p><span className="text-[#787670] uppercase">Razón Social:</span> OPTICA MULTIFOCUS LIMITADA</p>
@@ -247,12 +247,12 @@ export default function PoliticaDePrivacidadPage() {
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-[#5C5A55] leading-relaxed">
-              OPTIHUB no comercializa, no arrienda ni cede bajo ningún concepto la base de datos de sus clientes ópticos a terceros con fines publicitarios. Sus datos únicamente son comunicados a:
+              MARCOS DE MARCA no comercializa, no arrienda ni cede bajo ningún concepto la base de datos de sus clientes ópticos a terceros con fines publicitarios. Sus datos únicamente son comunicados a:
             </p>
             <ul className="list-disc pl-5 text-xs sm:text-sm text-[#5C5A55] space-y-2">
               <li><strong className="text-[#0F0F0F]">Servicio de Impuestos Internos (SII):</strong> En cumplimiento estricto de las leyes tributarias aplicables a la facturación electrónica en Chile.</li>
               <li><strong className="text-[#0F0F0F]">Operadores Logísticos y Couriers Certificados:</strong> Exclusivamente la información de entrega (Nombre, Dirección de Destino, Teléfono de Contacto) indispensable para completar el reparto físico de los armazones en Chile.</li>
-              <li><strong className="text-[#0F0F0F]">Pasarelas de Pago Certificadas (PCI-DSS):</strong> Información necesaria para procesar la transacción bancaria. OPTIHUB nunca almacena datos completos de tarjetas de crédito o débito en sus servidores.</li>
+              <li><strong className="text-[#0F0F0F]">Pasarelas de Pago Certificadas (PCI-DSS):</strong> Información necesaria para procesar la transacción bancaria. MARCOS DE MARCA nunca almacena datos completos de tarjetas de crédito o débito en sus servidores.</li>
             </ul>
           </section>
 

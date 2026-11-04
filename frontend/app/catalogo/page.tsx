@@ -92,15 +92,15 @@ const BASE_URL =
 
 export const metadata: Metadata = {
   title: 'Catálogo Mayorista de Armazones y Gafas de Sol',
-  description: 'Catálogo mayorista de armazones graduables y lentes de sol de primeras marcas para ópticas en Chile. Precios netos en CLP, stock en origen y compra mínima de 10 unidades combinables.',
+  description: 'Catálogo mayorista B2B de marcos ópticos y gafas de sol de marcas originales y reconocidas para ópticas en Chile. Precios netos en CLP, stock en origen y compra mínima de 10 unidades combinables.',
   alternates: {
     canonical: `${BASE_URL}/catalogo`,
   },
   openGraph: {
-    title: 'Catálogo Mayorista de Armazones y Gafas de Sol | OptiHub',
-    description: 'Importación directa desde EE.UU. con stock verificado en origen en tiempo real. Precios netos en CLP y entrega en 10 a 15 días hábiles.',
+    title: 'Catálogo Mayorista de Armazones y Gafas de Sol | Marcos de Marca',
+    description: 'Distribución mayorista óptica e importación directa desde EE.UU. con stock verificado en origen. Precios netos en CLP y entrega en 10 a 15 días hábiles.',
     url: `${BASE_URL}/catalogo`,
-    siteName: 'OptiHub B2B',
+    siteName: 'Marcos de Marca',
     locale: 'es_CL',
     type: 'website',
     images: [
@@ -108,15 +108,15 @@ export const metadata: Metadata = {
         url: `${BASE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: 'Catálogo Mayorista OptiHub B2B',
+        alt: 'Catálogo Mayorista Marcos de Marca B2B',
         type: 'image/png',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Catálogo Mayorista de Armazones y Gafas de Sol | OptiHub',
-    description: 'Importación directa desde EE.UU. Precios netos en CLP y entrega en 10 a 15 días hábiles.',
+    title: 'Catálogo Mayorista de Armazones y Gafas de Sol | Marcos de Marca',
+    description: 'Distribución mayorista óptica desde EE.UU. Precios netos en CLP y entrega en 10 a 15 días hábiles.',
     images: [`${BASE_URL}/og-image.png`],
   },
 };

@@ -42,12 +42,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   if (!data) {
     return {
-      title: 'Producto no encontrado | OptiHub B2B',
+      title: 'Producto no encontrado | Marcos de Marca',
       robots: { index: false, follow: false },
     };
   }
 
-  const title = `Armazones ${data.marca} ${data.modelo} al por mayor | OptiHub B2B`;
+  const title = `Armazones ${data.marca} ${data.modelo} al por mayor | Marcos de Marca`;
   const description = `Importación mayorista de armazones ${data.marca} ${data.modelo} para ópticas en Chile. Stock verificado en origen (EE.UU.), entrega en 10-15 días y factura electrónica SII.`;
   const canonicalUrl = `${BASE_URL}/producto/${encodeURIComponent(data.marca)}/${encodeURIComponent(data.modelo)}`;
 
@@ -82,7 +82,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
           ]
         : [],
       type: 'website',
-      siteName: 'OptiHub B2B',
+      siteName: 'Marcos de Marca',
     },
     twitter: {
       card: 'summary_large_image',
