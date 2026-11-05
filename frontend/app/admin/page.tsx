@@ -32,6 +32,9 @@ import {
   UserX,
   Phone,
   MessageCircle,
+  Zap,
+  Sliders,
+  Database,
 } from 'lucide-react';
 import type { Order, OrderItem } from '@/lib/catalog/types';
 import {
@@ -83,12 +86,63 @@ export interface OpticaUser {
   fecha_aprobacion: string | null;
 }
 
+interface SyncItem {
+  id_ext: string;
+  status: 'updated' | 'unchanged' | 'out_of_stock';
+  oldStock?: number;
+  newStock?: number;
+  oldPriceNeto?: number;
+  newPriceNeto?: number;
+  oldPriceUsd?: number;
+  newPriceUsd?: number;
+  changeReason?: string;
+}
+
+interface BrandReport {
+  brand: string;
+  totalScanned: number;
+  updated: number;
+  outOfStock: number;
+  unchanged: number;
+  items: SyncItem[];
+}
+
+interface SyncSummary {
+  timestamp: string;
+  durationSeconds: number;
+  brandsProcessed: string[];
+  totalScanned: number;
+  totalUpdated: number;
+  totalOutOfStock: number;
+  totalUnchanged: number;
+  brandReports: BrandReport[];
+}
+
+const POPULAR_SYNC_BRANDS = [
+  'TODAS',
+  'SPY',
+  'Calvin Klein',
+  'Guess',
+  'Nike',
+  'Adidas',
+  'Tom Ford',
+  'Lacoste',
+  'Bolle',
+  'BMW',
+  'DKNY',
+  'IC! Berlin',
+  'Carrera',
+  'Silhouette',
+  'Prada',
+  'Gucci',
+];
+
 export default function AdminOrdersPage() {
   const { user, session, isLoggedIn } = useAuth();
   const router = useRouter();
 
-  // Tab State: 'orders' | 'opticas'
-  const [activeTab, setActiveTab] = useState<'orders' | 'opticas'>('orders');
+  // Tab State: 'orders' | 'opticas' | 'sync'
+  const [activeTab, setActiveTab] = useState<'orders' | 'opticas' | 'sync'>('orders');
 
   // Orders State
   const [orders, setOrders] = useState<Order[]>([]);
@@ -119,12 +173,27 @@ export default function AdminOrdersPage() {
   const [processingUserId, setProcessingUserId] = useState<string | null>(null);
   const [opticaToast, setOpticaToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Read URL query parameter ?tab=opticas
+  // Sincronización y Precios State
+  const [syncBrand, setSyncBrand] = useState('TODAS');
+  const [syncDolar, setSyncDolar] = useState('950');
+  const [syncMargin, setSyncMargin] = useState('');
+  const [syncDryRun, setSyncDryRun] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null);
+  const [syncToast, setSyncToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [catalogTotal, setCatalogTotal] = useState<number>(1097);
+  const [catalogBrands, setCatalogBrands] = useState<{ name: string; count: number }[]>([]);
+  const [syncFilterStatus, setSyncFilterStatus] = useState<'all' | 'updated' | 'out_of_stock' | 'unchanged'>('all');
+
+  // Read URL query parameter ?tab=opticas or ?tab=sync
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const sp = new URLSearchParams(window.location.search);
-      if (sp.get('tab') === 'opticas') {
+      const tabParam = sp.get('tab');
+      if (tabParam === 'opticas') {
         setActiveTab('opticas');
+      } else if (tabParam === 'sync') {
+        setActiveTab('sync');
       }
     }
   }, []);
@@ -172,20 +241,102 @@ export default function AdminOrdersPage() {
     }
   }, [session?.access_token]);
 
-  // Load orders and opticas on session ready
+  // 3. Fetch Catalog & Latest Sync Summary
+  const fetchSyncCatalogInfo = useCallback(async () => {
+    if (!session?.access_token) return;
+    try {
+      const res = await fetch('/api/admin/sync', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.latest_summary) {
+          setSyncSummary(data.latest_summary);
+        }
+        if (typeof data.total_catalog_products === 'number') {
+          setCatalogTotal(data.total_catalog_products);
+        }
+        if (Array.isArray(data.brands)) {
+          setCatalogBrands(data.brands);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching catalog sync info:', err);
+    }
+  }, [session?.access_token]);
+
+  // Load initial data on session ready
   useEffect(() => {
     if (session?.access_token) {
       fetchOrders();
       fetchOpticas();
+      fetchSyncCatalogInfo();
     }
-  }, [session?.access_token, fetchOrders, fetchOpticas]);
+  }, [session?.access_token, fetchOrders, fetchOpticas, fetchSyncCatalogInfo]);
 
   // Refresh current view
   const handleRefresh = () => {
     if (activeTab === 'orders') {
       fetchOrders();
-    } else {
+    } else if (activeTab === 'opticas') {
       fetchOpticas();
+    } else {
+      fetchSyncCatalogInfo();
+    }
+  };
+
+  // Run Cloud Fast Sync / Recalculation
+  const handleRunFastSync = async () => {
+    if (!session?.access_token) return;
+    setSyncLoading(true);
+    setSyncToast(null);
+
+    const isAll = syncBrand === 'TODAS';
+    const payload = {
+      brand: isAll ? undefined : syncBrand,
+      all_brands: isAll,
+      dry_run: syncDryRun,
+      dolar: syncDolar ? parseFloat(syncDolar) : 950,
+      margin_percentage: syncMargin ? parseFloat(syncMargin) : undefined,
+    };
+
+    try {
+      const res = await fetch('/api/admin/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || data.detail || 'Error al ejecutar sincronización');
+      }
+
+      if (data.summary) {
+        setSyncSummary(data.summary);
+        setSyncToast({
+          type: 'success',
+          message: `Sincronización completada con éxito: ${data.summary.totalUpdated} productos actualizados, ${data.summary.totalOutOfStock} sin stock, ${data.summary.totalUnchanged} sin cambios (${data.summary.durationSeconds}s).`,
+        });
+      } else {
+        setSyncToast({
+          type: 'success',
+          message: data.message || 'Sincronización completada.',
+        });
+      }
+      fetchSyncCatalogInfo();
+    } catch (err) {
+      setSyncToast({
+        type: 'error',
+        message: (err as Error).message || 'Error al ejecutar la sincronización',
+      });
+    } finally {
+      setSyncLoading(false);
     }
   };
 
@@ -519,6 +670,18 @@ export default function AdminOrdersPage() {
                 {pendingOpticasCount} pendiente{pendingOpticasCount > 1 ? 's' : ''}
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('sync')}
+            className={`pb-3 px-2 text-xs font-semibold uppercase tracking-wider flex items-center gap-2 border-b-2 transition ${
+              activeTab === 'sync'
+                ? 'border-[#0F0F0F] text-[#0F0F0F]'
+                : 'border-transparent text-[#82807A] hover:text-[#0F0F0F]'
+            }`}
+          >
+            <RefreshCw className={`w-4 h-4 text-[#846C44] ${syncLoading ? 'animate-spin' : ''}`} />
+            <span>Sincronizar Catálogos y Precios</span>
           </button>
         </div>
 
@@ -1023,6 +1186,398 @@ export default function AdminOrdersPage() {
               </div>
             </div>
           </>
+        )}
+
+        {/* ========================================================================= */}
+        {/* SECCIÓN 3: SINCRONIZACIÓN Y RECÁLCULO DE PRECIOS B2B                     */}
+        {/* ========================================================================= */}
+        {activeTab === 'sync' && (
+          <div className="space-y-6">
+            {/* TOAST NOTIFICACIÓN PARA SINCRONIZACIÓN */}
+            {syncToast && (
+              <div
+                className={`p-4 rounded-xl border text-xs flex items-center justify-between shadow-xs transition-all ${
+                  syncToast.type === 'success'
+                    ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                    : 'bg-rose-50 text-rose-900 border-rose-200'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  {syncToast.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                  )}
+                  <span className="font-medium">{syncToast.message}</span>
+                </div>
+                <button
+                  onClick={() => setSyncToast(null)}
+                  className="text-stone-400 hover:text-stone-700 p-1"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* BANNER DE MODALIDADES DE SINCRONIZACIÓN */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-5 flex flex-col justify-between shadow-xs">
+                <div>
+                  <div className="flex items-center gap-2 text-[#0F0F0F] font-semibold text-sm mb-2">
+                    <span className="text-base">☁️</span>
+                    <span>Opción 1: Recálculo Inmediato Cloud (Desde esta Web)</span>
+                  </div>
+                  <p className="text-xs text-[#575551] leading-relaxed">
+                    Aplica la nueva fórmula B2B comercial (Margen 45% / 50% lujo, piso neto de <strong>$20.000 CLP</strong>, absorción Mercado Pago de <strong>3.19% + IVA</strong>, tipo de cambio USD y arancel aduanero 6% CIF) a los <strong>{catalogTotal.toLocaleString('es-CL')} productos</strong> en Supabase en ~1-2 segundos.
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-[#F0ECE7] flex items-center justify-between text-[11px] font-mono text-[#846C44]">
+                  <span>⚡ Ejecutable directamente abajo</span>
+                  <span className="font-semibold">Sin descargas</span>
+                </div>
+              </div>
+
+              <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-5 flex flex-col justify-between shadow-xs">
+                <div>
+                  <div className="flex items-center gap-2 text-[#0F0F0F] font-semibold text-sm mb-2">
+                    <span className="text-base">🖥️</span>
+                    <span>Opción 2: Extracción en Vivo desde NYWD (Lanzador Desktop)</span>
+                  </div>
+                  <p className="text-xs text-[#575551] leading-relaxed">
+                    Para conectar con tu sesión del proveedor NYWD, sortear captchas y descargar el stock y costo unitario fresco de cada modelo:
+                  </p>
+                  <div className="mt-2.5 p-2.5 bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl text-xs font-mono text-[#0F0F0F]">
+                    📂 Escritorio &gt; <strong className="text-[#846C44]">⚡ Sincronizar-Stock-NYWD.bat</strong>
+                  </div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-[#F0ECE7] text-[11px] font-mono text-[#82807A]">
+                  👆 Doble clic en tu escritorio; no requiere abrir VS Code.
+                </div>
+              </div>
+            </div>
+
+            {/* PANEL DE CONFIGURACIÓN Y EJECUCIÓN */}
+            <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-6 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#E6E2DD]">
+                <div>
+                  <h2 className="text-base font-bold text-[#0F0F0F] flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-[#846C44]" />
+                    <span>Configuración de Recálculo y Reglas de Precio</span>
+                  </h2>
+                  <p className="text-xs text-[#82807A] mt-1">
+                    Selecciona una marca específica o todo el catálogo para sincronizar precios y stock en Supabase.
+                  </p>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF6EF] border border-[#EADFC9] text-[#846C44] text-[11px] font-mono font-medium self-start sm:self-auto">
+                  <Database className="w-3.5 h-3.5" />
+                  <span>{catalogTotal.toLocaleString('es-CL')} productos registrados</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Selector de Marca */}
+                <div>
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#82807A] mb-1.5">
+                    Marca a Sincronizar
+                  </label>
+                  <select
+                    value={syncBrand}
+                    onChange={(e) => setSyncBrand(e.target.value)}
+                    disabled={syncLoading}
+                    className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl text-[#0F0F0F] font-medium focus:outline-none focus:border-[#9E8256]"
+                  >
+                    {Array.from(
+                      new Set([
+                        'TODAS',
+                        ...POPULAR_SYNC_BRANDS.filter((b) => b !== 'TODAS'),
+                        ...catalogBrands.map((b) => b.name).filter(Boolean),
+                      ])
+                    ).map((b) => (
+                      <option key={b} value={b}>
+                        {b === 'TODAS' ? '🌟 TODAS LAS MARCAS' : b}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Tipo de Cambio Dólar CLP */}
+                <div>
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#82807A] mb-1.5">
+                    Tipo de Cambio Dólar (CLP)
+                  </label>
+                  <input
+                    type="number"
+                    value={syncDolar}
+                    onChange={(e) => setSyncDolar(e.target.value)}
+                    disabled={syncLoading}
+                    placeholder="950"
+                    className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl text-[#0F0F0F] font-mono focus:outline-none focus:border-[#9E8256]"
+                  />
+                </div>
+
+                {/* Margen Comercial Extra (Opcional) */}
+                <div>
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#82807A] mb-1.5">
+                    Margen Comercial Extra % <span className="text-[#82807A] font-normal">(Opcional)</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={syncMargin}
+                    onChange={(e) => setSyncMargin(e.target.value)}
+                    disabled={syncLoading}
+                    placeholder="Regla B2B (45% / 50%)"
+                    className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-[#E6E2DD] rounded-xl text-[#0F0F0F] font-mono focus:outline-none focus:border-[#9E8256]"
+                  />
+                </div>
+
+                {/* Dry Run Toggle */}
+                <div className="flex flex-col justify-end pb-1.5">
+                  <label className="flex items-center gap-2 text-xs text-[#575551] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={syncDryRun}
+                      onChange={(e) => setSyncDryRun(e.target.checked)}
+                      disabled={syncLoading}
+                      className="rounded border-[#E6E2DD] text-[#846C44] focus:ring-[#846C44]"
+                    />
+                    <span>Dry-Run (Simular sin guardar)</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Botones de Acción */}
+              <div className="pt-4 border-t border-[#E6E2DD] flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-xs text-[#82807A] flex items-center gap-1.5">
+                  <span>💡</span>
+                  <span>
+                    El recálculo actualiza <strong className="text-[#0F0F0F]">precio neto</strong> y <strong className="text-[#0F0F0F]">bruto</strong> protegiendo fotos y atributos.
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <Link
+                    href="/admin/sync"
+                    target="_blank"
+                    className="px-4 py-2.5 rounded-full bg-[#FAF9F6] border border-[#E6E2DD] text-[#575551] text-xs font-semibold hover:text-[#0F0F0F] transition inline-flex items-center gap-1.5 justify-center"
+                  >
+                    <span>Reporte Detallado</span>
+                    <ExternalLink className="w-3 h-3 text-[#846C44]" />
+                  </Link>
+
+                  <button
+                    onClick={handleRunFastSync}
+                    disabled={syncLoading}
+                    className={`w-full sm:w-auto px-6 py-2.5 rounded-full font-semibold text-xs transition-all flex items-center justify-center gap-2 shadow-sm ${
+                      syncLoading
+                        ? 'bg-[#E6E2DD] text-[#82807A] cursor-not-allowed'
+                        : 'bg-[#0F0F0F] hover:bg-[#333333] text-white active:scale-95'
+                    }`}
+                  >
+                    {syncLoading ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#9E8256]" />
+                        <span>Sincronizando Precios...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-3.5 h-3.5 text-[#9E8256]" />
+                        <span>⚡ Recalcular y Sincronizar Precios Ahora</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* MÉTRICAS RESUMEN DE LA ÚLTIMA EJECUCIÓN */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
+              <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 text-center shadow-xs">
+                <span className="text-[11px] font-mono text-[#82807A] uppercase tracking-wider block">Escaneados</span>
+                <span className="text-2xl font-bold text-[#0F0F0F] mt-1 block">
+                  {syncSummary ? syncSummary.totalScanned : catalogTotal}
+                </span>
+              </div>
+
+              <div className="bg-[#FFFFFF] border border-emerald-200 rounded-2xl p-4 text-center bg-emerald-50/40 shadow-xs">
+                <span className="text-[11px] font-mono text-emerald-800 uppercase tracking-wider block">Actualizados</span>
+                <span className="text-2xl font-bold text-emerald-700 mt-1 block">
+                  {syncSummary ? syncSummary.totalUpdated : '-'}
+                </span>
+              </div>
+
+              <div className="bg-[#FFFFFF] border border-amber-200 rounded-2xl p-4 text-center bg-amber-50/40 shadow-xs">
+                <span className="text-[11px] font-mono text-amber-800 uppercase tracking-wider block">Sin Stock (0)</span>
+                <span className="text-2xl font-bold text-amber-700 mt-1 block">
+                  {syncSummary ? syncSummary.totalOutOfStock : '-'}
+                </span>
+              </div>
+
+              <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 text-center shadow-xs">
+                <span className="text-[11px] font-mono text-[#82807A] uppercase tracking-wider block">Sin Cambios</span>
+                <span className="text-2xl font-bold text-[#575551] mt-1 block">
+                  {syncSummary ? syncSummary.totalUnchanged : '-'}
+                </span>
+              </div>
+
+              <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl p-4 text-center shadow-xs col-span-2 sm:col-span-1">
+                <span className="text-[11px] font-mono text-[#82807A] uppercase tracking-wider block">Duración</span>
+                <span className="text-2xl font-bold text-[#846C44] mt-1 block">
+                  {syncSummary ? `${syncSummary.durationSeconds}s` : '-'}
+                </span>
+              </div>
+            </div>
+
+            {/* TABLA DE VARIACIONES Y CAMBIOS */}
+            {(() => {
+              const allSyncItems: SyncItem[] = [];
+              if (syncSummary?.brandReports) {
+                syncSummary.brandReports.forEach((br) => {
+                  if (br.items) allSyncItems.push(...br.items);
+                });
+              }
+
+              const filteredSyncItems = allSyncItems.filter((item) => {
+                if (syncFilterStatus === 'all') return true;
+                return item.status === syncFilterStatus;
+              });
+
+              return (
+                <div className="bg-[#FFFFFF] border border-[#E6E2DD] rounded-2xl shadow-xs overflow-hidden">
+                  <div className="p-4 border-b border-[#E6E2DD] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-[#0F0F0F] uppercase tracking-wider">
+                        Detalle de Variaciones ({filteredSyncItems.length} ítems)
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1 text-[11px] font-mono">
+                      <button
+                        onClick={() => setSyncFilterStatus('all')}
+                        className={`px-2.5 py-1 rounded-full transition ${
+                          syncFilterStatus === 'all'
+                            ? 'bg-[#0F0F0F] text-white font-bold'
+                            : 'text-[#82807A] hover:bg-[#FAF9F6]'
+                        }`}
+                      >
+                        Todos ({allSyncItems.length})
+                      </button>
+                      <button
+                        onClick={() => setSyncFilterStatus('updated')}
+                        className={`px-2.5 py-1 rounded-full transition ${
+                          syncFilterStatus === 'updated'
+                            ? 'bg-emerald-600 text-white font-bold'
+                            : 'text-[#82807A] hover:bg-[#FAF9F6]'
+                        }`}
+                      >
+                        Actualizados ({syncSummary?.totalUpdated ?? 0})
+                      </button>
+                      <button
+                        onClick={() => setSyncFilterStatus('out_of_stock')}
+                        className={`px-2.5 py-1 rounded-full transition ${
+                          syncFilterStatus === 'out_of_stock'
+                            ? 'bg-amber-600 text-white font-bold'
+                            : 'text-[#82807A] hover:bg-[#FAF9F6]'
+                        }`}
+                      >
+                        Sin Stock ({syncSummary?.totalOutOfStock ?? 0})
+                      </button>
+                      <button
+                        onClick={() => setSyncFilterStatus('unchanged')}
+                        className={`px-2.5 py-1 rounded-full transition ${
+                          syncFilterStatus === 'unchanged'
+                            ? 'bg-[#82807A] text-white font-bold'
+                            : 'text-[#82807A] hover:bg-[#FAF9F6]'
+                        }`}
+                      >
+                        Sin Cambios ({syncSummary?.totalUnchanged ?? 0})
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto max-h-[460px]">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#FAF9F6] text-[#82807A] font-mono uppercase tracking-wider border-b border-[#E6E2DD] sticky top-0">
+                        <tr>
+                          <th className="py-2.5 px-4">SKU / ID Ext</th>
+                          <th className="py-2.5 px-4">Estado</th>
+                          <th className="py-2.5 px-4 text-center">Stock</th>
+                          <th className="py-2.5 px-4 text-right">Precio Neto (CLP)</th>
+                          <th className="py-2.5 px-4">Detalle / Motivo</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E6E2DD]">
+                        {filteredSyncItems.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="py-12 text-center text-[#82807A]">
+                              {allSyncItems.length === 0
+                                ? 'Presiona "⚡ Recalcular y Sincronizar Precios Ahora" para ejecutar la sincronización o visualizar el último reporte registrado.'
+                                : 'No hay registros con el filtro seleccionado.'}
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredSyncItems.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-[#FAF9F6] transition">
+                              <td className="py-2.5 px-4 font-mono font-bold text-[#0F0F0F]">
+                                {item.id_ext}
+                              </td>
+                              <td className="py-2.5 px-4">
+                                {item.status === 'updated' && (
+                                  <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                    Actualizado
+                                  </span>
+                                )}
+                                {item.status === 'out_of_stock' && (
+                                  <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                    Sin Stock (0)
+                                  </span>
+                                )}
+                                {item.status === 'unchanged' && (
+                                  <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#FAF9F6] text-[#82807A] border border-[#E6E2DD]">
+                                    Sin Cambios
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-4 text-center font-mono">
+                                {item.status === 'updated' || item.status === 'out_of_stock' ? (
+                                  <span className="text-[#575551]">
+                                    <span className="line-through text-[#82807A] mr-1.5">{item.oldStock ?? 0}</span>
+                                    <span className="font-bold text-emerald-700">→ {item.newStock ?? 0}</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-[#0F0F0F]">{item.newStock ?? item.oldStock ?? 0}</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-4 text-right font-mono">
+                                {item.status === 'updated' ? (
+                                  <span>
+                                    <span className="line-through text-[#82807A] mr-1.5">
+                                      ${item.oldPriceNeto ? item.oldPriceNeto.toLocaleString('es-CL') : '0'}
+                                    </span>
+                                    <span className="font-bold text-emerald-700">
+                                      → ${item.newPriceNeto ? item.newPriceNeto.toLocaleString('es-CL') : '0'}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span className="text-[#0F0F0F]">
+                                    ${item.newPriceNeto
+                                      ? item.newPriceNeto.toLocaleString('es-CL')
+                                      : (item.oldPriceNeto || 0).toLocaleString('es-CL')}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-4 text-[#82807A]">
+                                {item.changeReason || '-'}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
         )}
 
         {/* ========================================================================= */}
