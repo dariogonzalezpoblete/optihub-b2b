@@ -50,29 +50,6 @@ export const OFFICIAL_BRANDS: BrandItem[] = [
     ),
   },
   {
-    id: 'prada',
-    name: 'Prada',
-    query: 'Prada',
-    category: 'Alta Gama',
-    logo: (
-      <div className="flex items-center">
-        <svg viewBox="0 0 100 24" className="h-5 w-auto fill-current" aria-label="Prada logo">
-          <text
-            x="50"
-            y="18"
-            textAnchor="middle"
-            fontFamily="Georgia, serif"
-            fontWeight="900"
-            fontSize="18"
-            letterSpacing="0.28em"
-          >
-            PRADA
-          </text>
-        </svg>
-      </div>
-    ),
-  },
-  {
     id: 'burberry',
     name: 'Burberry',
     query: 'Burberry',
@@ -89,68 +66,44 @@ export const OFFICIAL_BRANDS: BrandItem[] = [
     ),
   },
   {
-    id: 'ferragamo',
-    name: 'Salvatore Ferragamo',
-    query: 'Ferragamo',
-    category: 'Alta Gama',
-    logo: (
-      <div className="flex flex-col items-center">
-        <span className="font-serif italic font-normal text-base tracking-[0.08em] leading-tight">
-          Salvatore Ferragamo
-        </span>
-      </div>
-    ),
-  },
-  {
-    id: 'versace',
-    name: 'Versace',
-    query: 'Versace',
-    category: 'Alta Gama',
-    logo: (
-      <div className="flex flex-col items-center">
-        <span className="font-serif font-bold text-xs sm:text-sm tracking-[0.32em] uppercase leading-none">
-          VERSACE
-        </span>
-        <div className="w-12 h-[1px] bg-[#9E8256] mt-1 opacity-70" />
-      </div>
-    ),
-  },
-  {
-    id: 'saint-laurent',
-    name: 'Saint Laurent',
-    query: 'Saint Laurent',
+    id: 'emporio-armani',
+    name: 'Emporio Armani',
+    query: 'Emporio Armani',
     category: 'Alta Gama',
     logo: (
       <div className="flex items-center gap-2">
-        <span className="font-sans font-bold text-xs sm:text-sm tracking-[0.24em] uppercase">
-          SAINT LAURENT
+        <svg viewBox="0 0 24 18" className="h-4 w-auto fill-current flex-shrink-0" aria-label="Armani Eagle">
+          <path d="M12 2L9 6h6L12 2zm-8 5l3 2H4l-1-2zm16 0l1 2h-3l2-2zm-14 3l4 2H6l-2-2zm12 0l2 2h-4l2-2zm-10 3l3 2H8l-2-2zm8 0l2 2h-3l1-2zm-5 1h2v3h-2v-3z" />
+        </svg>
+        <span className="font-serif font-bold text-[11px] sm:text-xs tracking-[0.22em] uppercase">
+          EMPORIO ARMANI
         </span>
       </div>
     ),
   },
   {
-    id: 'balenciaga',
-    name: 'Balenciaga',
-    query: 'Balenciaga',
+    id: 'palm-angels',
+    name: 'Palm Angels',
+    query: 'Palm Angels',
     category: 'Alta Gama',
     logo: (
-      <span className="font-sans font-black text-xs sm:text-sm tracking-[0.3em] uppercase">
-        BALENCIAGA
+      <span className="font-serif font-bold text-xs sm:text-sm tracking-[0.22em] uppercase">
+        PALM ANGELS
       </span>
     ),
   },
   {
-    id: 'zeiss',
-    name: 'Zeiss',
-    query: 'Zeiss',
-    category: 'Clínico',
+    id: 'bmw',
+    name: 'BMW',
+    query: 'Bmw',
+    category: 'Alta Gama',
     logo: (
       <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded bg-[#005CA9] text-white flex items-center justify-center font-bold text-[9px] tracking-tight shadow-sm flex-shrink-0">
-          Z
-        </div>
-        <span className="font-sans font-black text-sm tracking-[0.22em] uppercase">
-          ZEISS
+        <span className="font-sans font-black text-xs sm:text-sm tracking-[0.28em] uppercase">
+          BMW
+        </span>
+        <span className="text-[8px] uppercase tracking-wider text-[#9E8256] font-semibold border border-[#9E8256]/40 px-1 py-0.2 rounded-none">
+          EYEWEAR
         </span>
       </div>
     ),
@@ -245,51 +198,14 @@ export const OFFICIAL_BRANDS: BrandItem[] = [
     ),
   },
   {
-    id: 'swarovski',
-    name: 'Swarovski',
-    query: 'Swarovski',
-    category: 'Gemas / Joyería',
-    logo: (
-      <div className="flex items-center gap-2">
-        <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current flex-shrink-0" aria-label="Swarovski Swan">
-          <path d="M19.5 7.2c-.8-1.4-2.2-2.2-3.8-2.2-1.2 0-2.3.5-3.1 1.4-.4.4-.7.9-.8 1.4-.2.9.1 1.8.7 2.4l.2.2c-.6.3-1.2.7-1.7 1.2-1.2 1.2-1.9 2.7-2.1 4.3-.1.7 0 1.5.2 2.2-1.3-.8-2.2-2.1-2.5-3.7-.3-1.4.1-2.9 1-4.1.2-.3.4-.6.7-.8-.4-.2-.8-.2-1.2-.1-.7.2-1.3.7-1.7 1.3-.9 1.4-1.2 3.1-.9 4.7.4 2.2 1.8 4 3.8 4.9 1.1.5 2.3.7 3.5.7 2.2 0 4.3-.8 5.9-2.3 2-1.9 2.9-4.5 2.5-7.1-.1-.7-.3-1.4-.6-2.1l-.1-.2z" />
-        </svg>
-        <span className="font-serif font-bold text-xs sm:text-sm tracking-[0.24em] uppercase">
-          SWAROVSKI
-        </span>
-      </div>
-    ),
-  },
-  {
-    id: 'hugo-boss',
-    name: 'Hugo Boss',
-    query: 'Hugo Boss',
+    id: 'dkny',
+    name: 'DKNY',
+    query: 'Dkny',
     category: 'Bestseller',
     logo: (
-      <div className="flex items-center gap-1.5">
-        <span className="font-sans font-black text-sm tracking-[0.26em] uppercase">
-          BOSS
-        </span>
-        <span className="text-[8px] text-[#5C5A55] uppercase font-bold tracking-[0.16em]">
-          HUGO BOSS
-        </span>
-      </div>
-    ),
-  },
-  {
-    id: 'emporio-armani',
-    name: 'Emporio Armani',
-    query: 'Emporio Armani',
-    category: 'Alta Gama',
-    logo: (
-      <div className="flex items-center gap-2">
-        <svg viewBox="0 0 24 18" className="h-4 w-auto fill-current flex-shrink-0" aria-label="Armani Eagle">
-          <path d="M12 2L9 6h6L12 2zm-8 5l3 2H4l-1-2zm16 0l1 2h-3l2-2zm-14 3l4 2H6l-2-2zm12 0l2 2h-4l2-2zm-10 3l3 2H8l-2-2zm8 0l2 2h-3l1-2zm-5 1h2v3h-2v-3z" />
-        </svg>
-        <span className="font-serif font-bold text-[11px] sm:text-xs tracking-[0.22em] uppercase">
-          EMPORIO ARMANI
-        </span>
-      </div>
+      <span className="font-sans font-black text-sm tracking-[0.24em] uppercase">
+        DKNY
+      </span>
     ),
   },
   {
@@ -309,26 +225,24 @@ export const OFFICIAL_BRANDS: BrandItem[] = [
     ),
   },
   {
-    id: 'carrera',
-    name: 'Carrera',
-    query: 'Carrera',
+    id: 'rudy-project',
+    name: 'Rudy Project',
+    query: 'Rudy Project',
     category: 'Sport',
     logo: (
-      <div className="flex items-center gap-1.5">
-        <span className="font-sans italic font-black text-xs sm:text-sm tracking-[0.2em] uppercase text-[#CC1020]">
-          CARRERA
-        </span>
-      </div>
+      <span className="font-sans italic font-black text-xs sm:text-sm tracking-[0.18em] uppercase">
+        RUDY PROJECT
+      </span>
     ),
   },
   {
-    id: 'chopard',
-    name: 'Chopard',
-    query: 'Chopard',
-    category: 'Alta Gama',
+    id: 'converse',
+    name: 'Converse',
+    query: 'Converse',
+    category: 'Sport',
     logo: (
-      <span className="font-serif italic font-medium text-base tracking-widest text-[#9E8256]">
-        Chopard
+      <span className="font-sans font-black text-xs sm:text-sm tracking-[0.24em] uppercase">
+        CONVERSE
       </span>
     ),
   },
@@ -368,7 +282,7 @@ export const OFFICIAL_BRANDS: BrandItem[] = [
   {
     id: 'ic-berlin',
     name: 'IC! Berlin',
-    query: 'IC Berlin',
+    query: 'IC! Berlin',
     category: 'Clínico',
     logo: (
       <div className="flex items-center gap-1.5">
@@ -377,19 +291,6 @@ export const OFFICIAL_BRANDS: BrandItem[] = [
         </span>
         <span className="text-[8px] uppercase tracking-wider text-[#9E8256] font-semibold border border-[#9E8256]/40 px-1 py-0.2 rounded-none">
           TITAN
-        </span>
-      </div>
-    ),
-  },
-  {
-    id: 'dolce-gabbana',
-    name: 'Dolce & Gabbana',
-    query: 'Dolce & Gabbana',
-    category: 'Alta Gama',
-    logo: (
-      <div className="flex items-center gap-1.5">
-        <span className="font-serif font-bold text-xs sm:text-sm tracking-[0.24em] uppercase">
-          DOLCE & GABBANA
         </span>
       </div>
     ),

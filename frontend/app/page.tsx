@@ -42,21 +42,91 @@ export default function Home() {
       try {
         const columns = 'id_ext, marca, modelo, codigo_color, imagen_principal, material, forma';
 
-        const [{ data, error }, { count }] = await Promise.all([
+        const [
+          { data: guessData },
+          { data: nikeData },
+          { data: gucciData },
+          { data: tomFordData },
+          { data: acetatoData },
+          { data: metalData },
+          { count },
+        ] = await Promise.all([
           supabase
             .from('marcos')
             .select(columns)
+            .ilike('marca', '%guess%')
             .not('imagen_principal', 'is', null)
-            .limit(16),
+            .limit(8),
+          supabase
+            .from('marcos')
+            .select(columns)
+            .ilike('marca', '%nike%')
+            .not('imagen_principal', 'is', null)
+            .limit(8),
+          supabase
+            .from('marcos')
+            .select(columns)
+            .ilike('marca', '%gucci%')
+            .not('imagen_principal', 'is', null)
+            .limit(8),
+          supabase
+            .from('marcos')
+            .select(columns)
+            .ilike('marca', '%tom ford%')
+            .not('imagen_principal', 'is', null)
+            .limit(8),
+          supabase
+            .from('marcos')
+            .select(columns)
+            .ilike('material', '%acetat%')
+            .not('imagen_principal', 'is', null)
+            .limit(8),
+          supabase
+            .from('marcos')
+            .select(columns)
+            .ilike('material', '%metal%')
+            .not('imagen_principal', 'is', null)
+            .limit(8),
           supabase.from('marcos').select('id_ext', { count: 'exact', head: true }),
         ]);
 
-        if (!cancelled && !error && data) {
-          const items = data as unknown as MarcoDestacado[];
-          setDestacados(items);
+        const guessList = (guessData || []) as unknown as MarcoDestacado[];
+        const nikeList = (nikeData || []) as unknown as MarcoDestacado[];
+        const gucciList = (gucciData || []) as unknown as MarcoDestacado[];
+        const tomFordList = (tomFordData || []) as unknown as MarcoDestacado[];
+        const acetatoList = (acetatoData || []) as unknown as MarcoDestacado[];
+        const metalList = (metalData || []) as unknown as MarcoDestacado[];
 
-          if (isLoggedIn && isB2BApproved && session?.access_token && items.length > 0) {
-            const ids = Array.from(new Set(items.map((m) => m.id_ext).filter(Boolean)));
+        // Selección balanceada para la vista "Todos" (mezcla multimarca) + unión sin duplicados para los filtros
+        const orderedCandidates = [
+          ...gucciList.slice(0, 2),
+          ...guessList.slice(0, 2),
+          ...nikeList.slice(0, 2),
+          ...tomFordList.slice(0, 2),
+          ...acetatoList.slice(0, 2),
+          ...metalList.slice(0, 2),
+          ...guessList,
+          ...nikeList,
+          ...gucciList,
+          ...tomFordList,
+          ...acetatoList,
+          ...metalList,
+        ];
+
+        const seenIds = new Set<string>();
+        const mergedItems: MarcoDestacado[] = [];
+        for (const item of orderedCandidates) {
+          if (item?.id_ext && !seenIds.has(item.id_ext)) {
+            seenIds.add(item.id_ext);
+            mergedItems.push(item);
+          }
+        }
+
+        if (!cancelled && mergedItems.length > 0) {
+          setDestacados(mergedItems);
+
+          if (isLoggedIn && isB2BApproved && session?.access_token) {
+            const ids = Array.from(seenIds);
             if (ids.length > 0) {
               fetch('/api/catalog/pricing', {
                 method: 'POST',
@@ -111,13 +181,49 @@ export default function Home() {
     };
   }, [isLoggedIn, isB2BApproved, session?.access_token]);
 
+  // Si el usuario selecciona una marca específica que aún no tiene suficientes ítems en memoria, consultarla en vivo
+  useEffect(() => {
+    if (['todos', 'guess', 'nike', 'acetato', 'metal'].includes(activeFilter)) return;
+    let cancelled = false;
+    const existing = destacados.filter(
+      (d) => (d.marca || '').toLowerCase().includes(activeFilter.toLowerCase())
+    );
+    if (existing.length >= 4) return;
+
+    supabase
+      .from('marcos')
+      .select('id_ext, marca, modelo, codigo_color, imagen_principal, material, forma')
+      .ilike('marca', `%${activeFilter}%`)
+      .not('imagen_principal', 'is', null)
+      .limit(8)
+      .then(({ data }) => {
+        if (cancelled || !data || data.length === 0) return;
+        const newItems = data as unknown as MarcoDestacado[];
+        setDestacados((prev) => {
+          const seen = new Set(prev.map((p) => p.id_ext));
+          const added = newItems.filter((item) => item?.id_ext && !seen.has(item.id_ext));
+          return added.length > 0 ? [...prev, ...added] : prev;
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeFilter, destacados]);
+
   const filteredDestacados = useMemo(() => {
     if (activeFilter === 'todos') return destacados.slice(0, 8);
     if (activeFilter === 'guess') {
-      return destacados.filter((d) => d.marca.toLowerCase().includes('guess')).slice(0, 8);
+      return destacados.filter((d) => (d.marca || '').toLowerCase().includes('guess')).slice(0, 8);
     }
     if (activeFilter === 'nike') {
-      return destacados.filter((d) => d.marca.toLowerCase().includes('nike')).slice(0, 8);
+      return destacados.filter((d) => (d.marca || '').toLowerCase().includes('nike')).slice(0, 8);
+    }
+    if (activeFilter === 'gucci') {
+      return destacados.filter((d) => (d.marca || '').toLowerCase().includes('gucci')).slice(0, 8);
+    }
+    if (activeFilter === 'tom ford') {
+      return destacados.filter((d) => (d.marca || '').toLowerCase().includes('tom ford')).slice(0, 8);
     }
     if (activeFilter === 'acetato') {
       return destacados.filter((d) => (d.material || '').toLowerCase().includes('acetat')).slice(0, 8);
@@ -125,7 +231,9 @@ export default function Home() {
     if (activeFilter === 'metal') {
       return destacados.filter((d) => (d.material || '').toLowerCase().includes('metal')).slice(0, 8);
     }
-    return destacados.slice(0, 8);
+    return destacados
+      .filter((d) => (d.marca || '').toLowerCase().includes(activeFilter.toLowerCase()))
+      .slice(0, 8);
   }, [destacados, activeFilter]);
 
   return (
@@ -341,6 +449,8 @@ export default function Home() {
               { id: 'todos', label: 'Todos' },
               { id: 'guess', label: 'Guess' },
               { id: 'nike', label: 'Nike' },
+              { id: 'gucci', label: 'Gucci' },
+              { id: 'tom ford', label: 'Tom Ford' },
               { id: 'acetato', label: 'Acetato' },
               { id: 'metal', label: 'Metal' },
             ].map((tab) => (
@@ -348,7 +458,7 @@ export default function Home() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveFilter(tab.id)}
-                className={`px-4 py-2 text-[11px] uppercase tracking-[0.16em] font-medium transition-all border rounded-none ${
+                className={`px-4 py-2 text-[11px] uppercase tracking-[0.16em] font-medium transition-all border rounded-none cursor-pointer ${
                   activeFilter === tab.id
                     ? 'bg-[#0F0F0F] text-white border-[#0F0F0F]'
                     : 'bg-[#FFFFFF] border-[#E6E2DD] text-[#5C5A55] hover:text-[#0F0F0F] hover:border-[#0F0F0F]'
@@ -386,9 +496,18 @@ export default function Home() {
                     loading="lazy"
                     className="w-full h-full object-contain p-2 mix-blend-multiply group-hover:scale-[1.04] transition-transform duration-500 ease-out"
                   />
-                  <span className="absolute top-3 left-3 z-10 text-[10px] uppercase tracking-[0.2em] font-semibold text-[#0F0F0F] bg-[#FFFFFF]/90 border border-[#E6E2DD] px-2 py-0.5">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setActiveFilter(marco.marca.toLowerCase());
+                    }}
+                    title={`Filtrar por ${marco.marca}`}
+                    className="absolute top-3 left-3 z-10 text-[10px] uppercase tracking-[0.2em] font-semibold text-[#0F0F0F] bg-[#FFFFFF]/90 hover:bg-[#0F0F0F] hover:text-white border border-[#E6E2DD] hover:border-[#0F0F0F] px-2 py-0.5 transition-colors cursor-pointer"
+                  >
                     {marco.marca}
-                  </span>
+                  </button>
                 </div>
 
                 {/* Contenido Editorial Limpio */}
