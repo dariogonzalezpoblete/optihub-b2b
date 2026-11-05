@@ -247,34 +247,32 @@ def calculate_b2b_pricing(price_usd: float) -> dict:
         }
 
     dolar = float(os.environ.get("DOLAR_CLP", 950.0))
-    flete_usd = 8.0
-    flete_local = 2500
+    factor_logistico = int(os.environ.get("FACTOR_LOGISTICO_NETO_CLP", 6192))
+    min_profit = int(os.environ.get("MIN_PROFIT_CLP", 20000))
+    margen_ganancia = float(os.environ.get("MARGEN_GANANCIA", 0.45))
 
-    cif_clp = (price_usd + flete_usd) * dolar
-    ad_valorem_clp = cif_clp * 0.06
-    costo_neto_chile = cif_clp + ad_valorem_clp + flete_local
-    costo_origen_clp = price_usd * dolar
+    # 1. Costo Total Neto = (FOB convertido a CLP) + 6192
+    fob_clp = price_usd * dolar
+    costo_total_neto = fob_clp + factor_logistico
 
-    if price_usd >= 200:
-        ganancia_fija = 80000.0
-    elif costo_neto_chile <= 45000:
-        ganancia_fija = 18000.0
-    elif costo_neto_chile <= 85000:
-        ganancia_fija = 28000.0
-    else:
-        ganancia_fija = 50000.0
+    # 2. precio_neto_clp = Costo Total Neto + MAX(Margen %, $15.000 CLP)
+    ganancia_margen = costo_total_neto * margen_ganancia
+    ganancia_limpia = max(ganancia_margen, min_profit)
+    precio_venta_neto = costo_total_neto + ganancia_limpia
 
-    precio_venta_neto = costo_neto_chile + ganancia_fija
+    precio_neto_clp = int(round(precio_venta_neto / 100) * 100)
+    iva_clp = int(round(precio_neto_clp * 0.19))
+    precio_bruto_clp = int(round((precio_neto_clp * 1.19) / 100) * 100)
 
     return {
-        "precio_bruto_clp": int(round((precio_venta_neto * 1.19), -3)),
-        "precio_neto_clp": int(round(precio_venta_neto, -3)),
-        "ganancia_clp": int(round(precio_venta_neto - costo_neto_chile, -3)),
-        "costo_flete_usd": flete_usd,
-        "costo_cif_clp": int(round(cif_clp)),
-        "ad_valorem_clp": int(round(ad_valorem_clp)),
-        "costo_despacho_local_clp": flete_local,
-        "costo_total_chile_clp": int(round(costo_neto_chile))
+        "precio_bruto_clp": precio_bruto_clp,
+        "precio_neto_clp": precio_neto_clp,
+        "ganancia_clp": int(round(precio_neto_clp - costo_total_neto)),
+        "costo_flete_usd": 0,
+        "costo_cif_clp": int(round(fob_clp)),
+        "ad_valorem_clp": int(round(fob_clp * 0.06)),
+        "costo_despacho_local_clp": factor_logistico,
+        "costo_total_chile_clp": int(round(costo_total_neto))
     }
 
 

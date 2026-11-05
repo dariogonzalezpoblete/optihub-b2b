@@ -11,3 +11,9 @@ frontend/lint.txt
 backend/scraper/chromium_test.zip
 auth_state.json
 backend/scraper/sync_report_latest.json
+
+# Entornos (staging/produccion/etc.): nunca versionar
+.env.*
+!.env.example
+backend/scraper/.env.*
+!backend/scraper/.env.example

@@ -1,19 +1,49 @@
 from typing import Optional, Dict, Any
 import math
 
+
+def get_tiered_profit_clp(costo_landed_clp: float) -> float:
+    """
+    Returns the fixed CLP profit tier for a given Landed Cost in CLP:
+    - Costo_Landed < 50,000: +15,000 CLP
+    - Costo_Landed >= 50,000 and <= 120,000: +25,000 CLP
+    - Costo_Landed > 120,000: +40,000 CLP
+    """
+    if costo_landed_clp < 50000:
+        return 15000.0
+    if costo_landed_clp <= 120000:
+        return 25000.0
+    return 40000.0
+
+
+def round_to_hundred(value: float) -> int:
+    """
+    Matches JavaScript's Math.round(value / 100) * 100.
+    """
+    return int(math.floor(value / 100.0 + 0.5) * 100)
+
+
 def calculate_b2b_pricing(
     price_usd: float,
+    brand: Optional[str] = None,
     dolar: float = 950.0,
-    flete_usd: float = 8.0,
-    flete_local_clp: int = 2500,
+    factor_logistico_neto_clp: int = 6192,
+    min_profit_clp: int = 20000,
     ad_valorem_rate: float = 0.06,
     iva_rate: float = 0.19,
     margin_percentage: Optional[float] = None,
-    custom_multiplier: Optional[float] = None
+    custom_multiplier: Optional[float] = None,
+    **kwargs: Any
 ) -> Dict[str, Any]:
     """
-    Calculates OptiHub's B2B Gated Pricing based on wholesale provider USD cost.
-    Mirrors the exact rules in backend/scraper/src/services/pricing.ts.
+    Calculates OptiHub's B2B Gated Pricing based on wholesale provider FOB USD cost.
+
+    Estructura de Costos Logísticos Netos (Caja estándar de 1.6 KG / ~10 armazones):
+      - Factor Fijo Logístico Neto: $6.192 CLP por armazón (flete + logístico + 6% Ad Valorem sin IVA importación).
+      - Costo Total Neto = (FOB convertido a CLP) + 6.192 CLP
+      - Piso Mínimo de Ganancia Limpia: $20.000 CLP en productos de bajo costo.
+      - precio_neto_clp = Costo Total Neto + MAX(Margen %, $20.000 CLP)
+      - Redondeo a la centena más cercana: Math.round(precio / 100) * 100
     """
     if not price_usd or price_usd <= 0 or math.isnan(price_usd):
         return {
@@ -28,44 +58,41 @@ def calculate_b2b_pricing(
             "costo_total_chile_clp": 0,
         }
 
-    # 1. Landed Cost in Chile
-    cif_clp = (price_usd + flete_usd) * dolar
-    ad_valorem_clp = cif_clp * ad_valorem_rate
-    costo_total_chile = cif_clp + ad_valorem_clp + flete_local_clp
-    costo_origen_clp = price_usd * dolar
+    # 1. Costo Total Neto = (FOB convertido a CLP) + 6192
+    fob_clp = price_usd * dolar
+    costo_total_neto = fob_clp + factor_logistico_neto_clp
 
-    # 2. Commercial Pricing Tiers & Margins
+    # 2. Margen de ganancia
     if margin_percentage is not None and margin_percentage > 0:
-        precio_venta_neto_raw = costo_total_chile * (1 + margin_percentage / 100.0)
-    elif custom_multiplier is not None and custom_multiplier > 0:
-        precio_venta_neto_raw = price_usd * custom_multiplier
-    elif price_usd >= 200:
-        ganancia_fija = 80000.0
-        precio_venta_neto_raw = costo_total_chile + ganancia_fija
-    elif costo_total_chile <= 45000:
-        ganancia_fija = 18000.0
-        precio_venta_neto_raw = costo_total_chile + ganancia_fija
-    elif costo_total_chile <= 85000:
-        ganancia_fija = 28000.0
-        precio_venta_neto_raw = costo_total_chile + ganancia_fija
+        margin_pct = margin_percentage if margin_percentage > 1 else margin_percentage * 100.0
     else:
-        ganancia_fija = 50000.0
-        precio_venta_neto_raw = costo_total_chile + ganancia_fija
+        margin_pct = 45.0
 
-    # 3. Rounding to nearest 1,000 CLP (Chilean B2B standard)
-    precio_neto_clp = int(round(precio_venta_neto_raw / 1000.0) * 1000)
-    iva_clp = int(round(precio_neto_clp * iva_rate))
-    precio_bruto_clp = int(round((precio_venta_neto_raw * (1.0 + iva_rate)) / 1000.0) * 1000)
-    ganancia_clp = int(round((precio_venta_neto_raw - costo_total_chile) / 1000.0) * 1000)
+    margen_ganancia = margin_pct / 100.0
+
+    # 3. precio_neto_clp = Costo Total Neto + MAX(Margen %, min_profit_clp)
+    if custom_multiplier is not None and custom_multiplier > 0:
+        precio_venta_neto_raw = price_usd * custom_multiplier
+    else:
+        ganancia_margen = costo_total_neto * margen_ganancia
+        ganancia_limpia = max(ganancia_margen, min_profit_clp)
+        precio_venta_neto_raw = costo_total_neto + ganancia_limpia
+
+    # 4. Redondeo a la centena más cercana
+    precio_neto_clp = round_to_hundred(precio_venta_neto_raw)
+    iva_clp = int(math.floor(precio_neto_clp * iva_rate + 0.5))
+    precio_bruto_clp = round_to_hundred(precio_neto_clp * (1.0 + iva_rate))
+    ganancia_clp = round_to_hundred(precio_neto_clp - costo_total_neto)
+    ad_valorem_clp = int(math.floor(fob_clp * ad_valorem_rate + 0.5))
 
     return {
         "precio_bruto_clp": precio_bruto_clp,
         "precio_neto_clp": precio_neto_clp,
         "iva_clp": iva_clp,
         "ganancia_clp": ganancia_clp,
-        "costo_flete_usd": flete_usd,
-        "costo_cif_clp": int(round(cif_clp)),
-        "ad_valorem_clp": int(round(ad_valorem_clp)),
-        "costo_despacho_local_clp": flete_local_clp,
-        "costo_total_chile_clp": int(round(costo_total_chile)),
+        "costo_flete_usd": 0,
+        "costo_cif_clp": int(math.floor(fob_clp + 0.5)),
+        "ad_valorem_clp": ad_valorem_clp,
+        "costo_despacho_local_clp": factor_logistico_neto_clp,
+        "costo_total_chile_clp": int(math.floor(costo_total_neto + 0.5)),
     }

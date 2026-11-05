@@ -4,22 +4,26 @@ import brandRules from '../config/brandPricingRules.json';
 
 export interface PricingOverrides {
   dolar?: number;
+  upsFreightFactor?: number;
+  importFactor?: number;
+  factorLogisticoNetoClp?: number;
   fleteUsd?: number;
   fleteLocalClp?: number;
   adValoremRate?: number;
   ivaRate?: number;
   marginPercentage?: number;
+  minProfitClp?: number;
   customMultiplier?: number;
 }
 
 /**
  * Returns the configured commercial margin % for a given brand.
- * - Alta gama (Gucci, Tom Ford, Burberry, IC! Berlin, etc.): 70%
- * - Marcas medias (Guess, Adidas, Nike, Calvin Klein, etc.): 40%
- * - Default: 40%
+ * - Alta gama (Gucci, Tom Ford, Burberry, Cartier, Prada, etc.): 50%
+ * - Marcas medias (Guess, Adidas, Nike, Calvin Klein, Spy, etc.): 45%
+ * - Default: 45%
  */
 export function getBrandMarginPercentage(brand?: string): number {
-  if (!brand) return brandRules.DEFAULT || 40;
+  if (!brand) return brandRules.DEFAULT ?? 45;
   const cleanBrand = brand.trim();
   const lower = cleanBrand.toLowerCase();
 
@@ -38,14 +42,34 @@ export function getBrandMarginPercentage(brand?: string): number {
     }
   }
 
-  return brandRules.DEFAULT || 40;
+  return brandRules.DEFAULT ?? 45;
 }
 
 /**
- * Calculates OptiHub's B2B Gated Pricing based on wholesale provider USD cost.
+ * Deprecated profit tiers retained for compatibility.
+ */
+export function getTieredProfitClp(costoLandedClp: number): number {
+  if (costoLandedClp < 50000) {
+    return 15000;
+  }
+  if (costoLandedClp <= 120000) {
+    return 25000;
+  }
+  return 40000;
+}
+
+/**
+ * Calculates OptiHub's B2B Gated Pricing based on wholesale provider FOB USD cost.
  *
- * Implements landed cost in Chile (CIF + 6% Ad Valorem + Local dispatch)
- * and brand-specific commercial markup rules (40% marcas medias, 70% alta gama).
+ * Estructura de Costos Logísticos Netos (Caja estándar de 1.6 KG / ~10 armazones):
+ *   - Imputación neta unitaria: flete + servicio logístico 2ebox + 6% Ad Valorem.
+ *   - Excluye 100% el 19% de IVA de importación (crédito fiscal, no costo).
+ *   - Factor Fijo Logístico Neto: $6.192 CLP por armazón.
+ *
+ * Fórmula de cálculo y guardado:
+ *   1. Costo Total Neto = (FOB convertido a CLP) + 6.192 CLP
+ *   2. precio_neto_clp  = Costo Total Neto * (1 + margen_ganancia)
+ *   3. Redondeo B2B a la centena más cercana: Math.round(precio / 100) * 100
  */
 export function calculateB2BPricing(
   priceUsd: number,
@@ -72,62 +96,59 @@ export function calculateB2BPricing(
   if (typeof brandOrOverrides === 'string') {
     brand = brandOrOverrides;
     overrides = explicitOverrides;
-  } else {
+  } else if (brandOrOverrides && typeof brandOrOverrides === 'object') {
     overrides = brandOrOverrides;
+  } else {
+    overrides = explicitOverrides;
   }
 
   const dolar = overrides?.dolar ?? CONFIG.FINANCIAL.DOLAR_CLP;
-  const fleteUsd = overrides?.fleteUsd ?? CONFIG.FINANCIAL.FLETE_USD;
-  const fleteLocal = overrides?.fleteLocalClp ?? CONFIG.FINANCIAL.FLETE_LOCAL_CLP;
-  const adValoremRate = overrides?.adValoremRate ?? CONFIG.FINANCIAL.AD_VALOREM_RATE;
+  const factorLogistico =
+    overrides?.factorLogisticoNetoClp ?? CONFIG.FINANCIAL.FACTOR_LOGISTICO_NETO_CLP ?? 6192;
+  const minProfitClp = overrides?.minProfitClp ?? CONFIG.FINANCIAL.MIN_PROFIT_CLP ?? 20000;
   const ivaRate = overrides?.ivaRate ?? CONFIG.FINANCIAL.IVA_RATE;
+  const adValoremRate = overrides?.adValoremRate ?? CONFIG.FINANCIAL.AD_VALOREM_RATE;
 
-  // 1. Landed Cost in Chile (CIF + 6% Ad Valorem + Local dispatch)
-  const cifClp = (priceUsd + fleteUsd) * dolar;
-  const adValoremClp = cifClp * adValoremRate;
-  const costoTotalChile = cifClp + adValoremClp + fleteLocal;
+  // 1. Costo Total Neto = (FOB convertido a CLP) + 6192
+  const fobClp = priceUsd * dolar;
+  const costoTotalNeto = fobClp + factorLogistico;
 
-  // 2. Commercial Pricing Tiers & Margins
-  let precioVentaNetoRaw: number;
-
+  // 2. Margen comercial de ganancia
+  let marginPct: number;
   if (typeof overrides?.marginPercentage === 'number' && overrides.marginPercentage > 0) {
-    precioVentaNetoRaw = costoTotalChile * (1 + overrides.marginPercentage / 100.0);
-  } else if (typeof overrides?.customMultiplier === 'number' && overrides.customMultiplier > 0) {
-    precioVentaNetoRaw = priceUsd * overrides.customMultiplier;
+    marginPct = overrides.marginPercentage > 1 ? overrides.marginPercentage : overrides.marginPercentage * 100;
   } else {
-    // Regla OptiHub de Ganancia Neta por Tramo de Costo Puesto en Chile / USD:
-    // • Tramo 1 (Costo Chile <= $45.000): Ganancia de $18.000 CLP (Modelos de entrada / Guess / Converse)
-    // • Tramo 2 (Costo Chile de $45.001 a $85.000): Ganancia de $28.000 CLP (Gama media / Adidas / Nike / CK / Emporio Armani)
-    // • Tramo 3 (Costo Chile > $85.000 y USD < 200): Ganancia de $50.000 CLP (Gama alta y Lujo / Tom Ford / Burberry / IC! Berlin)
-    // • Tramo 4 (USD >= 200): Ganancia de $80.000 CLP (Ultra Lujo / Gucci)
-    let gananciaFija: number;
-    if (priceUsd >= 200) {
-      gananciaFija = 80000;
-    } else if (costoTotalChile <= 45000) {
-      gananciaFija = 18000;
-    } else if (costoTotalChile <= 85000) {
-      gananciaFija = 28000;
-    } else {
-      gananciaFija = 50000;
-    }
-    precioVentaNetoRaw = costoTotalChile + gananciaFija;
+    marginPct = getBrandMarginPercentage(brand);
   }
 
-  // 3. Round to nearest 1,000 CLP for market standard B2B pricing
-  const precioNetoClp = Math.round(precioVentaNetoRaw / 1000) * 1000;
+  const margenGanancia = marginPct / 100.0;
+
+  // 3. precio_neto_clp = Costo Total Neto + MAX(Costo Total Neto * margen_ganancia, minProfitClp)
+  let precioVentaNetoRaw: number;
+  if (typeof overrides?.customMultiplier === 'number' && overrides.customMultiplier > 0) {
+    precioVentaNetoRaw = priceUsd * overrides.customMultiplier;
+  } else {
+    const gananciaMargen = costoTotalNeto * margenGanancia;
+    const gananciaLimpia = Math.max(gananciaMargen, minProfitClp);
+    precioVentaNetoRaw = costoTotalNeto + gananciaLimpia;
+  }
+
+  // 4. Redondeo comercial a la centena más cercana
+  const precioNetoClp = Math.round(precioVentaNetoRaw / 100) * 100;
   const ivaClp = Math.round(precioNetoClp * ivaRate);
-  const precioBrutoClp = Math.round((precioNetoClp * (1 + ivaRate)) / 1000) * 1000;
-  const gananciaClp = Math.round((precioNetoClp - costoTotalChile) / 1000) * 1000;
+  const precioBrutoClp = Math.round((precioNetoClp * (1 + ivaRate)) / 100) * 100;
+  const gananciaClp = Math.round((precioNetoClp - costoTotalNeto) / 100) * 100;
+  const adValoremClp = Math.round(fobClp * adValoremRate);
 
   return {
     precio_bruto_clp: precioBrutoClp,
     precio_neto_clp: precioNetoClp,
     iva_clp: ivaClp,
     ganancia_clp: gananciaClp,
-    costo_flete_usd: fleteUsd,
-    costo_cif_clp: Math.round(cifClp),
-    ad_valorem_clp: Math.round(adValoremClp),
-    costo_despacho_local_clp: fleteLocal,
-    costo_total_chile_clp: Math.round(costoTotalChile),
+    costo_flete_usd: 0,
+    costo_cif_clp: Math.round(fobClp),
+    ad_valorem_clp: adValoremClp,
+    costo_despacho_local_clp: factorLogistico,
+    costo_total_chile_clp: Math.round(costoTotalNeto),
   };
 }

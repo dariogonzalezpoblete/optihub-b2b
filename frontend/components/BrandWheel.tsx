@@ -14,10 +14,11 @@ interface Marca {
 }
 
 const marcas: Marca[] = [
+  { nombre: 'calvin klein', tagline: 'Elegancia Contemporánea' },
+  { nombre: 'spy', tagline: 'Estilo & Rendimiento' },
+  { nombre: 'guess', tagline: 'Glamour Urbano' },
   { nombre: 'nike', tagline: 'Performance & Sport' },
   { nombre: 'bolle', tagline: 'Eyewear de Alta Gama' },
-  { nombre: 'oakley', tagline: 'Tecnología Óptica' },
-  { nombre: 'ray-ban', tagline: 'Diseño Icónico' },
 ];
 
 export default function BrandWheel() {

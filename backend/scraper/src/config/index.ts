@@ -51,10 +51,15 @@ export const CONFIG = {
   // Commercial / Pricing defaults (Chile B2B)
   FINANCIAL: {
     DOLAR_CLP: parseFloat(process.env.DOLAR_CLP || '950.0'),
+    UPS_FREIGHT_FACTOR: parseFloat(process.env.UPS_FREIGHT_FACTOR || '1.055'), // +5.5% UPS domestic US freight to mailbox
+    IMPORT_FACTOR: parseFloat(process.env.IMPORT_FACTOR || '1.66'), // 1.66 legacy landed cost factor
+    FACTOR_LOGISTICO_NETO_CLP: parseInt(process.env.FACTOR_LOGISTICO_NETO_CLP || '6192', 10), // $6.192 CLP fixed net logistics per unit (flete + logístico + 6% Ad Valorem sin IVA importación)
     FLETE_USD: parseFloat(process.env.FLETE_USD || '8.0'),
     FLETE_LOCAL_CLP: parseInt(process.env.FLETE_LOCAL_CLP || '2500', 10),
     AD_VALOREM_RATE: 0.06, // 6% customs tariff
     IVA_RATE: 0.19,        // 19% Chilean VAT
+    DEFAULT_MARGIN: 0.45,  // 45% default commercial margin
+    MIN_PROFIT_CLP: parseInt(process.env.MIN_PROFIT_CLP || '20000', 10), // Piso mínimo de ganancia limpia de $20.000 CLP en productos de bajo costo
   },
 
   // Scraper engine tuning

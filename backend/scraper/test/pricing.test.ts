@@ -14,36 +14,44 @@ assert(zero.precio_neto_clp === 0, 'Zero price should yield 0 CLP net');
 assert(zero.precio_bruto_clp === 0, 'Zero price should yield 0 CLP gross');
 assert(zero.iva_clp === 0, 'Zero price should yield 0 CLP IVA');
 
-// 2. Tier 1 (Costo Chile <= $45.000 CLP -> Ganancia fija +$18.000 CLP)
-// Price $15.00 USD -> Costo Chile ~ $25.661 CLP -> Ganancia $18.000 CLP -> Neto $44.000 CLP
-const tier1 = calculateB2BPricing(15.0);
-assert(tier1.costo_cif_clp === Math.round((15 + 8) * 950), 'CIF calculation');
-assert(tier1.ganancia_clp >= 18000, `Tier 1 margin (got ${tier1.ganancia_clp})`);
-assert(tier1.precio_neto_clp === 44000, `Tier 1 precio neto (got ${tier1.precio_neto_clp})`);
-assert(tier1.iva_clp === Math.round(tier1.precio_neto_clp * 0.19), 'IVA 19% calculation');
+// 2. Standard brand (Guess: 45% margin) with $20.000 CLP minimum profit floor:
+// GU00276 ($13.50 USD):
+// FOB CLP = 13.50 * 950 = 12.825 CLP
+// Costo Total Neto = 12.825 + 6.192 = 19.017 CLP
+// Margin 45% = 8.558 CLP < $20.000 floor -> enforces $20.000 clean profit floor!
+// precio_neto_clp = Math.round((19.017 + 20.000) / 100) * 100 = $39.000 CLP
+const gu00276 = calculateB2BPricing(13.5, 'Guess');
+assert(gu00276.costo_total_chile_clp === 19017, `GU00276 landed cost 19.017 (got ${gu00276.costo_total_chile_clp})`);
+assert(gu00276.precio_neto_clp === 39000, `GU00276 $13.50 USD precio neto 39.000 (got ${gu00276.precio_neto_clp})`);
+assert(gu00276.ganancia_clp === 20000, `GU00276 clean profit floor of 20.000 CLP (got ${gu00276.ganancia_clp})`);
+assert(gu00276.iva_clp === Math.round(gu00276.precio_neto_clp * 0.19), 'IVA 19% calculation');
 
-// 3. Tier 2 (Costo Chile $45.001 - $85.000 CLP -> Ganancia fija +$28.000 CLP)
-// Price $50.00 USD -> Costo Chile ~ $60.906 CLP -> Ganancia $28.000 CLP -> Neto $89.000 CLP
-// Price $65.00 USD (Emporio Armani) -> Costo Chile ~ $76.011 CLP -> Ganancia $28.000 CLP -> Neto $104.000 CLP
-const tier2 = calculateB2BPricing(50.0);
-assert(tier2.ganancia_clp >= 28000, `Tier 2 margin (got ${tier2.ganancia_clp})`);
-assert(tier2.precio_neto_clp === 89000, `Tier 2 calculation (got ${tier2.precio_neto_clp})`);
+// GU00254 ($24.50 USD, Guess):
+// FOB CLP = 24.50 * 950 = 23.275 CLP
+// Costo Total Neto = 23.275 + 6.192 = 29.467 CLP
+// Margin 45% = 13.260 CLP < $20.000 floor -> enforces $20.000 clean profit floor!
+// precio_neto_clp = Math.round((29.467 + 20.000) / 100) * 100 = $49.500 CLP
+const gu00254 = calculateB2BPricing(24.5, 'Guess');
+assert(gu00254.costo_total_chile_clp === 29467, `GU00254 landed cost 29.467 (got ${gu00254.costo_total_chile_clp})`);
+assert(gu00254.precio_neto_clp === 49500, `GU00254 $24.50 USD precio neto 49.500 (got ${gu00254.precio_neto_clp})`);
+assert(gu00254.ganancia_clp === 20000, `GU00254 clean profit floor of 20.000 CLP (got ${gu00254.ganancia_clp})`);
 
-const armaniTier2 = calculateB2BPricing(65.0);
-assert(armaniTier2.ganancia_clp >= 27000 && armaniTier2.ganancia_clp <= 29000, `Armani Tier 2 margin (got ${armaniTier2.ganancia_clp})`);
-assert(armaniTier2.precio_neto_clp === 104000, `Armani Tier 2 precio neto (got ${armaniTier2.precio_neto_clp})`);
+// 3. Luxury brand (Tom Ford: 50% margin) - $100.00 USD:
+// FOB CLP = 100.00 * 950 = 95.000 CLP
+// Costo Total Neto = 95.000 + 6.192 = 101.192 CLP
+// Margin 50% = 50.596 CLP > $20.000 floor
+// precio_neto_clp = Math.round((101.192 * 1.50) / 100) * 100 = $151.800 CLP
+const tomFord = calculateB2BPricing(100.0, 'Tom Ford');
+assert(tomFord.costo_total_chile_clp === 101192, `Tom Ford landed cost 101.192 (got ${tomFord.costo_total_chile_clp})`);
+assert(tomFord.precio_neto_clp === 151800, `Tom Ford $100 USD precio neto 151.800 (got ${tomFord.precio_neto_clp})`);
 
-// 4. Tier 3 (Costo Chile > $85.000 CLP y USD < 200 -> Ganancia fija +$50.000 CLP)
-// Price $100.00 USD -> Costo Chile ~ $111.256 CLP -> Ganancia $50.000 CLP -> Neto $161.000 CLP
-const tier3 = calculateB2BPricing(100.0);
-assert(tier3.precio_neto_clp > tier3.costo_total_chile_clp, 'Tier 3 must cover landed costs');
-assert(tier3.ganancia_clp >= 49000, `Tier 3 margin bracket (got ${tier3.ganancia_clp})`);
-assert(tier3.precio_neto_clp === 161000, `Tier 3 precio neto (got ${tier3.precio_neto_clp})`);
-
-// 5. Tier 4 (USD >= 200 -> Ganancia fija +$80.000 CLP)
-// Price $230.00 USD -> Costo Chile ~ $242.166 CLP -> Ganancia $80.000 CLP -> Neto $322.000 CLP
-const tier4 = calculateB2BPricing(230.0);
-assert(tier4.ganancia_clp >= 79000, `Tier 4 margin bracket (got ${tier4.ganancia_clp})`);
-assert(tier4.precio_neto_clp === 322000, `Tier 4 precio neto (got ${tier4.precio_neto_clp})`);
+// 4. Explicit margin override (e.g. 35% margin on $50.00 USD):
+// FOB CLP = 50.00 * 950 = 47.500 CLP
+// Costo Total Neto = 47.500 + 6.192 = 53.692 CLP
+// Margin 35% = 18.792 CLP < $20.000 floor -> enforces $20.000 minimum profit floor
+// precio_neto_clp = Math.round((53.692 + 20.000) / 100) * 100 = $73.700 CLP
+const overrideRes = calculateB2BPricing(50.0, undefined, { marginPercentage: 35 });
+assert(overrideRes.costo_total_chile_clp === 53692, `Override landed cost 53.692 (got ${overrideRes.costo_total_chile_clp})`);
+assert(overrideRes.precio_neto_clp === 73700, `Override $50 USD with 35% margin (got ${overrideRes.precio_neto_clp})`);
 
 console.log('✅ All Gated Pricing tests passed successfully!');

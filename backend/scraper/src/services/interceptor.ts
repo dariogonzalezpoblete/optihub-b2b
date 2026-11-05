@@ -260,7 +260,7 @@ export class NetworkInterceptor {
       const stock = Math.min(50, Math.max(0, rawStock));
 
       // Calculate Gated Pricing
-      const pricing = calculateB2BPricing(priceUsd);
+      const pricing = calculateB2BPricing(priceUsd, rawBrand);
 
       // Extract image gallery
       let mainImg = '';

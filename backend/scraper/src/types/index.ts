@@ -77,6 +77,7 @@ export interface ScraperOptions {
   allBrands?: boolean;
   pricingOverrides?: {
     dolar?: number;
+    importFactor?: number;
     fleteUsd?: number;
     fleteLocalClp?: number;
     adValoremRate?: number;
@@ -153,6 +154,7 @@ export interface FastSyncOptions {
   authStatePath?: string;
   pricingOverrides?: {
     dolar?: number;
+    importFactor?: number;
     fleteUsd?: number;
     fleteLocalClp?: number;
     adValoremRate?: number;

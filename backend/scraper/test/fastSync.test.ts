@@ -1,5 +1,5 @@
 import { calculateB2BPricing } from '../src/services/pricing';
-import { SyncReportItem, ProductStockPriceUpdate, ExistingProductRecord } from '../types';
+import { SyncReportItem, ProductStockPriceUpdate, ExistingProductRecord } from '../src/types';
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {
@@ -9,19 +9,24 @@ function assert(condition: boolean, msg: string) {
 
 console.log('Running Fast Sync & Commercial Pricing Unit Tests...');
 
-// 1. Test custom margin percentage pricing
+// 1. Test pricing ($40.00 USD, default 45% margin < 20.000 floor -> 20.000 floor applied)
 const costUsd = 40.0;
-// Landed cost with defaults: CIF = (40 + 8) * 950 = 45,600. Ad valorem 6% = 2,736. Flete local = 2,500. Total = 50,836.
-const customMarginRes = calculateB2BPricing(costUsd, { marginPercentage: 30 });
-// Expected raw net = 50,836 * 1.30 = 66,086.8 -> rounded to 66,000 CLP
-assert(customMarginRes.precio_neto_clp === 66000, `Expected 66,000 CLP net with 30% margin, got ${customMarginRes.precio_neto_clp}`);
-assert(customMarginRes.precio_bruto_clp === Math.round((66086.8 * 1.19) / 1000) * 1000, 'Gross price with 19% IVA matches');
-assert(customMarginRes.ganancia_clp > 0, 'Profit must be positive');
+// FOB CLP = 40 * 950 = 38.000
+// Costo Total Neto = 38.000 + 6.192 = 44.192
+// 45% margin = 19.886,4 < 20.000 -> enforces clean profit floor of 20.000 CLP!
+// precio_neto_clp = Math.round((44.192 + 20.000) / 100) * 100 = 64.200 CLP
+const tier2Res = calculateB2BPricing(costUsd);
+assert(tier2Res.precio_neto_clp === 64200, `Expected 64,200 CLP net, got ${tier2Res.precio_neto_clp}`);
+assert(tier2Res.precio_bruto_clp === Math.round((64200 * 1.19) / 100) * 100, 'Gross price with 19% IVA matches');
+assert(tier2Res.ganancia_clp === 20000, 'Clean profit must be at least 20.000 CLP');
 
-// 2. Test custom USD multiplier pricing
-const multiplierRes = calculateB2BPricing(30.0, { customMultiplier: 2200 });
-// 30 * 2200 = 66,000 CLP
-assert(multiplierRes.precio_neto_clp === 66000, `Expected 66,000 CLP with multiplier 2200, got ${multiplierRes.precio_neto_clp}`);
+// 2. Test pricing ($20.00 USD, default 45% margin < 20.000 floor -> 20.000 floor applied)
+// FOB CLP = 20 * 950 = 19.000
+// Costo Total Neto = 19.000 + 6.192 = 25.192
+// precio_neto_clp = Math.round((25.192 + 20.000) / 100) * 100 = 45.200 CLP
+const tier1Res = calculateB2BPricing(20.0);
+assert(tier1Res.precio_neto_clp === 45200, `Expected 45,200 CLP for $20 USD, got ${tier1Res.precio_neto_clp}`);
+assert(tier1Res.ganancia_clp === 20000, 'Clean profit must be at least 20.000 CLP');
 
 // 3. Test diff reconciliation logic between DB records and provider scan
 const mockDbRecords: Map<string, ExistingProductRecord> = new Map([
@@ -31,8 +36,8 @@ const mockDbRecords: Map<string, ExistingProductRecord> = new Map([
       id_ext: 'GU-001',
       stock: 10,
       precio_usd: 35.0,
-      precio_neto_clp: 66500,
-      precio_bruto_clp: 79135,
+      precio_neto_clp: 54400,
+      precio_bruto_clp: 64700,
       imagen_principal: 'https://storage/gu001.webp',
       imagenes_secundarias: 'https://storage/gu001_sec.webp',
       marca: 'Guess',
@@ -45,8 +50,8 @@ const mockDbRecords: Map<string, ExistingProductRecord> = new Map([
       id_ext: 'GU-002',
       stock: 5,
       precio_usd: 50.0,
-      precio_neto_clp: 89000,
-      precio_bruto_clp: 105910,
+      precio_neto_clp: 77900,
+      precio_bruto_clp: 92700,
       imagen_principal: 'https://storage/gu002.webp',
       marca: 'Guess',
       modelo: 'GU2900',
@@ -69,7 +74,7 @@ const mockDbRecords: Map<string, ExistingProductRecord> = new Map([
 
 // Scanned items from provider web:
 // GU-001 has changed stock (10 -> 15) and price ($35 -> $38)
-// GU-002 is unchanged (stock 5, price $50)
+// GU-002 is unchanged (stock 5, price $50 -> $108,200 CLP)
 // GU-DISCONTINUED is missing from provider
 const scannedItems = [
   { id_ext: 'GU-001', stock: 15, precio_usd: 38.0 },
