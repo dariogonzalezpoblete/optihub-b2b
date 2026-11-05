@@ -13,21 +13,21 @@ class TestFastSyncAPI(unittest.TestCase):
         self.assertEqual(zero["precio_neto_clp"], 0)
         self.assertEqual(zero["precio_bruto_clp"], 0)
 
-        # 2. $15.0 USD (FOB CLP = 14,250 + 6,192 = 20,442. Floor of 15,000 CLP applied -> 20,442 + 15,000 = 35,442 -> 35,400 CLP)
+        # 2. $15.0 USD (FOB CLP = 14,250 + 6,192 = 20,442. Floor of 20,000 CLP applied -> 20,442 + 20,000 = 40,442 -> 40,400 CLP)
         tier1 = calculate_b2b_pricing(15.0)
-        self.assertEqual(tier1["precio_neto_clp"], 35400)
-        self.assertEqual(tier1["ganancia_clp"], 15000)
+        self.assertEqual(tier1["precio_neto_clp"], 40400)
+        self.assertEqual(tier1["ganancia_clp"], 20000)
         self.assertGreater(tier1["precio_bruto_clp"], tier1["precio_neto_clp"])
 
-        # 3. $50.0 USD (FOB CLP = 47,500 + 6,192 = 53,692. Net price = 53,692 * 1.30 = 69,799.6 -> 69,800 CLP)
+        # 3. $50.0 USD (FOB CLP = 47,500 + 6,192 = 53,692. Net price = 53,692 * 1.45 = 77,853.4 -> 77,900 CLP)
         tier2 = calculate_b2b_pricing(50.0)
-        self.assertEqual(tier2["precio_neto_clp"], 69800)
-        self.assertEqual(tier2["iva_clp"], int(round(69800 * 0.19)))
+        self.assertEqual(tier2["precio_neto_clp"], 77900)
+        self.assertEqual(tier2["iva_clp"], int(round(77900 * 0.19)))
 
-        # 4. Custom margin percentage (e.g. 30% on $40.0 USD: 44,192 + 15,000 floor = 59,192 -> 59,200 CLP)
+        # 4. Custom margin percentage (e.g. 30% on $40.0 USD: 44,192 + 20,000 floor = 64,192 -> 64,200 CLP)
         custom_margin = calculate_b2b_pricing(40.0, margin_percentage=30.0)
-        self.assertEqual(custom_margin["precio_neto_clp"], 59200)
-        self.assertEqual(custom_margin["ganancia_clp"], 15000)
+        self.assertEqual(custom_margin["precio_neto_clp"], 64200)
+        self.assertEqual(custom_margin["ganancia_clp"], 20000)
 
     def test_sync_status_endpoint(self):
         response = self.client.get("/api/sync/status")

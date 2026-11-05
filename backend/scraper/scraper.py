@@ -238,7 +238,28 @@ async def sync_out_of_stock_records(brand: str, scanned_ids: set):
 # ==========================================
 # FINANZAS (CÁLCULO B2B CHILE)
 # ==========================================
-def calculate_b2b_pricing(price_usd: float) -> dict:
+def get_brand_margin(brand: str = "") -> float:
+    try:
+        rules_path = Path(__file__).resolve().parent / "src" / "config" / "brandPricingRules.json"
+        if rules_path.exists():
+            with open(rules_path, "r", encoding="utf-8") as f:
+                rules = json.load(f)
+                brands_map = rules.get("brands", {})
+                b_clean = (brand or "").strip()
+                b_lower = b_clean.lower()
+                if b_clean in brands_map:
+                    return float(brands_map[b_clean]) / 100.0
+                for k, v in brands_map.items():
+                    k_lower = k.lower()
+                    if k_lower == b_lower or k_lower in b_lower or b_lower in k_lower:
+                        return float(v) / 100.0
+                return float(rules.get("DEFAULT", 45)) / 100.0
+    except Exception:
+        pass
+    return float(os.environ.get("MARGEN_GANANCIA", 0.45))
+
+
+def calculate_b2b_pricing(price_usd: float, brand: str = "") -> dict:
     if price_usd <= 0:
         return {
             "precio_bruto_clp": 0, "precio_neto_clp": 0, "ganancia_clp": 0,
@@ -249,13 +270,13 @@ def calculate_b2b_pricing(price_usd: float) -> dict:
     dolar = float(os.environ.get("DOLAR_CLP", 950.0))
     factor_logistico = int(os.environ.get("FACTOR_LOGISTICO_NETO_CLP", 6192))
     min_profit = int(os.environ.get("MIN_PROFIT_CLP", 20000))
-    margen_ganancia = float(os.environ.get("MARGEN_GANANCIA", 0.45))
+    margen_ganancia = get_brand_margin(brand)
 
     # 1. Costo Total Neto = (FOB convertido a CLP) + 6192
     fob_clp = price_usd * dolar
     costo_total_neto = fob_clp + factor_logistico
 
-    # 2. precio_neto_clp = Costo Total Neto + MAX(Margen %, $15.000 CLP)
+    # 2. precio_neto_clp = Costo Total Neto + MAX(Margen %, $20.000 CLP)
     ganancia_margen = costo_total_neto * margen_ganancia
     ganancia_limpia = max(ganancia_margen, min_profit)
     precio_venta_neto = costo_total_neto + ganancia_limpia
@@ -314,7 +335,7 @@ async def extract_variant(page, link: str, brand_name: str, session: aiohttp.Cli
 
     price_match = re.search(r'\$\s*([\d\.\,]+)', text)
     price_usd = float(price_match.group(1).replace(",", "")) if price_match else 0.0
-    pricing = calculate_b2b_pricing(price_usd)
+    pricing = calculate_b2b_pricing(price_usd, brand_name)
 
     color_code = (parse_detail(text, "Color Code") or id_nywd or base_sku).strip().upper()
     color_nombre = parse_detail(text, "Color") or "Único"

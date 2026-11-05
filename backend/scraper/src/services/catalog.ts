@@ -221,7 +221,7 @@ export class CatalogRunner {
           continue;
         }
 
-        const pricing = calculateB2BPricing(prod.precio_usd, brand, options.pricingOverrides);
+        const pricing = calculateB2BPricing(prod.precio_usd, prod.marca || brand, options.pricingOverrides);
         const newStock = Math.min(50, Math.max(0, prod.stock));
         const prevStock = existing.stock ?? 0;
         const prevPriceNeto = existing.precio_neto_clp ?? 0;
@@ -345,17 +345,29 @@ export class CatalogRunner {
     // ─────────────────────────────────────────────────────────────
     // 4. CLASIFICACIÓN PARA INGESTA COMPLETA DE CATÁLOGO
     // ─────────────────────────────────────────────────────────────
-    const itemsStockOnly: Array<{ id_ext: string; stock: number }> = [];
+    const itemsExistingStockAndPrice: ProductStockPriceUpdate[] = [];
     const itemsNeedingSecondaryImg: OptiHubProduct[] = [];
     const itemsBrandNew: OptiHubProduct[] = [];
 
     for (const prod of allValid) {
       const existing = existingCache.get(prod.id_ext);
       if (existing) {
+        itemsExistingStockAndPrice.push({
+          id_ext: prod.id_ext,
+          stock: Math.min(50, Math.max(0, prod.stock)),
+          precio_usd: prod.precio_usd,
+          precio_neto_clp: prod.precio_neto_clp,
+          precio_bruto_clp: prod.precio_bruto_clp,
+          ganancia_clp: prod.ganancia_clp,
+          costo_flete_usd: prod.costo_flete_usd,
+          costo_cif_clp: prod.costo_cif_clp,
+          ad_valorem_clp: prod.ad_valorem_clp,
+          costo_despacho_local_clp: prod.costo_despacho_local_clp,
+          costo_total_chile_clp: prod.costo_total_chile_clp,
+        });
+
         const hasSecImg = existing.imagenes_secundarias && existing.imagenes_secundarias.trim().length > 5;
-        if (hasSecImg) {
-          itemsStockOnly.push({ id_ext: prod.id_ext, stock: Math.min(50, Math.max(0, prod.stock)) });
-        } else {
+        if (!hasSecImg) {
           itemsNeedingSecondaryImg.push(prod);
         }
       } else {
@@ -365,19 +377,19 @@ export class CatalogRunner {
 
     Logger.info(
       `\n📊 Clasificación inteligente de inventario para '${brand}':\n` +
-      `   • Ítems completos en base de datos: ${itemsStockOnly.length} (se actualizará SOLO stock)\n` +
-      `   • Ítems existentes sin foto secundaria: ${itemsNeedingSecondaryImg.length} (se enriquecerá imagen secundaria en WebP)\n` +
+      `   • Ítems completos en base de datos: ${itemsExistingStockAndPrice.length} (se actualizará stock y nuevo precio B2B)\n` +
+      `   • Ítems existentes sin foto secundaria: ${itemsNeedingSecondaryImg.length} (se enriquecerá imagen secundaria en WebP + precio)\n` +
       `   • Ítems nuevos a ingresar: ${itemsBrandNew.length} (ingesta completa: ambas fotos WebP + especificaciones)`
     );
 
     // ─────────────────────────────────────────────────────────────
-    // 5. ACTUALIZACIÓN EXCLUSIVA DE STOCK
+    // 5. ACTUALIZACIÓN DE STOCK Y NUEVOS PRECIOS EN ÍTEMS EXISTENTES
     // ─────────────────────────────────────────────────────────────
-    if (itemsStockOnly.length > 0 && !options.dryRun && this.supabaseService?.isConfigured()) {
-      Logger.info(`Actualizando stock únicamente para ${itemsStockOnly.length} productos completos...`);
-      await this.supabaseService.updateStockBatch(itemsStockOnly);
-    } else if (options.dryRun && itemsStockOnly.length > 0) {
-      Logger.info(`[DRY-RUN] Simulación: Se actualizaría stock de ${itemsStockOnly.length} productos.`);
+    if (itemsExistingStockAndPrice.length > 0 && !options.dryRun && this.supabaseService?.isConfigured()) {
+      Logger.info(`Actualizando de forma masiva stock y nuevos precios B2B para ${itemsExistingStockAndPrice.length} productos existentes...`);
+      await this.supabaseService.updateStockAndPricingBatch(itemsExistingStockAndPrice);
+    } else if (options.dryRun && itemsExistingStockAndPrice.length > 0) {
+      Logger.info(`[DRY-RUN] Simulación: Se actualizaría stock y precios de ${itemsExistingStockAndPrice.length} productos.`);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -406,13 +418,33 @@ export class CatalogRunner {
                   await this.supabaseService.updateProductPartial(prod.id_ext, {
                     imagenes_secundarias: secWebp,
                     stock: Math.min(50, Math.max(0, prod.stock)),
+                    precio_usd: prod.precio_usd,
+                    precio_neto_clp: prod.precio_neto_clp,
+                    precio_bruto_clp: prod.precio_bruto_clp,
+                    ganancia_clp: prod.ganancia_clp,
+                    costo_flete_usd: prod.costo_flete_usd,
+                    costo_cif_clp: prod.costo_cif_clp,
+                    ad_valorem_clp: prod.ad_valorem_clp,
+                    costo_despacho_local_clp: prod.costo_despacho_local_clp,
+                    costo_total_chile_clp: prod.costo_total_chile_clp,
                     material: details.material || prod.material,
                     genero: details.gender || prod.genero,
                   });
                 }
               } else {
                 if (!options.dryRun && this.supabaseService?.isConfigured()) {
-                  await this.supabaseService.updateProductPartial(prod.id_ext, { stock: Math.min(50, Math.max(0, prod.stock)) });
+                  await this.supabaseService.updateProductPartial(prod.id_ext, {
+                    stock: Math.min(50, Math.max(0, prod.stock)),
+                    precio_usd: prod.precio_usd,
+                    precio_neto_clp: prod.precio_neto_clp,
+                    precio_bruto_clp: prod.precio_bruto_clp,
+                    ganancia_clp: prod.ganancia_clp,
+                    costo_flete_usd: prod.costo_flete_usd,
+                    costo_cif_clp: prod.costo_cif_clp,
+                    ad_valorem_clp: prod.ad_valorem_clp,
+                    costo_despacho_local_clp: prod.costo_despacho_local_clp,
+                    costo_total_chile_clp: prod.costo_total_chile_clp,
+                  });
                 }
               }
             } catch (err) {

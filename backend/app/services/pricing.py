@@ -23,6 +23,31 @@ def round_to_hundred(value: float) -> int:
     return int(math.floor(value / 100.0 + 0.5) * 100)
 
 
+import json
+from pathlib import Path
+
+
+def get_brand_margin_percentage(brand: Optional[str] = None) -> float:
+    try:
+        rules_path = Path(__file__).resolve().parent.parent.parent / "scraper" / "src" / "config" / "brandPricingRules.json"
+        if rules_path.exists():
+            with open(rules_path, "r", encoding="utf-8") as f:
+                rules = json.load(f)
+                brands_map = rules.get("brands", {})
+                b_clean = (brand or "").strip()
+                b_lower = b_clean.lower()
+                if b_clean in brands_map:
+                    return float(brands_map[b_clean])
+                for k, v in brands_map.items():
+                    k_lower = k.lower()
+                    if k_lower == b_lower or k_lower in b_lower or b_lower in k_lower:
+                        return float(v)
+                return float(rules.get("DEFAULT", 45))
+    except Exception:
+        pass
+    return 45.0
+
+
 def calculate_b2b_pricing(
     price_usd: float,
     brand: Optional[str] = None,
@@ -66,7 +91,7 @@ def calculate_b2b_pricing(
     if margin_percentage is not None and margin_percentage > 0:
         margin_pct = margin_percentage if margin_percentage > 1 else margin_percentage * 100.0
     else:
-        margin_pct = 45.0
+        margin_pct = get_brand_margin_percentage(brand)
 
     margen_ganancia = margin_pct / 100.0
 

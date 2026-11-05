@@ -50,9 +50,9 @@ async function main() {
   console.log('╠══════════════════════════════════════════════════════════════════════════╣');
   console.log(`║ • 1. FOB en CLP:         Precio_FOB_USD * $${dolar} CLP                        ║`);
   console.log(`║ • 2. Costo Total Neto:   (FOB en CLP) + $${factorLogistico} CLP (Factor Logístico)        ║`);
-  console.log('║ • 3. Margen Comercial:   Marcas Medias: 30% | Alta Gama: 40%             ║');
-  console.log('║ • 4. Ganancia Limpia:    Piso mínimo de $15.000 CLP en gama de entrada   ║');
-  console.log('║ • 5. precio_neto_clp:    Costo Total Neto + MAX(Margen %, $15.000 CLP)   ║');
+  console.log('║ • 3. Margen Comercial:   Marcas Medias: 45% | Alta Gama: 50%             ║');
+  console.log('║ • 4. Ganancia Limpia:    Piso mínimo de $20.000 CLP en gama de entrada   ║');
+  console.log('║ • 5. precio_neto_clp:    Costo Total Neto + MAX(Margen %, $20.000 CLP)   ║');
   console.log('║ • 6. Redondeo B2B:       Centena más cercana (Math.round(p / 100) * 100) ║');
   console.log('╚══════════════════════════════════════════════════════════════════════════╝\n');
 
