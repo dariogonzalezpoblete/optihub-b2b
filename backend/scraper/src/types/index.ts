@@ -7,6 +7,7 @@ export interface B2BPricingResult {
   precio_neto_clp: number;
   iva_clp: number;
   ganancia_clp: number;
+  costo_comision_mp_clp?: number;
   costo_flete_usd: number;
   costo_cif_clp: number;
   ad_valorem_clp: number;

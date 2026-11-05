@@ -14,6 +14,7 @@ export interface PricingOverrides {
   marginPercentage?: number;
   minProfitClp?: number;
   customMultiplier?: number;
+  mercadoPagoRate?: number;
 }
 
 /**
@@ -108,8 +109,9 @@ export function calculateB2BPricing(
   const minProfitClp = overrides?.minProfitClp ?? CONFIG.FINANCIAL.MIN_PROFIT_CLP ?? 20000;
   const ivaRate = overrides?.ivaRate ?? CONFIG.FINANCIAL.IVA_RATE;
   const adValoremRate = overrides?.adValoremRate ?? CONFIG.FINANCIAL.AD_VALOREM_RATE;
+  const mercadoPagoRate = overrides?.mercadoPagoRate ?? 0.0319; // 3.19% + IVA
 
-  // 1. Costo Total Neto = (FOB convertido a CLP) + 6192
+  // 1. Costo Total Neto = (FOB convertido a CLP) + 6192 (flete + logística + aduana)
   const fobClp = priceUsd * dolar;
   const costoTotalNeto = fobClp + factorLogistico;
 
@@ -122,21 +124,26 @@ export function calculateB2BPricing(
   }
 
   const margenGanancia = marginPct / 100.0;
+  const gananciaMargen = costoTotalNeto * margenGanancia;
+  const gananciaLimpia = Math.max(gananciaMargen, minProfitClp);
 
-  // 3. precio_neto_clp = Costo Total Neto + MAX(Costo Total Neto * margen_ganancia, minProfitClp)
+  // 3. Provisión de pasarela de pago (Mercado Pago 3.19% + IVA = 3.7961%)
+  // Garantiza que la ganancia neta no sufra deducciones bancarias
+  const mpEffectiveRate = mercadoPagoRate * (1 + ivaRate);
   let precioVentaNetoRaw: number;
+
   if (typeof overrides?.customMultiplier === 'number' && overrides.customMultiplier > 0) {
     precioVentaNetoRaw = priceUsd * overrides.customMultiplier;
   } else {
-    const gananciaMargen = costoTotalNeto * margenGanancia;
-    const gananciaLimpia = Math.max(gananciaMargen, minProfitClp);
-    precioVentaNetoRaw = costoTotalNeto + gananciaLimpia;
+    const subtotalNeto = costoTotalNeto + gananciaLimpia;
+    precioVentaNetoRaw = subtotalNeto / (1 - mpEffectiveRate);
   }
 
   // 4. Redondeo comercial a la centena más cercana
   const precioNetoClp = Math.round(precioVentaNetoRaw / 100) * 100;
   const ivaClp = Math.round(precioNetoClp * ivaRate);
   const precioBrutoClp = Math.round((precioNetoClp * (1 + ivaRate)) / 100) * 100;
+  const costoComisionMpClp = Math.round(precioBrutoClp * mpEffectiveRate);
   const gananciaClp = Math.round((precioNetoClp - costoTotalNeto) / 100) * 100;
   const adValoremClp = Math.round(fobClp * adValoremRate);
 
@@ -145,6 +152,7 @@ export function calculateB2BPricing(
     precio_neto_clp: precioNetoClp,
     iva_clp: ivaClp,
     ganancia_clp: gananciaClp,
+    costo_comision_mp_clp: costoComisionMpClp,
     costo_flete_usd: 0,
     costo_cif_clp: Math.round(fobClp),
     ad_valorem_clp: adValoremClp,

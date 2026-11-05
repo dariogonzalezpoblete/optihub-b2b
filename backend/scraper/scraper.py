@@ -271,24 +271,32 @@ def calculate_b2b_pricing(price_usd: float, brand: str = "") -> dict:
     factor_logistico = int(os.environ.get("FACTOR_LOGISTICO_NETO_CLP", 6192))
     min_profit = int(os.environ.get("MIN_PROFIT_CLP", 20000))
     margen_ganancia = get_brand_margin(brand)
+    mp_rate = float(os.environ.get("MERCADOPAGO_RATE", 0.0319))
+    iva_rate = 0.19
+    mp_effective = mp_rate * (1.0 + iva_rate)
 
     # 1. Costo Total Neto = (FOB convertido a CLP) + 6192
     fob_clp = price_usd * dolar
     costo_total_neto = fob_clp + factor_logistico
 
-    # 2. precio_neto_clp = Costo Total Neto + MAX(Margen %, $20.000 CLP)
+    # 2. Margen comercial de ganancia con piso mínimo limpio de $20.000 CLP
     ganancia_margen = costo_total_neto * margen_ganancia
     ganancia_limpia = max(ganancia_margen, min_profit)
-    precio_venta_neto = costo_total_neto + ganancia_limpia
+
+    # 3. Provisión pasarela Mercado Pago (3.19% + IVA = 3.7961%)
+    subtotal_neto = costo_total_neto + ganancia_limpia
+    precio_venta_neto = subtotal_neto / (1.0 - mp_effective)
 
     precio_neto_clp = int(round(precio_venta_neto / 100) * 100)
-    iva_clp = int(round(precio_neto_clp * 0.19))
-    precio_bruto_clp = int(round((precio_neto_clp * 1.19) / 100) * 100)
+    iva_clp = int(round(precio_neto_clp * iva_rate))
+    precio_bruto_clp = int(round((precio_neto_clp * (1.0 + iva_rate)) / 100) * 100)
+    costo_comision_mp_clp = int(round(precio_bruto_clp * mp_effective))
 
     return {
         "precio_bruto_clp": precio_bruto_clp,
         "precio_neto_clp": precio_neto_clp,
         "ganancia_clp": int(round(precio_neto_clp - costo_total_neto)),
+        "costo_comision_mp_clp": costo_comision_mp_clp,
         "costo_flete_usd": 0,
         "costo_cif_clp": int(round(fob_clp)),
         "ad_valorem_clp": int(round(fob_clp * 0.06)),

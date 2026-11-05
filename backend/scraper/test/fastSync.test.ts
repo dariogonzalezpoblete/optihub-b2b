@@ -9,24 +9,24 @@ function assert(condition: boolean, msg: string) {
 
 console.log('Running Fast Sync & Commercial Pricing Unit Tests...');
 
-// 1. Test pricing ($40.00 USD, default 45% margin < 20.000 floor -> 20.000 floor applied)
+// 1. Test pricing ($40.00 USD, default 45% margin < 20.000 floor -> 20.000 floor applied + MP fee 3.7961%)
 const costUsd = 40.0;
 // FOB CLP = 40 * 950 = 38.000
 // Costo Total Neto = 38.000 + 6.192 = 44.192
 // 45% margin = 19.886,4 < 20.000 -> enforces clean profit floor of 20.000 CLP!
-// precio_neto_clp = Math.round((44.192 + 20.000) / 100) * 100 = 64.200 CLP
+// Subtotal = 44.192 + 20.000 = 64.192 -> con MP (3.7961%): 64.192 / (1 - 0.037961) = 66.700 CLP neto
 const tier2Res = calculateB2BPricing(costUsd);
-assert(tier2Res.precio_neto_clp === 64200, `Expected 64,200 CLP net, got ${tier2Res.precio_neto_clp}`);
-assert(tier2Res.precio_bruto_clp === Math.round((64200 * 1.19) / 100) * 100, 'Gross price with 19% IVA matches');
-assert(tier2Res.ganancia_clp === 20000, 'Clean profit must be at least 20.000 CLP');
+assert(tier2Res.precio_neto_clp === 66700, `Expected 66,700 CLP net, got ${tier2Res.precio_neto_clp}`);
+assert(tier2Res.precio_bruto_clp === Math.round((66700 * 1.19) / 100) * 100, 'Gross price with 19% IVA matches');
+assert(tier2Res.ganancia_clp === 22500, `Clean profit with MP coverage (got ${tier2Res.ganancia_clp})`);
 
-// 2. Test pricing ($20.00 USD, default 45% margin < 20.000 floor -> 20.000 floor applied)
+// 2. Test pricing ($20.00 USD, default 45% margin < 20.000 floor -> 20.000 floor applied + MP fee)
 // FOB CLP = 20 * 950 = 19.000
 // Costo Total Neto = 19.000 + 6.192 = 25.192
-// precio_neto_clp = Math.round((25.192 + 20.000) / 100) * 100 = 45.200 CLP
+// Subtotal = 25.192 + 20.000 = 45.192 -> con MP: 45.192 / (1 - 0.037961) = 47.000 CLP neto
 const tier1Res = calculateB2BPricing(20.0);
-assert(tier1Res.precio_neto_clp === 45200, `Expected 45,200 CLP for $20 USD, got ${tier1Res.precio_neto_clp}`);
-assert(tier1Res.ganancia_clp === 20000, 'Clean profit must be at least 20.000 CLP');
+assert(tier1Res.precio_neto_clp === 47000, `Expected 47,000 CLP for $20 USD, got ${tier1Res.precio_neto_clp}`);
+assert(tier1Res.ganancia_clp === 21800, `Clean profit with MP coverage (got ${tier1Res.ganancia_clp})`);
 
 // 3. Test diff reconciliation logic between DB records and provider scan
 const mockDbRecords: Map<string, ExistingProductRecord> = new Map([
@@ -50,8 +50,8 @@ const mockDbRecords: Map<string, ExistingProductRecord> = new Map([
       id_ext: 'GU-002',
       stock: 5,
       precio_usd: 50.0,
-      precio_neto_clp: 77900,
-      precio_bruto_clp: 92700,
+      precio_neto_clp: 80900,
+      precio_bruto_clp: 96300,
       imagen_principal: 'https://storage/gu002.webp',
       marca: 'Guess',
       modelo: 'GU2900',

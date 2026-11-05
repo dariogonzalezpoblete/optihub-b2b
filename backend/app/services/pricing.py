@@ -95,19 +95,24 @@ def calculate_b2b_pricing(
 
     margen_ganancia = margin_pct / 100.0
 
-    # 3. precio_neto_clp = Costo Total Neto + MAX(Margen %, min_profit_clp)
+    # 3. Provisión pasarela Mercado Pago (3.19% + IVA = 3.7961%)
+    mercado_pago_rate = float(kwargs.get("mercado_pago_rate", 0.0319))
+    mp_effective_rate = mercado_pago_rate * (1.0 + iva_rate)
+
     if custom_multiplier is not None and custom_multiplier > 0:
         precio_venta_neto_raw = price_usd * custom_multiplier
     else:
         ganancia_margen = costo_total_neto * margen_ganancia
         ganancia_limpia = max(ganancia_margen, min_profit_clp)
-        precio_venta_neto_raw = costo_total_neto + ganancia_limpia
+        subtotal_neto = costo_total_neto + ganancia_limpia
+        precio_venta_neto_raw = subtotal_neto / (1.0 - mp_effective_rate)
 
     # 4. Redondeo a la centena más cercana
     precio_neto_clp = round_to_hundred(precio_venta_neto_raw)
     iva_clp = int(math.floor(precio_neto_clp * iva_rate + 0.5))
     precio_bruto_clp = round_to_hundred(precio_neto_clp * (1.0 + iva_rate))
     ganancia_clp = round_to_hundred(precio_neto_clp - costo_total_neto)
+    costo_comision_mp_clp = round_to_hundred(precio_bruto_clp * mp_effective_rate)
     ad_valorem_clp = int(math.floor(fob_clp * ad_valorem_rate + 0.5))
 
     return {
@@ -115,6 +120,7 @@ def calculate_b2b_pricing(
         "precio_neto_clp": precio_neto_clp,
         "iva_clp": iva_clp,
         "ganancia_clp": ganancia_clp,
+        "costo_comision_mp_clp": costo_comision_mp_clp,
         "costo_flete_usd": 0,
         "costo_cif_clp": int(math.floor(fob_clp + 0.5)),
         "ad_valorem_clp": ad_valorem_clp,
