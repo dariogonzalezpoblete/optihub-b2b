@@ -73,9 +73,12 @@ export const BRAND_ALIASES: Record<string, string> = {
   'armani exchange': 'Armani Exchange',
   'emporio armani': 'Emporio Armani',
   'giorgio armani': 'Giorgio Armani',
+  'dolce': 'Dolce & Gabbana',
   'dolce gabbana': 'Dolce & Gabbana',
+  'dolce and gabbana': 'Dolce & Gabbana',
   'dolce & gabbana': 'Dolce & Gabbana',
   'd&g': 'Dolce & Gabbana',
+  'dg': 'Dolce & Gabbana',
   'kate spade': 'Kate Spade',
   'marc jacobs': 'Marc Jacobs',
   'tiffany': 'Tiffany & Co.',
@@ -260,8 +263,9 @@ export class CatalogRunner {
       return [];
     }
 
+    const minStock = typeof options.minStock === 'number' && options.minStock > 0 ? options.minStock : 0;
     const allValid = Array.from(scannedProducts.values()).filter(
-      (p) => existingCache.has(p.id_ext) || p.stock > options.minStock
+      (p) => existingCache.has(p.id_ext) || p.stock > minStock
     );
 
     const cookieHeader = this.sessionManager ? this.sessionManager.getCookieHeader() : '';
@@ -713,10 +717,14 @@ export class CatalogRunner {
         }> = [];
 
         let cardElements = Array.from(
-          document.querySelectorAll<HTMLElement>(
-            '.product-item, div[data-product-id], .product-default, .product, div.col-6.col-md-4, div.col-6.col-sm-4, .grid-item, div[class*="product"]'
-          )
+          document.querySelectorAll<HTMLElement>('.product-item, div[data-product-id]')
         );
+
+        if (cardElements.length === 0) {
+          cardElements = Array.from(
+            document.querySelectorAll<HTMLElement>('.product-default, .grid-item')
+          );
+        }
 
         if (cardElements.length === 0) {
           const productLinks = Array.from(
@@ -724,11 +732,16 @@ export class CatalogRunner {
           );
           const parents = new Set<HTMLElement>();
           for (const a of productLinks) {
-            const container = a.closest<HTMLElement>('.col-6, .col-md-4, .col-sm-4, li, div') || a.parentElement;
+            const container = a.closest<HTMLElement>('.col-6, .col-md-4, .col-sm-4, li') || a.parentElement;
             if (container) parents.add(container);
           }
           cardElements = Array.from(parents);
         }
+
+        // Filter out nested cards so we never process a parent container and its inner child card
+        cardElements = cardElements.filter(
+          (el, _, arr) => !arr.some((other) => other !== el && other.contains(el))
+        );
 
         for (const card of cardElements) {
           const text = (card.innerText || card.textContent || '').trim();
@@ -760,16 +773,17 @@ export class CatalogRunner {
           }
 
           if (!model || model.includes('$') || model.toLowerCase() === brand.toLowerCase()) {
-            const mMatch = text.match(/(?:Model\s*:?\s*|GU\s+|TF\s+|NK\s+)([a-zA-Z0-9_-]+)/i);
-            if (mMatch) model = mMatch[0].trim();
+            model = '';
+            const mMatch = text.match(/(?:Model\s*:?\s*|GU\s+|TF\s+|NK\s+|DG\s*|0DG\s*)([a-zA-Z0-9_-]+)/i);
+            if (mMatch) model = mMatch[0].replace(/^Model\s*:?\s*/i, '').trim();
           }
 
-          if (!model && href) {
+          if ((!model || model.includes('$')) && href) {
             const urlMatch = href.match(/product-([a-zA-Z0-9]+)/i);
             if (urlMatch) model = urlMatch[1].toUpperCase();
           }
 
-          if (!model) continue;
+          if (!model || model.includes('$')) continue;
 
           let colorCode = '';
           let colorName = 'Único';
@@ -838,6 +852,7 @@ export class CatalogRunner {
         else if (bLower.includes('berlin')) productBrand = 'IC! Berlin';
         else if (bLower === 'bmw') productBrand = 'BMW';
         else if (bLower === 'dkny') productBrand = 'DKNY';
+        else if (bLower.includes('dolce') || bLower.includes('gabbana') || bLower === 'd&g' || bLower === 'dg') productBrand = 'Dolce & Gabbana';
         else if (bLower === 'ck' || bLower.includes('calvin')) productBrand = 'Calvin Klein';
         else if (brandName) {
           productBrand = brandName.trim();

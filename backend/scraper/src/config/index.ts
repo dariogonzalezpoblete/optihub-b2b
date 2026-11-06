@@ -64,7 +64,7 @@ export const CONFIG = {
 
   // Scraper engine tuning
   SCRAPER: {
-    DEFAULT_MIN_STOCK: 5,
+    DEFAULT_MIN_STOCK: 0,
     DEFAULT_MAX_PAGINATION: 60,
     MAX_RETRIES: 3,
     RETRY_DELAY_MS: 1500,

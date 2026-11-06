@@ -40,9 +40,12 @@ export function formatBrandName(b: string): string {
     'armani exchange': 'Armani Exchange',
     'emporio armani': 'Emporio Armani',
     'giorgio armani': 'Giorgio Armani',
+    'dolce': 'Dolce & Gabbana',
     'dolce gabbana': 'Dolce & Gabbana',
+    'dolce and gabbana': 'Dolce & Gabbana',
     'dolce & gabbana': 'Dolce & Gabbana',
     'd&g': 'Dolce & Gabbana',
+    'dg': 'Dolce & Gabbana',
     'kate spade': 'Kate Spade',
     'marc jacobs': 'Marc Jacobs',
   };
@@ -207,7 +210,10 @@ async function main() {
     session = await sessionManager.ensureAuthenticated(options.headless);
     const { context, page } = session;
 
-    // 2. Attach API Network Interceptor to Page
+    // 2. Preload master brand directory for instant direct jumps
+    await catalogRunner.preloadBrandDirectory(page);
+
+    // 3. Attach API Network Interceptor to Page
     interceptor.attach(page);
 
     // 3. Process each selected brand sequentially
