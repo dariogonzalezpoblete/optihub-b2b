@@ -172,11 +172,19 @@ export async function runFastSync(customOptions?: FastSyncOptions): Promise<Fast
     brandReports,
   };
 
-  // Save latest report locally
+  // Save latest report locally and in desktop folder
   try {
     const reportPath = path.resolve(process.cwd(), 'sync_report_latest.json');
     fs.writeFileSync(reportPath, JSON.stringify(summary, null, 2), 'utf-8');
-    Logger.info(`Reporte de cambios guardado en ${reportPath}`);
+    const scraperReportPath = path.resolve(__dirname, '../../sync_report_latest.json');
+    if (scraperReportPath !== reportPath) {
+      try { fs.writeFileSync(scraperReportPath, JSON.stringify(summary, null, 2), 'utf-8'); } catch {}
+    }
+    const desktopPath = 'C:\\Users\\CPR\\Desktop\\Scraper OptiHub\\ultimo_reporte_sincronizacion.json';
+    try {
+      fs.writeFileSync(desktopPath, JSON.stringify(summary, null, 2), 'utf-8');
+    } catch {}
+    Logger.info(`Reporte de cambios guardado exitosamente en: ${reportPath}`);
   } catch (writeErr) {
     Logger.warn('No se pudo guardar sync_report_latest.json:', writeErr);
   }
