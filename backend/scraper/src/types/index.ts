@@ -72,6 +72,7 @@ export interface ScraperOptions {
   headless: boolean;
   maxPages: number;
   minStock: number;
+  concurrency?: number;
   dryRun: boolean;
   authStatePath: string;
   stockOnly?: boolean;
@@ -151,6 +152,7 @@ export interface FastSyncOptions {
   allBrands?: boolean;
   headless?: boolean;
   maxPages?: number;
+  concurrency?: number;
   dryRun?: boolean;
   authStatePath?: string;
   pricingOverrides?: {

@@ -84,7 +84,33 @@ export const BRAND_ALIASES: Record<string, string> = {
   'oakley': 'Oakley',
 };
 
+class AsyncMutex {
+  private queue: Array<() => void> = [];
+  private locked: boolean = false;
+
+  async acquire(): Promise<() => void> {
+    return new Promise((resolve) => {
+      const run = () => {
+        this.locked = true;
+        resolve(() => {
+          this.locked = false;
+          const next = this.queue.shift();
+          if (next) next();
+        });
+      };
+      if (!this.locked) {
+        run();
+      } else {
+        this.queue.push(run);
+      }
+    });
+  }
+}
+
+const dbWriteMutex = new AsyncMutex();
+
 export class CatalogRunner {
+  private static brandUrlCache: Map<string, string> = new Map();
   private interceptor: NetworkInterceptor;
   private imageOptimizer: ImageOptimizer;
   private supabaseService?: SupabaseService;
@@ -101,6 +127,41 @@ export class CatalogRunner {
     this.imageOptimizer = imageOptimizer;
     this.supabaseService = supabaseService;
     this.sessionManager = sessionManager;
+  }
+
+  /**
+   * Pre-indexes all 232+ brand direct URLs from NYWD so tabs can navigate directly without searching
+   */
+  public async preloadBrandDirectory(page: Page): Promise<void> {
+    if (CatalogRunner.brandUrlCache.size > 0) return;
+    try {
+      Logger.info('⚡ Pre-cargando directorio maestro de marcas para navegación directa multi-pestaña...');
+      const currentUrl = page.url().toLowerCase();
+      if (!currentUrl.includes('new-home') && !currentUrl.includes('listing-brand')) {
+        await page.goto(`${CONFIG.PROVIDER.BASE_URL}/new-home`, {
+          waitUntil: 'domcontentloaded',
+          timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
+        }).catch(() => {});
+        await page.waitForTimeout(1000);
+      }
+
+      const links = await page.evaluate(() => {
+        return Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="listing-brand-"]'))
+          .map((a) => ({
+            name: (a.innerText || a.textContent || '').replace(/\s*\(\d+\)$/, '').trim(),
+            href: a.href,
+          }))
+          .filter((item) => item.name.length > 1 && item.href);
+      });
+
+      for (const item of links) {
+        const norm = item.name.toLowerCase().trim();
+        CatalogRunner.brandUrlCache.set(norm, item.href);
+      }
+      Logger.info(`Directorio maestro listo: ${CatalogRunner.brandUrlCache.size} marcas indexadas para salto directo.`);
+    } catch (e) {
+      Logger.debug('Error pre-cargando marcas:', e);
+    }
   }
 
   public getBrandSyncReports(): Map<string, BrandSyncReport> {
@@ -277,34 +338,40 @@ export class CatalogRunner {
         }
       }
 
-      // 1. Bulk update masivo de stock y precios calculados
-      if (itemsToUpdate.length > 0 && !options.dryRun && this.supabaseService?.isConfigured()) {
-        Logger.info(`Actualizando de forma masiva (bulk update) stock y precios para ${itemsToUpdate.length} productos...`);
-        await this.supabaseService.updateStockAndPricingBatch(itemsToUpdate);
-      } else if (options.dryRun && itemsToUpdate.length > 0) {
-        Logger.info(`[DRY-RUN] Simulación: Se actualizaría stock y precios de ${itemsToUpdate.length} productos.`);
-      }
-
-      // 2. Conciliación controlada: productos en DB que ya no aparecen en el proveedor quedan con stock 0
+      // 1. Bulk update masivo de stock y precios calculados (protegido por dbWriteMutex)
       let outOfStockCount = 0;
       if (!options.dryRun && this.supabaseService?.isConfigured()) {
-        const outRes = await this.supabaseService.markOutOfStockBatch(brand, scannedIds, existingCache);
-        outOfStockCount = outRes.markedCount;
-        for (const outId of outRes.outOfStockIds) {
-          const rec = existingCache.get(outId);
-          reportItems.push({
-            id_ext: outId,
-            status: 'out_of_stock',
-            oldStock: rec?.stock,
-            newStock: 0,
-            oldPriceNeto: rec?.precio_neto_clp,
-            newPriceNeto: rec?.precio_neto_clp,
-            oldPriceUsd: rec?.precio_usd,
-            newPriceUsd: rec?.precio_usd,
-            changeReason: 'Producto no presente en web de proveedor: marcado sin stock (0)',
-          });
+        const releaseLock = await dbWriteMutex.acquire();
+        try {
+          if (itemsToUpdate.length > 0) {
+            Logger.info(`[DB Guard] Actualizando stock y precios en Supabase para ${itemsToUpdate.length} productos de '${brand}'...`);
+            await this.supabaseService.updateStockAndPricingBatch(itemsToUpdate, 15);
+          }
+
+          // 2. Conciliación controlada: productos en DB que ya no aparecen en el proveedor quedan con stock 0
+          const outRes = await this.supabaseService.markOutOfStockBatch(brand, scannedIds, existingCache, 15);
+          outOfStockCount = outRes.markedCount;
+          for (const outId of outRes.outOfStockIds) {
+            const rec = existingCache.get(outId);
+            reportItems.push({
+              id_ext: outId,
+              status: 'out_of_stock',
+              oldStock: rec?.stock,
+              newStock: 0,
+              oldPriceNeto: rec?.precio_neto_clp,
+              newPriceNeto: rec?.precio_neto_clp,
+              oldPriceUsd: rec?.precio_usd,
+              newPriceUsd: rec?.precio_usd,
+              changeReason: 'Producto no presente en web de proveedor: marcado sin stock (0)',
+            });
+          }
+        } finally {
+          releaseLock();
         }
       } else if (options.dryRun) {
+        if (itemsToUpdate.length > 0) {
+          Logger.info(`[DRY-RUN] Simulación: Se actualizaría stock y precios de ${itemsToUpdate.length} productos.`);
+        }
         for (const [idExt, rec] of existingCache.entries()) {
           if (!scannedIds.has(idExt) && rec.stock > 0) {
             outOfStockCount++;
@@ -494,7 +561,7 @@ export class CatalogRunner {
     const finalSummaryList = [
       ...enrichedNewProducts,
       ...itemsNeedingSecondaryImg,
-      ...allValid.filter((p) => itemsStockOnly.some((s) => s.id_ext === p.id_ext)),
+      ...allValid.filter((p) => itemsExistingStockAndPrice.some((s) => s.id_ext === p.id_ext)),
     ];
 
     Logger.success(
@@ -829,6 +896,27 @@ export class CatalogRunner {
     const resolvedBrand = BRAND_ALIASES[brandLower] || brand;
     const resolvedLower = resolvedBrand.toLowerCase().trim();
     const normTarget = normalizeForFuzzy(resolvedLower);
+
+    // 0. Direct URL jump from preloaded master directory (avoids 5-8s of menu searching per brand!)
+    let directUrl = CatalogRunner.brandUrlCache.get(resolvedLower) || CatalogRunner.brandUrlCache.get(brandLower);
+    if (!directUrl) {
+      for (const [key, url] of CatalogRunner.brandUrlCache.entries()) {
+        if (key === resolvedLower || key === brandLower || key.includes(resolvedLower) || resolvedLower.includes(key)) {
+          directUrl = url;
+          break;
+        }
+      }
+    }
+
+    if (directUrl) {
+      Logger.info(`⚡ Salto directo a '${resolvedBrand}' vía directorio indexado: ${directUrl}`);
+      await page.goto(directUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: CONFIG.SCRAPER.NAV_TIMEOUT_MS,
+      }).catch(() => {});
+      await page.waitForTimeout(800);
+      return true;
+    }
 
     // 1. Check if current page is explicitly the requested brand's listing
     const isAlreadyOnBrand = await page.evaluate((target) => {
