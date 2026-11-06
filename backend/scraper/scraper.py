@@ -1,6 +1,8 @@
 import os
 import re
 import sys
+import json
+from pathlib import Path
 try:
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8')
@@ -19,27 +21,48 @@ from playwright_stealth import Stealth
 from supabase import create_client, Client
 
 # ==========================================
-# CONFIGURACIÓN Y CARGA DE .ENV
+# CONFIGURACIÓN Y CARGA ROBUSTA DE .ENV
 # ==========================================
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
+def _load_env_credentials():
+    candidates = [
+        Path(__file__).resolve().parent / ".env",
+        Path.cwd() / "backend" / "scraper" / ".env",
+        Path.cwd() / ".env",
+    ]
+    for p in candidates:
+        if p.exists():
+            try:
+                from dotenv import load_dotenv
+                load_dotenv(p)
+            except Exception:
+                pass
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            k, v = line.split("=", 1)
+                            k = k.strip()
+                            v = v.strip().strip("'").strip('"')
+                            if k and k not in os.environ:
+                                os.environ[k] = v
+            except Exception:
+                pass
+
+_load_env_credentials()
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SECRET_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError(
-        "❌ Faltan las credenciales de Supabase. Asegúrate de crear un archivo '.env' "
-        "con SUPABASE_URL y SUPABASE_SECRET_KEY en la raíz del proyecto."
+        "❌ Faltan las credenciales de Supabase. Asegúrate de tener SUPABASE_URL y SUPABASE_SECRET_KEY en backend/scraper/.env"
     )
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 BUCKET_NAME = "marcos-imagenes"
 
-STOCK_MINIMO = 5                # Variantes con stock <= esto se omiten o marcan en 0
+STOCK_MINIMO = 0                # Variantes con stock > 0 se sincronizan; 0 se actualiza como agotado
 SEGUIR_COLORES = True            # Seguir enlaces de miniaturas de color en la ficha
 MAX_PAGINAS_DEFAULT = 60         # Límite máximo de páginas para evitar bucles infinitos
 CONCURRENCY_PRODUCTS = 6         # Pestañas simultáneas para extraer productos (acelerado)
@@ -204,8 +227,8 @@ async def upsert_records_batch_to_supabase(records: list):
 async def sync_out_of_stock_records(brand: str, scanned_ids: set):
     """
     Marca con stock = 0 en Supabase todos los productos de la marca que ya no
-    figuran en el catálogo del proveedor o que tenían stock <= STOCK_MINIMO.
-    Se ejecuta en lotes para máxima velocidad.
+    figuran en el catálogo del proveedor o quedaron sin existencias.
+    No borra los registros para proteger el historial y la integridad referencial.
     """
     def sync_deprecate():
         try:
@@ -216,19 +239,19 @@ async def sync_out_of_stock_records(brand: str, scanned_ids: set):
             ]
 
             if not out_of_stock_ids:
-                print(f"   [OK INVENTARIO] No hay productos de '{brand}' para marcar como agotados.")
+                print(f"   [OK INVENTARIO] Todos los productos existentes de '{brand}' mantienen stock activo.")
                 return
 
-            print(f"   [ACTUALIZANDO INVENTARIO] Eliminando {len(out_of_stock_ids)} productos agotados (stock 0) de la BD...")
+            print(f"   [ACTUALIZANDO INVENTARIO] Marcando {len(out_of_stock_ids)} productos agotados (stock = 0) en Supabase...")
             chunk_size = 100
             for i in range(0, len(out_of_stock_ids), chunk_size):
                 chunk = out_of_stock_ids[i:i + chunk_size]
                 try:
-                    supabase.table("marcos").delete().in_("id_ext", chunk).execute()
+                    supabase.table("marcos").update({"stock": 0}).in_("id_ext", chunk).execute()
                 except Exception as e:
-                    print(f"   [ERROR BD] No se pudo eliminar bloque agotado: {e}")
+                    print(f"   [ERROR BD] No se pudo actualizar bloque a stock 0: {e}")
 
-            print(f"   [OK INVENTARIO] {len(out_of_stock_ids)} variantes agotadas eliminadas de la BD.")
+            print(f"   [OK INVENTARIO] {len(out_of_stock_ids)} variantes agotadas marcadas con stock = 0 en BD.")
         except Exception as e:
             print(f"   [AVISO] Error general en depuración de stock: {e}")
 
@@ -240,20 +263,25 @@ async def sync_out_of_stock_records(brand: str, scanned_ids: set):
 # ==========================================
 def get_brand_margin(brand: str = "") -> float:
     try:
-        rules_path = Path(__file__).resolve().parent / "src" / "config" / "brandPricingRules.json"
-        if rules_path.exists():
-            with open(rules_path, "r", encoding="utf-8") as f:
-                rules = json.load(f)
-                brands_map = rules.get("brands", {})
-                b_clean = (brand or "").strip()
-                b_lower = b_clean.lower()
-                if b_clean in brands_map:
-                    return float(brands_map[b_clean]) / 100.0
-                for k, v in brands_map.items():
-                    k_lower = k.lower()
-                    if k_lower == b_lower or k_lower in b_lower or b_lower in k_lower:
-                        return float(v) / 100.0
-                return float(rules.get("DEFAULT", 45)) / 100.0
+        candidates = [
+            Path(__file__).resolve().parent / "src" / "config" / "brandPricingRules.json",
+            Path.cwd() / "backend" / "scraper" / "src" / "config" / "brandPricingRules.json",
+            Path.cwd() / "src" / "config" / "brandPricingRules.json",
+        ]
+        for rules_path in candidates:
+            if rules_path.exists():
+                with open(rules_path, "r", encoding="utf-8") as f:
+                    rules = json.load(f)
+                    brands_map = rules.get("brands", {})
+                    b_clean = (brand or "").strip()
+                    b_lower = b_clean.lower()
+                    if b_clean in brands_map:
+                        return float(brands_map[b_clean]) / 100.0
+                    for k, v in brands_map.items():
+                        k_lower = k.lower()
+                        if k_lower == b_lower or k_lower in b_lower or b_lower in k_lower:
+                            return float(v) / 100.0
+                    return float(rules.get("DEFAULT", 45)) / 100.0
     except Exception:
         pass
     return float(os.environ.get("MARGEN_GANANCIA", 0.45))
@@ -353,15 +381,18 @@ async def extract_variant(page, link: str, brand_name: str, session: aiohttp.Cli
     stock_qty = min(50, int(nums[0]) if nums else 0)
 
     clean_id_ext = f"{base_sku}-{color_code}".replace(" ", "").upper()
+    cached_item = existing_cache.get(clean_id_ext)
 
-    if stock_qty <= STOCK_MINIMO:
-        print(f"   [SIN STOCK] {clean_id_ext} ({stock_qty} un. <= {STOCK_MINIMO})")
+    if stock_qty <= 0 and not cached_item:
+        print(f"   [NUEVO SIN STOCK] {clean_id_ext} (0 un.) no está en BD y no tiene stock. Omitido.")
         return None
+
+    if stock_qty <= 0 and cached_item:
+        print(f"   [STOCK 0] {clean_id_ext} detectado sin stock en proveedor -> se actualizará stock = 0 en BD.")
 
     # Optimización inteligente de imágenes:
     # Si el producto ya existe en Supabase y ya tiene imagen, reutilizarla
     # para evitar re-descargar y re-subir la imagen en cada corrida.
-    cached_item = existing_cache.get(clean_id_ext)
     if cached_item and cached_item.get("imagen_principal"):
         main_img = cached_item["imagen_principal"]
         sec_img = cached_item.get("imagenes_secundarias") or ""
@@ -1070,32 +1101,69 @@ def ejecutar_mantenimiento_storage_automatico():
 # ==========================================
 async def main():
     async with async_playwright() as p:
-        user_data_dir = os.path.join(os.getcwd(), "sesion_navegador")
-        context = await p.chromium.launch_persistent_context(
-            user_data_dir=user_data_dir,
-            headless=False,
-            channel="chrome",
-            args=["--start-maximized", "--disable-blink-features=AutomationControlled"],
-            no_viewport=True
-        )
+        user_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sesion_navegador")
+        os.makedirs(user_data_dir, exist_ok=True)
+
+        lock_file = os.path.join(user_data_dir, "SingletonLock")
+        if os.path.exists(lock_file):
+            try:
+                os.remove(lock_file)
+            except Exception:
+                pass
+
+        context = None
+        # Si el usuario ya tenía Chrome abierto (ej. con login_helper.py en puerto 9222):
+        try:
+            context = await p.chromium.connect_over_cdp("http://localhost:9222")
+            print(">>> [SESIÓN] Conectado a la ventana de Chrome existente en puerto 9222.")
+        except Exception:
+            context = await p.chromium.launch_persistent_context(
+                user_data_dir=user_data_dir,
+                headless=False,
+                channel="chrome",
+                args=["--start-maximized", "--disable-blink-features=AutomationControlled"],
+                no_viewport=True
+            )
 
         page = context.pages[0] if context.pages else await context.new_page()
         await page.add_init_script(
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
 
-        await page.goto("https://www.nywd.com/login")
-        input("\n>>> [1] Inicia sesión, pasa el CAPTCHA y presiona [ENTER]...")
+        curr_url = page.url.lower()
+        if "listing-brand" not in curr_url and "wholesale" not in curr_url and "new-home" not in curr_url:
+            await page.goto("https://www.nywd.com/login", wait_until="domcontentloaded", timeout=30000)
+            print("\n" + "=" * 65)
+            print("🔐 INGRESO MANUAL Y RESOLUCIÓN DE RECAPTCHA (NYWD)")
+            print("=" * 65)
+            print("1. En la ventana de Google Chrome que se abrió, ingresa tu cuenta.")
+            print("2. Resuelve el reCAPTCHA con tranquilidad.")
+            print("3. Presiona 'SIGN IN' y entra al catálogo de compras.")
+            print("4. Regresa aquí a esta terminal y presiona [ENTER].")
+            print("=" * 65)
+            input("\n>>> Presiona [ENTER] una vez que hayas iniciado sesión...")
+        else:
+            print(">>> [SESIÓN ACTIVA] Ya estás dentro del portal de NYWD.")
 
-        brand = input("\nMarca a extraer (ej: Guess): ").strip()
+        brand = input("\nMarca a extraer o sincronizar (ej: Guess, Spy, o escribe TODAS) [Guess]: ").strip()
         if not brand:
             brand = "Guess"
 
-        marcas = [m.strip() for m in brand.split(",") if m.strip()]
+        if brand.upper() in ("TODAS", "ALL"):
+            try:
+                res = supabase.table("marcos").select("marca").execute()
+                all_b = sorted(list(set(row["marca"].strip() for row in res.data if row.get("marca"))))
+                marcas = all_b if all_b else ["Guess"]
+                print(f">>> Modo TODAS activado: {len(marcas)} marcas registradas a procesar.")
+            except Exception as e:
+                print(f"Aviso al obtener marcas: {e}")
+                marcas = ["Guess"]
+        else:
+            marcas = [m.strip() for m in brand.split(",") if m.strip()]
 
         # Solo navegar a wholesale si todavía estamos en la pantalla de login
         curr_url = page.url.lower()
-        if "login" in curr_url:
+        if "login" in curr_url or "signin" in curr_url:
             try:
                 await page.goto("https://www.nywd.com/wholesale", wait_until="domcontentloaded", timeout=15000)
             except Exception:

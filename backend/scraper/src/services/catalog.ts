@@ -200,7 +200,7 @@ export class CatalogRunner {
     }
 
     const allValid = Array.from(scannedProducts.values()).filter(
-      (p) => p.stock > options.minStock
+      (p) => existingCache.has(p.id_ext) || p.stock > options.minStock
     );
 
     const cookieHeader = this.sessionManager ? this.sessionManager.getCookieHeader() : '';
@@ -645,9 +645,23 @@ export class CatalogRunner {
           productId: string;
         }> = [];
 
-        const cardElements = Array.from(
-          document.querySelectorAll<HTMLElement>('.product-item, div[data-product-id]')
+        let cardElements = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            '.product-item, div[data-product-id], .product-default, .product, div.col-6.col-md-4, div.col-6.col-sm-4, .grid-item, div[class*="product"]'
+          )
         );
+
+        if (cardElements.length === 0) {
+          const productLinks = Array.from(
+            document.querySelectorAll<HTMLAnchorElement>('a[href*="product-"], a[href*="new-product-"]')
+          );
+          const parents = new Set<HTMLElement>();
+          for (const a of productLinks) {
+            const container = a.closest<HTMLElement>('.col-6, .col-md-4, .col-sm-4, li, div') || a.parentElement;
+            if (container) parents.add(container);
+          }
+          cardElements = Array.from(parents);
+        }
 
         for (const card of cardElements) {
           const text = (card.innerText || card.textContent || '').trim();
